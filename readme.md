@@ -2,6 +2,17 @@
 
 This tool generates the `dev.properties` and `config.ini` files needed to run the project in the dev environment.
 
+Instructions:
+- Download and unpack Eclipse IDE (we recommend to use `Eclipse for RCP and RAP developers` package)
+- Launch Eclipse IDE and install all dependencies (use Help->Install new software):
+  - https://p2.dev.dbeaver.com/eclipse-repo (DBeaver and CloudBeaver 3rd party deps)
+- Launch IDEA
+- Set variable `ECLIPSE_PATH` to the location where Eclipse IDE is installed.
+- Open project (e.g. `idea-workspace-dbeaver`)
+- Build project (CTRL+F9)
+- Execute run configuration `Generate DBeaver CE dev props`
+
+
 Accepts the following required parameters:
 
 Parameter | Description
@@ -15,7 +26,7 @@ Parameter | Description
 For example, the command to create files for CB CE:
 
 ```
-./eclipse-rcp-launcher -productFile $PROJECTS_DIR$/cloudbeaver/server/product/web-server/CloudbeaverServer.product -projectsFolder $PROJECTS_DIR$ -eclipse $ECLIPSE_PATH$ -output $PROJECTS_DIR$/eclipse/workspace/.metadata/.plugins/org.eclipse.pde.core/CloudbeaverServer.product'
+./eclipse-rcp-launcher -productFile $PROJECTS_DIR$/cloudbeaver/server/product/web-server/CloudbeaverServer.product -projectsFolder $PROJECTS_DIR$ -eclipse $ECLIPSE_PATH$ -output $PROJECT_DIR$/../eclipse/workspace/.metadata/.plugins/org.eclipse.pde.core/CloudbeaverServer.product'
 ```
 
 Configuration file:
