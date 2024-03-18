@@ -1,17 +1,26 @@
 # Eclipse RCP launcher generator for IDEA
 
-This tool generates the `dev.properties` and `config.ini` files needed to run the project in the dev environment.
-
-Instructions:
+## Instructions
+- Clone repositories
+  - https://github.com/dbeaver/dbeaver-common
+  - https://github.com/dbeaver/dbeaver
+  - https://github.com/dbeaver/idea-workspace-dbeaver
+  - https://github.com/dbeaver/idea-rcp-launch-config-generator
 - Download and unpack Eclipse IDE (we recommend to use `Eclipse for RCP and RAP developers` package)
 - Launch Eclipse IDE and install all dependencies (use Help->Install new software):
   - https://p2.dev.dbeaver.com/eclipse-repo (DBeaver and CloudBeaver 3rd party deps)
 - Launch IDEA
-- Set variable `ECLIPSE_PATH` to the location where Eclipse IDE is installed.
-- Open project (e.g. `idea-workspace-dbeaver`)
+- Set variable `ECLIPSE_PATH` to the location where Eclipse IDE is installed (Settings->Appearance and Behavior->Path variables).
+- Open IDEA project (e.g. `idea-workspace-dbeaver`)
 - Build project (CTRL+F9)
-- Execute run configuration `Generate DBeaver CE dev props`
+- Execute run configuration `Generate DBeaver CE dev props` (it will generate RCP config files)
+- Execute run configuration `Run Eclipse (CE)` (it will launch DBeaver CE)
 
+Now you can debug code in IDEA, modify Java classes on fly, etc.
+
+## Configuration
+
+This tool generates the `dev.properties` and `config.ini` files needed to run the project in the dev environment.
 
 Accepts the following required parameters:
 
@@ -39,5 +48,4 @@ bundlesPaths=\
 featuresPaths: list of paths to Eclipse features folders  
 bundlesPaths: list of paths to Eclipse bundles folders
 
-In addition, you can customize where to look for packages by creating a config.properties file in app working directory.
-The default configuration is stored in resources
+Preconfigured file `rcp-gen.properties` reside in repository [idea-workspace-dbeaver](https://github.com/dbeaver/idea-workspace-dbeaver)
