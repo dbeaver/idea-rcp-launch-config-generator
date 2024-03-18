@@ -1,4 +1,4 @@
-# eclipse-plugins-resolver
+# Eclipse RCP launcher generator for IDEA
 
 This tool generates the `dev.properties` and `config.ini` files needed to run the project in the dev environment.
 
