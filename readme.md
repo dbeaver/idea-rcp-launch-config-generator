@@ -49,3 +49,5 @@ featuresPaths: list of paths to Eclipse features folders
 bundlesPaths: list of paths to Eclipse bundles folders
 
 Preconfigured file `rcp-gen.properties` reside in repository [idea-workspace-dbeaver](https://github.com/dbeaver/idea-workspace-dbeaver)
+
+Note: Technically this tool should work with any Eclipse RCP, not just dbeaver or cloudbeaver.
