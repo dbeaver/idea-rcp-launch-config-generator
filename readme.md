@@ -7,7 +7,7 @@
   - https://github.com/dbeaver/cloudbeaver (only if you need web based Beaver too)
   - https://github.com/dbeaver/idea-workspace-dbeaver
   - https://github.com/dbeaver/idea-rcp-launch-config-generator
-- Download and unpack Eclipse IDE (we recommend to use `Eclipse for RCP and RAP developers` package)
+- Download and unpack Eclipse IDE from https://www.eclipse.org/downloads/packages/ (we recommend to use `Eclipse for RCP and RAP developers` package)
 - Launch Eclipse IDE and install all dependencies (use Help->Install new software):
   - https://p2.dev.dbeaver.com/eclipse-repo (DBeaver and CloudBeaver 3rd party deps)
 - Launch IDEA
