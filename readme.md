@@ -4,6 +4,7 @@
 - Clone repositories
   - https://github.com/dbeaver/dbeaver-common
   - https://github.com/dbeaver/dbeaver
+  - https://github.com/dbeaver/cloudbeaver (only if you need web based Beaver too)
   - https://github.com/dbeaver/idea-workspace-dbeaver
   - https://github.com/dbeaver/idea-rcp-launch-config-generator
 - Download and unpack Eclipse IDE (we recommend to use `Eclipse for RCP and RAP developers` package)
