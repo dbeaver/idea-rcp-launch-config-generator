@@ -54,9 +54,10 @@ public class ContentFileHandler extends DefaultHandler {
         }
         if ("required".equalsIgnoreCase(qName) || "exported".equalsIgnoreCase(qName)) {
             String id = attributes.getValue("namespace");
-            String version = attributes.getValue("name");
-            String generation = attributes.getValue("range");
-            currentPackage = new PackageInfo(id, version, generation);
+            String name = attributes.getValue("name");
+            String version = attributes.getValue("version");
+            String range = attributes.getValue("range");
+            currentPackage = new PackageInfo(id, name, version, range);
         }
         if ("property".equalsIgnoreCase(qName) && currentPackage != null) {
             String type = attributes.getValue("type");
@@ -114,6 +115,7 @@ public class ContentFileHandler extends DefaultHandler {
     }
 
     public static class PackageInfo {
+        private final String version;
         String namespace;
         String name;
         String versionRange;
@@ -121,9 +123,10 @@ public class ContentFileHandler extends DefaultHandler {
         boolean greedy = false;
         String type;
 
-        public PackageInfo(String namespace, String name, String versionRange) {
+        public PackageInfo(String namespace, String name, String version, String versionRange) {
             this.namespace = namespace;
             this.name = name;
+            this.version = version;
             this.versionRange = versionRange;
         }
 
