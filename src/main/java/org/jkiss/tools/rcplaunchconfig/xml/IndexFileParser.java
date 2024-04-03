@@ -1,3 +1,4 @@
+
 package org.jkiss.tools.rcplaunchconfig.xml;
 
 import org.jkiss.tools.rcplaunchconfig.Artifact;
