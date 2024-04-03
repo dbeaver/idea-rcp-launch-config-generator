@@ -38,10 +38,12 @@ public class EntryPoint {
             log.error("'{}' is not exists", params.productFilePath);
             return;
         }
+        var settings = ConfigFileManager.readSettingsFile(params.configFilePath);
 
         var pathsManager = PathsManager.INSTANCE;
-        pathsManager.init(params.configFilePath, params.projectsFolderPath, params.eclipsePath);
-
+        RepositoryManager repositoryManager = RepositoryManager.INSTANCE;
+        repositoryManager.init(settings, params.eclipseVersion, params.elkVersion);
+        pathsManager.init(settings, params.projectsFolderPath, params.eclipsePath);
         if (log.isDebugEnabled()) {
             var featuresPaths = pathsManager.getFeaturesLocations().stream()
                 .map(it -> it.toAbsolutePath().toString())

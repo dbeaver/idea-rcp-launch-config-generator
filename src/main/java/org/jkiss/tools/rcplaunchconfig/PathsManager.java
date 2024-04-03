@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Properties;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -37,17 +38,14 @@ public enum PathsManager {
     private Path eclipseFeaturesPath;
 
     public void init(
-        @Nonnull Path configFilePath,
+        @Nonnull Properties settings,
         @Nonnull Path projectsFolderPath,
         @Nonnull Path eclipsePath,
         @Nonnull Path... additionalBundlesPaths
     ) throws IOException {
-        var settings = ConfigFileManager.readSettingsFile(configFilePath);
-
         this.eclipsePath = eclipsePath;
         eclipsePluginsPath = eclipsePath.resolve("plugins");
         eclipseFeaturesPath = eclipsePath.resolve("features");
-
         var featuresPathsString = (String) settings.get("featuresPaths");
         featuresPaths = Arrays.stream(featuresPathsString.split(";"))
             .map(String::trim)

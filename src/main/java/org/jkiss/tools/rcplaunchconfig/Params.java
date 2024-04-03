@@ -28,6 +28,12 @@ public class Params {
     @Option(names = "-config", description = "Path to configuration properties file", required = true)
     public Path configFilePath;
 
+    @Option(names = "-elk.version", description = "ELK layout version", required = true)
+    public String elkVersion;
+
+    @Option(names = "-eclipse.version", description = "Eclipse version", required = true)
+    public String eclipseVersion;
+
     @Option(names = "-productFile", description = "Path to .product file", required = true)
     public Path productFilePath;
 
