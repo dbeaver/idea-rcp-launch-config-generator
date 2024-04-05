@@ -17,7 +17,9 @@
 package org.jkiss.tools.rcplaunchconfig.xml;
 
 import org.jkiss.tools.rcplaunchconfig.RemoteBundleInfo;
-import org.jkiss.tools.rcplaunchconfig.utils.OsUtils;
+import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
+import org.jkiss.tools.rcplaunchconfig.utils.SystemUtils;
 import org.jkiss.utils.CommonUtils;
 import org.jkiss.utils.Pair;
 import org.xml.sax.Attributes;
@@ -30,9 +32,8 @@ import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 public class ContentFileHandler extends DefaultHandler {
@@ -42,6 +43,8 @@ public class ContentFileHandler extends DefaultHandler {
     private final Pattern OS_PATTERN = Pattern.compile("osgi\\.os=([^&)]+)");
 
     private final Pattern START_LEVEL_PATTERN = Pattern.compile("startLevel:\\s*(-?\\d+)\n");
+    private final RemoteP2Repository repository;
+    private final P2BundleLookupCache cache;
     private RemoteBundleInfo.RemoteBundleInfoBuilder currentBundle;
     private Pair<String, DependencyType> currentDependency;
 
@@ -49,17 +52,18 @@ public class ContentFileHandler extends DefaultHandler {
     private ContentType currentContentType = null;
 
     // TODO add proper structure
-    private List<RemoteBundleInfo> remoteBundleInfos = new ArrayList<>();
+    private Set<RemoteBundleInfo> remoteBundleInfos = new HashSet<>();
 
-    public static List<RemoteBundleInfo> indexContent(File file, URL url) throws IOException, SAXException, ParserConfigurationException {
+    public static Set<RemoteBundleInfo> indexContent(File file, RemoteP2Repository repository, P2BundleLookupCache cache) throws IOException, SAXException, ParserConfigurationException {
         SAXParserFactory factory = SAXParserFactory.newInstance();
         factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true );
-
         SAXParser saxParser = factory.newSAXParser();
-        ContentFileHandler contentFileHandler = new ContentFileHandler();
+        ContentFileHandler contentFileHandler = new ContentFileHandler(repository, cache);
         saxParser.parse(file, contentFileHandler);
         return contentFileHandler.getRemoteBundleInfos();
     }
+
+
 
     @Override
     public void startDocument() throws SAXException {
@@ -71,7 +75,7 @@ public class ContentFileHandler extends DefaultHandler {
         super.endDocument();
     }
 
-    public List<RemoteBundleInfo> getRemoteBundleInfos() {
+    public Set<RemoteBundleInfo> getRemoteBundleInfos() {
         return remoteBundleInfos;
     }
 
@@ -81,9 +85,9 @@ public class ContentFileHandler extends DefaultHandler {
             currentBundle = new RemoteBundleInfo.RemoteBundleInfoBuilder();
             String id = attributes.getValue("id");
             String version = attributes.getValue("version");
-            currentBundle.bundleName(id).version(version);
+            currentBundle.bundleName(id).version(version).repositoryURL(repository);
         }
-        if ("required".equalsIgnoreCase(qName) || "exported".equalsIgnoreCase(qName)) {
+        if ("required".equalsIgnoreCase(qName) || "provided".equalsIgnoreCase(qName)) {
             String namespace = attributes.getValue("namespace");
             DependencyType type;
             if ("java.package".equalsIgnoreCase(namespace)) {
@@ -110,7 +114,9 @@ public class ContentFileHandler extends DefaultHandler {
     public void endElement(String uri, String localName, String qName) throws SAXException {
         if ("unit".equalsIgnoreCase(qName)) {
             if (currentElementValidForOS) {
-                remoteBundleInfos.add(currentBundle.build());
+                RemoteBundleInfo bundle = currentBundle.build();
+                cache.addRemoteBundle(bundle);
+                remoteBundleInfos.add(bundle);
             }
             currentBundle = null;
             currentElementValidForOS = true;
@@ -129,7 +135,7 @@ public class ContentFileHandler extends DefaultHandler {
             currentDependency = null;
             currentElementValidForOS = true;
         }
-        if ("exported".equalsIgnoreCase(qName)) {
+        if ("provided".equalsIgnoreCase(qName)) {
             if (currentDependency == null) {
                 return;
             }
@@ -152,19 +158,31 @@ public class ContentFileHandler extends DefaultHandler {
     public void characters(char[] ch, int start, int length) throws SAXException {
         String content = new String(ch, start, length);
         if (ContentType.INSTRUCTION.equals(currentContentType)) {
-            String level = START_LEVEL_PATTERN.matcher(content).group(1);
+            String level = getMatchOrNull(START_LEVEL_PATTERN, content);
             if (!CommonUtils.isEmpty(level)) {
                 currentBundle.setStartLevel(CommonUtils.toInt(level, 0));
             }
         }
         if (ContentType.FILTER.equals(currentContentType)) {
-            String os = OS_PATTERN.matcher(content).group(1);
-            String ws = WS_PATTERN.matcher(content).group(1);
-            String arch = ARCH_PATTERN.matcher(content).group(1);
-            currentElementValidForOS = OsUtils.matchesDeclaredOS(os, ws, arch);
+            String os = getMatchOrNull(OS_PATTERN, content);
+            String ws = getMatchOrNull(WS_PATTERN, content);
+            String arch = getMatchOrNull(ARCH_PATTERN, content);
+            currentElementValidForOS = SystemUtils.matchesDeclaredOS(os, ws, arch);
         }
 
         super.characters(ch, start, length);
+    }
+
+    private String getMatchOrNull(Pattern pattern, String content) {
+        if (!pattern.matcher(content).matches()) {
+            return null;
+        }
+        return OS_PATTERN.matcher(content).group(1);
+    }
+
+    private ContentFileHandler(RemoteP2Repository repository, P2BundleLookupCache cache) {
+        this.repository = repository;
+        this.cache = cache;
     }
 
     private enum DependencyType {

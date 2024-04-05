@@ -19,7 +19,6 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
-import org.jkiss.tools.rcplaunchconfig.utils.OsUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

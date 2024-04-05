@@ -17,6 +17,7 @@
 package org.jkiss.tools.rcplaunchconfig;
 
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
 public class EntryPoint {
     private static final Logger log = LoggerFactory.getLogger(EntryPoint.class);
 
-    public static void main(String[] args) throws IOException, XMLStreamException {
+    public static void main(String[] args) throws IOException, XMLStreamException, RepositoryInitialisationError {
         var params = new Params();
         params.init(args);
         if (!params.productFilePath.toFile().exists()) {
@@ -42,9 +43,9 @@ public class EntryPoint {
         var settings = ConfigFileManager.readSettingsFile(params.configFilePath);
 
         var pathsManager = PathsManager.INSTANCE;
+        pathsManager.init(settings, params.projectsFolderPath, params.eclipsePath);
         P2RepositoryManager p2RepositoryManager = P2RepositoryManager.INSTANCE;
         p2RepositoryManager.init(settings, params.eclipseVersion, params.elkVersion);
-        pathsManager.init(settings, params.projectsFolderPath, params.eclipsePath);
         if (log.isDebugEnabled()) {
             var featuresPaths = pathsManager.getFeaturesLocations().stream()
                 .map(it -> it.toAbsolutePath().toString())
@@ -63,7 +64,7 @@ public class EntryPoint {
         var result = new Result();
         XmlReader.INSTANCE.parseXmlFile(result, params.productFilePath.toFile());
         new DynamicImportsResolver()
-            .start(result);
+            .start(result, p2RepositoryManager.getLookupCache());
 
         var resultPath = params.resultFilesPath;
         try {

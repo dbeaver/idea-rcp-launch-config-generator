@@ -17,10 +17,8 @@
 package org.jkiss.tools.rcplaunchconfig.xml;
 
 import jakarta.annotation.Nonnull;
-import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.Result;
-import org.jkiss.tools.rcplaunchconfig.utils.OsUtils;
-import org.jkiss.utils.CommonUtils;
+import org.jkiss.tools.rcplaunchconfig.utils.SystemUtils;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.events.Attribute;
@@ -39,7 +37,7 @@ abstract class XmlReaderExtension {
         Attribute osAttr = startElement.getAttributeByName(OS_ATTR_NAME);
         Attribute wsAttr = startElement.getAttributeByName(WS_ATTR_NAME);
         Attribute archAttr = startElement.getAttributeByName(ARCH_ATTR_NAME);
-        return !OsUtils.matchesDeclaredOS(
+        return !SystemUtils.matchesDeclaredOS(
             wsAttr == null ? null : wsAttr.getValue(),
             osAttr == null ? null : osAttr.getValue(),
             archAttr == null ? null : archAttr.getValue());

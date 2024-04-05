@@ -16,157 +16,58 @@
  */
 package org.jkiss.tools.rcplaunchconfig.p2;
 
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
-import org.jkiss.tools.rcplaunchconfig.Artifact;
-import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.RemoteBundleInfo;
-import org.jkiss.tools.rcplaunchconfig.xml.ContentFileHandler;
-import org.jkiss.tools.rcplaunchconfig.xml.IndexFileParser;
-import org.xml.sax.SAXException;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.IRepository;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 
 public class P2RepositoryManager {
-    private List<URL> repositoriesList;
-    private MultiValuedMap<URL, Artifact> multiValuedMap = new ArrayListValuedHashMap();
-    public static final P2RepositoryManager INSTANCE = new P2RepositoryManager();
+    private static final Logger log = LoggerFactory.getLogger(RemoteBundleInfo.class);
 
-    public Path downloadArtifact(RemoteBundleInfo remoteBundleInfo) {
-        try {
-            Path eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
-            URL repositoryURL = remoteBundleInfo.getRepositoryURL();
-            URI pluginsFolder = repositoryURL.toURI().resolve("plugins/");
-            String pluginFilename = remoteBundleInfo.getBundleName() + "_" + remoteBundleInfo.getBundleVersion() + ".jar";
-            URI resolve = pluginsFolder.resolve(pluginFilename);
-            Path file = eclipsePluginsPath.resolve(pluginFilename);
-            return tryToDownloadFile(resolve, file);
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
+    public static final P2RepositoryManager INSTANCE = new P2RepositoryManager();
+    private List<IRepository<?>> rootRepositories;
+    private P2BundleLookupCache cache = new P2BundleLookupCache();
+
+    public void init(Properties settings, String eclipseVersion, String elkVersion) throws RepositoryInitialisationError {
+        String repositoriesString = (String) settings.get("repositories");
+        String[] repositories = repositoriesString.replace("${eclipse-version}", eclipseVersion).replace("${elk-version}", elkVersion).split(";");
+        indexRepositories(repositories);
+        for (IRepository<?> repository : rootRepositories) {
+            System.out.println("Indexing " + repository.getName() + " repository artifacts...");
+            repository.init(cache);
         }
     }
 
-    public void init(Properties settings, String eclipseVersion, String elkVersion) {
-        String repositoriesString = (String) settings.get("repositories");
+    private void indexRepositories(String[] repositories) throws RepositoryInitialisationError {
+        List<IRepository<?>> list =  new ArrayList<>();
         try {
-            List<URL> list = new ArrayList<>();
-            String[] repositories = repositoriesString.replace("${eclipse-version}", eclipseVersion).replace("${elk-version}", elkVersion).split(";");
             for (String s : repositories) {
                 String trim = s.trim();
                 URI uri = new URI(trim);
-                URL url = uri.toURL();
-                list.add(url);
-            }
-            repositoriesList = list;
-            for (URL url : repositoriesList) {
-                System.out.println("Indexing " + url + " repository artifacts...");
-                loadArtifactList(url);
-            }
-        } catch (MalformedURLException | URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void loadArtifactList(URL url) throws URISyntaxException, MalformedURLException {
-        URI compositeArtifactJarURI = url.toURI().resolve("compositeArtifacts.jar");
-        URI compositeArtifactJarXML = url.toURI().resolve("compositeArtifacts.xml");
-        try {
-            Path compositeJar = tryToDownloadFile(compositeArtifactJarURI, null);
-            Path compositeXML = tryToDownloadFile(compositeArtifactJarXML, null);
-            if (compositeJar != null) {
-                Path path = extractConfigFromJar(compositeJar, "compositeArtifacts.xml");
-                List<String> childrenURLs = IndexFileParser.INSTANCE.listChildrenRepositoriesFromFile(path.toFile());
-                for (String childrenURL : childrenURLs) {
-                    loadArtifactList(url.toURI().resolve(childrenURL + "/").toURL());
+                try {
+                    URL url = uri.toURL();
+                    list.add(new RemoteP2Repository(url));
+                } catch (MalformedURLException e) {
+                    throw new UnsupportedOperationException("Local p2 repositories are not supported");
                 }
-            } else if (compositeXML != null) {
-                List<String> childrenURLs = IndexFileParser.INSTANCE.listChildrenRepositoriesFromFile(compositeXML.toFile());
-                for (String childrenURL : childrenURLs) {
-                    loadArtifactList(url.toURI().resolve(childrenURL + "/").toURL());
-                }
-            } else {
-                loadArtifacts(url);
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        } catch (Exception error) {
+            throw new RepositoryInitialisationError("Error during repository indexing", error);
         }
+        rootRepositories = list;
     }
 
-    private void loadArtifacts(URL url) throws URISyntaxException, IOException {
-        URI artifactsURI = url.toURI().resolve("artifacts.jar");
-        Path path = tryToDownloadFile(artifactsURI, null);
-        if (path != null) {
-            indexArtifacts(url, path);
-        }
-        URI contentsURI = url.toURI().resolve("content.jar");
-        Path contentPath = tryToDownloadFile(contentsURI, null);
-        if (contentPath != null) {
-            Path contentsXMl = extractConfigFromJar(contentPath, "content.xml");
-            try {
-                List<RemoteBundleInfo> remoteBundleInfos = ContentFileHandler.indexContent(contentsXMl.toFile(), url);
-                remoteBundleInfos.get(0).resolveBundle();
-            } catch (SAXException | ParserConfigurationException e) {
-                throw new RuntimeException(e);
-            }
-        }
+    public P2BundleLookupCache getLookupCache() {
+        return cache;
     }
-
-    private Path tryToDownloadFile(URI artifactsURI, Path path)  {
-        try {
-            if (tryToLoadFile(artifactsURI)) {
-                InputStream stream = artifactsURI.toURL().openStream();
-                if (path == null) {
-                    path = Files.createTempFile("dbeaver", ".jar");
-                }
-                Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING);
-                return path;
-            }
-        } catch (IOException | URISyntaxException e) {
-            throw null;
-        }
-        return null;
-    }
-
-    private void indexArtifacts(URL url, Path artifactJar) throws IOException {
-        Path path = extractConfigFromJar(artifactJar, "artifacts.xml");
-        List<Artifact> artifacts = IndexFileParser.INSTANCE.listArtifactsFromIndexFile(path.toFile());
-
-        multiValuedMap.putAll(url, artifacts);
-    }
-
-    private static Path extractConfigFromJar(Path artifactJar, String config) throws IOException {
-        try (JarFile jarFile = new JarFile(artifactJar.toFile())) {
-            JarEntry jarEntry = jarFile.getJarEntry(config);
-            InputStream inputStream = jarFile.getInputStream(jarEntry);
-            Path configFile = Files.createTempFile("dbeaver", ".tmp");
-            Files.copy(inputStream, configFile, StandardCopyOption.REPLACE_EXISTING);
-            return configFile;
-        }
-    }
-
-    private static boolean tryToLoadFile(URI artifactsURI) throws IOException, URISyntaxException {
-        HttpURLConnection httpURLConnection = (HttpURLConnection) artifactsURI.toURL().openConnection();
-        boolean fileExist = httpURLConnection.getResponseCode() == HttpURLConnection.HTTP_OK;
-        httpURLConnection.connect();
-        try {
-            fileExist = fileExist & httpURLConnection.getURL().toURI().equals(artifactsURI);
-        } finally {
-            httpURLConnection.disconnect();
-        }
-        return fileExist;
-    }
-
 
     private P2RepositoryManager() {
 

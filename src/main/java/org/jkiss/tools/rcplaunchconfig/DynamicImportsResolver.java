@@ -20,6 +20,7 @@ import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
+import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.resolvers.ManifestParser;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PackageChecker;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
@@ -46,7 +47,7 @@ public class DynamicImportsResolver {
 
     private final MultiValuedMap<String, BundleInfo> failedToResolvePackagesToBundles = new ArrayListValuedHashMap<>();
 
-    public void start(@Nonnull Result result) throws IOException {
+    public void start(@Nonnull Result result, P2BundleLookupCache lookupCache) throws IOException {
         var eclipsePluginsByExportedPackages = readEclipsePluginsExportedPackages(PathsManager.INSTANCE.getEclipsePluginsPath());
 
         var parsedBundlesByExportedPackages = new ArrayListValuedHashMap<String, BundleInfo>();
