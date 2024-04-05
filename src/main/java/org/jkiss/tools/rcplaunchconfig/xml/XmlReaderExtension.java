@@ -18,7 +18,7 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
-import org.jkiss.tools.rcplaunchconfig.utils.SystemUtils;
+import org.jkiss.tools.rcplaunchconfig.util.SystemUtils;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.events.Attribute;

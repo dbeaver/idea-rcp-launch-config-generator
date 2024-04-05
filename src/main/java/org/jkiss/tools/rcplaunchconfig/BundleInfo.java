@@ -91,7 +91,7 @@ public class BundleInfo {
         this.startLevel = startLevel;
     }
 
-    public @Nonnull Path getPath() {
+    public @Nullable Path getPath() {
         return path;
     }
 

@@ -16,45 +16,43 @@
  */
 package org.jkiss.tools.rcplaunchconfig.xml;
 
-import org.jkiss.tools.rcplaunchconfig.RemoteBundleInfo;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
-import org.jkiss.tools.rcplaunchconfig.utils.SystemUtils;
+import org.jkiss.tools.rcplaunchconfig.util.SystemUtils;
 import org.jkiss.utils.CommonUtils;
 import org.jkiss.utils.Pair;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
-import javax.xml.XMLConstants;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParser;
-import javax.xml.parsers.SAXParserFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
 
 public class ContentFileHandler extends DefaultHandler {
-    private final Pattern ARCH_PATTERN = Pattern.compile("osgi\\.arch=([^&)]+)");
+    private static final Pattern ARCH_PATTERN = Pattern.compile("osgi\\.arch=([^&)]+)");
 
-    private final Pattern WS_PATTERN = Pattern.compile("osgi\\.ws=([^&)]+)");
-    private final Pattern OS_PATTERN = Pattern.compile("osgi\\.os=([^&)]+)");
+    private static final Pattern WS_PATTERN = Pattern.compile("osgi\\.ws=([^&)]+)");
+    private static final Pattern OS_PATTERN = Pattern.compile("osgi\\.os=([^&)]+)");
 
-    private final Pattern START_LEVEL_PATTERN = Pattern.compile("startLevel:\\s*(-?\\d+)\n");
+    private static final Pattern START_LEVEL_PATTERN = Pattern.compile("startLevel:\\s*(-?\\d+)\n");
     private final RemoteP2Repository repository;
     private final P2BundleLookupCache cache;
-    private RemoteBundleInfo.RemoteBundleInfoBuilder currentBundle;
+    private RemoteP2BundleInfo.RemoteBundleInfoBuilder currentBundle;
     private Pair<String, DependencyType> currentDependency;
 
     private boolean currentElementValidForOS = true;
     private ContentType currentContentType = null;
+    private final Set<RemoteP2BundleInfo> remoteP2BundleInfos = new HashSet<>();
 
-    // TODO add proper structure
-    private Set<RemoteBundleInfo> remoteBundleInfos = new HashSet<>();
-
-    public static Set<RemoteBundleInfo> indexContent(File file, RemoteP2Repository repository, P2BundleLookupCache cache) throws IOException, SAXException, ParserConfigurationException {
+    public static Set<RemoteP2BundleInfo> indexContent(File file, RemoteP2Repository repository, P2BundleLookupCache cache) throws IOException, SAXException, ParserConfigurationException {
         SAXParserFactory factory = SAXParserFactory.newInstance();
         factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true );
         SAXParser saxParser = factory.newSAXParser();
@@ -75,14 +73,14 @@ public class ContentFileHandler extends DefaultHandler {
         super.endDocument();
     }
 
-    public Set<RemoteBundleInfo> getRemoteBundleInfos() {
-        return remoteBundleInfos;
+    public Set<RemoteP2BundleInfo> getRemoteBundleInfos() {
+        return remoteP2BundleInfos;
     }
 
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
         if ("unit".equalsIgnoreCase(qName)) {
-            currentBundle = new RemoteBundleInfo.RemoteBundleInfoBuilder();
+            currentBundle = new RemoteP2BundleInfo.RemoteBundleInfoBuilder();
             String id = attributes.getValue("id");
             String version = attributes.getValue("version");
             currentBundle.bundleName(id).version(version).repositoryURL(repository);
@@ -114,9 +112,11 @@ public class ContentFileHandler extends DefaultHandler {
     public void endElement(String uri, String localName, String qName) throws SAXException {
         if ("unit".equalsIgnoreCase(qName)) {
             if (currentElementValidForOS) {
-                RemoteBundleInfo bundle = currentBundle.build();
-                cache.addRemoteBundle(bundle);
-                remoteBundleInfos.add(bundle);
+                RemoteP2BundleInfo bundle = currentBundle.build();
+                if (repository.bundleIsIndexed(bundle)) {
+                    cache.addRemoteBundle(bundle);
+                    remoteP2BundleInfos.add(bundle);
+                }
             }
             currentBundle = null;
             currentElementValidForOS = true;
@@ -160,7 +160,7 @@ public class ContentFileHandler extends DefaultHandler {
         if (ContentType.INSTRUCTION.equals(currentContentType)) {
             String level = getMatchOrNull(START_LEVEL_PATTERN, content);
             if (!CommonUtils.isEmpty(level)) {
-                currentBundle.setStartLevel(CommonUtils.toInt(level, 0));
+//                currentBundle.setStartLevel(CommonUtils.toInt(level, 0));
             }
         }
         if (ContentType.FILTER.equals(currentContentType)) {

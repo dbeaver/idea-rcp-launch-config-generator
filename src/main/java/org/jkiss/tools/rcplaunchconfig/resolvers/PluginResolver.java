@@ -21,6 +21,8 @@ import jakarta.annotation.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +32,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.jar.JarFile;
@@ -47,7 +50,8 @@ public class PluginResolver {
     public static void resolvePluginDependencies(
         @Nonnull Result result,
         @Nonnull String bundleName,
-        @Nullable Integer startLevel
+        @Nullable Integer startLevel,
+        P2BundleLookupCache cache
     ) throws IOException {
         if (PackageChecker.INSTANCE.isPackageExcluded(bundleName)) {
             return;
@@ -84,15 +88,21 @@ public class PluginResolver {
             .toList();
 
         if (bundleInfos.size() == 1) {
-            parseBundleInfo(result, bundleInfos.get(0));
+            parseBundleInfo(result, bundleInfos.get(0), cache);
         } else if (bundleInfos.isEmpty()) {
-            log.error("Couldn't find plugin '{}'", bundleName);
+            Collection<RemoteP2BundleInfo> remoteP2BundleInfos = cache.getRemoteBundlesByNames().get(bundleName);
+            if (remoteP2BundleInfos == null || remoteP2BundleInfos.stream().findFirst().isEmpty()) {
+                log.error("Couldn't find plugin '{}'", bundleName);
+            } else {
+                parseBundleInfo(result, remoteP2BundleInfos.stream().findFirst().get(), cache);
+            }
+
         } else {
             var bundlesPaths = bundleInfos.stream()
                 .map(it -> it.getPath().toString())
                 .collect(Collectors.joining("\n  "));
             log.debug("Found multiple plugins '{}'. First will be used.\n  {}", bundleName, bundlesPaths);
-            parseBundleInfo(result, bundleInfos.get(0));
+            parseBundleInfo(result, bundleInfos.get(0), cache);
         }
     }
 
@@ -130,12 +140,13 @@ public class PluginResolver {
 
     private static void parseBundleInfo(
         @Nonnull Result result,
-        @Nonnull BundleInfo bundleInfo
+        @Nonnull BundleInfo bundleInfo,
+        P2BundleLookupCache cache
     ) throws IOException {
         result.addBundle(bundleInfo);
 
         for (var requireBundle : bundleInfo.getRequireBundles()) {
-            PluginResolver.resolvePluginDependencies(result, requireBundle, null);
+            PluginResolver.resolvePluginDependencies(result, requireBundle, null, cache);
         }
     }
 }

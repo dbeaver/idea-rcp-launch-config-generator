@@ -18,16 +18,18 @@
 package org.jkiss.tools.rcplaunchconfig.p2.repository;
 
 
+import org.jkiss.tools.rcplaunchconfig.Artifact;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
-import org.jkiss.tools.rcplaunchconfig.RemoteBundleInfo;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
-import org.jkiss.tools.rcplaunchconfig.utils.SystemUtils;
+import org.jkiss.tools.rcplaunchconfig.resolvers.FeatureResolver;
+import org.jkiss.tools.rcplaunchconfig.util.SystemUtils;
 import org.jkiss.tools.rcplaunchconfig.xml.ContentFileHandler;
 import org.jkiss.tools.rcplaunchconfig.xml.IndexFileParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xml.sax.SAXException;
 
-import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -37,12 +39,16 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import javax.xml.parsers.ParserConfigurationException;
 
-public class RemoteP2Repository implements IRepository<RemoteBundleInfo> {
+public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
+    private static final Logger log = LoggerFactory.getLogger(RemoteP2Repository.class);
+
     private final URL url;
     private final List<RemoteP2Repository> subRepositories = new ArrayList<>();
 
-    private final Set<RemoteBundleInfo> remoteBundleInfoSet = new LinkedHashSet<>();
+    private final Set<RemoteP2BundleInfo> remoteP2BundleInfoSet = new LinkedHashSet<>();
+    private List<Artifact> indexedArtifacts;
 
     public RemoteP2Repository(URL url) {
         this.url = url;
@@ -53,17 +59,27 @@ public class RemoteP2Repository implements IRepository<RemoteBundleInfo> {
         return url.toString();
     }
 
-    public Path resolveArtifact(RemoteBundleInfo remoteBundleInfo) {
-        try {
+    public boolean bundleIsIndexed(RemoteP2BundleInfo bundleInfo) {
+        for (Artifact indexedArtifact : indexedArtifacts) {
+            if (indexedArtifact.id().equalsIgnoreCase(bundleInfo.getBundleName())
+                && indexedArtifact.version().toString().equals(bundleInfo.getBundleVersion())) {
+                return true;
+            }
+        }
+        return false;
+    }
 
+    public Path resolveArtifact(RemoteP2BundleInfo remoteP2BundleInfo) {
+        try {
             Path eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
             URI pluginsFolder = url.toURI().resolve("plugins/");
-            String pluginFilename = remoteBundleInfo.getBundleName() + "_" + remoteBundleInfo.getBundleVersion() + ".jar";
+            String pluginFilename = remoteP2BundleInfo.getBundleName() + "_" + remoteP2BundleInfo.getBundleVersion() + ".jar";
             URI resolve = pluginsFolder.resolve(pluginFilename);
             Path file = eclipsePluginsPath.resolve(pluginFilename);
             return SystemUtils.tryToDownloadFile(resolve, file);
         } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
+            log.error("Error resolving the artifact", e);
+            return null;
         }
     }
 
@@ -80,6 +96,7 @@ public class RemoteP2Repository implements IRepository<RemoteBundleInfo> {
                 for (String childrenURL : childrenURLs) {
                     RemoteP2Repository childP2repository = new RemoteP2Repository(url.toURI().resolve(childrenURL + "/").toURL());
                     subRepositories.add(childP2repository);
+                    log.info("Indexing " + childP2repository.getName() + " sub repository...");
                     childP2repository.init(cache);
                 }
             } else if (compositeXML != null) {
@@ -97,17 +114,28 @@ public class RemoteP2Repository implements IRepository<RemoteBundleInfo> {
         }
     }
 
-    private void loadArtifacts(P2BundleLookupCache cache) throws URISyntaxException, IOException {
-        URI contentsURI = url.toURI().resolve("content.jar");
-        Path contentPath = SystemUtils.tryToDownloadFile(contentsURI, null);
-        if (contentPath != null) {
-            try {
-                Path contentsXMl = SystemUtils.extractConfigFromJar(contentPath, "content.xml");
-                remoteBundleInfoSet.addAll(ContentFileHandler.indexContent(contentsXMl.toFile(), this, cache));
-            } catch (SAXException | ParserConfigurationException e) {
-                throw new RuntimeException(e);
+    private void loadArtifacts(P2BundleLookupCache cache) throws RepositoryInitialisationError {
+        try {
+            URI artifactsURI = url.toURI().resolve("artifacts.jar");
+            Path path = SystemUtils.tryToDownloadFile(artifactsURI, null);
+            if (path != null) {
+                indexArtifacts(path);
             }
+            URI contentsURI = url.toURI().resolve("content.jar");
+            Path contentPath = SystemUtils.tryToDownloadFile(contentsURI, null);
+            if (contentPath != null) {
+                Path contentsXMl = SystemUtils.extractConfigFromJar(contentPath, "content.xml");
+                Set<RemoteP2BundleInfo> remoteP2BundleInfos = ContentFileHandler.indexContent(contentsXMl.toFile(), this, cache);
+                log.info("Repository " + getName() + " indexed, " + remoteP2BundleInfos.size() + " artifacts found");
+                remoteP2BundleInfoSet.addAll(remoteP2BundleInfos);
+            }
+        } catch (Exception e) {
+            throw new RepositoryInitialisationError("Error during repository indexing", e);
         }
     }
 
+    private void indexArtifacts(Path artifactJar) throws IOException, SAXException, RepositoryInitialisationError {
+        Path path = SystemUtils.extractConfigFromJar(artifactJar, "artifacts.xml");
+        indexedArtifacts = IndexFileParser.INSTANCE.listArtifactsFromIndexFile(path.toFile());
+    }
 }

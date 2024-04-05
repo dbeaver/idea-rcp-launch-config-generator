@@ -18,6 +18,10 @@
 package org.jkiss.tools.rcplaunchconfig.p2.repository.exception;
 
 public class RepositoryInitialisationError extends Throwable {
+    public RepositoryInitialisationError(String message) {
+        super(message);
+    }
+
     public RepositoryInitialisationError(String message, Throwable cause) {
         super(message, cause);
     }

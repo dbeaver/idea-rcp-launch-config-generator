@@ -1,8 +1,9 @@
-package org.jkiss.tools.rcplaunchconfig;
+package org.jkiss.tools.rcplaunchconfig.p2.repository;
 
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
-import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
+import org.jkiss.tools.rcplaunchconfig.BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.DynamicImportsResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.ManifestParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -19,12 +19,12 @@ import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
-public class RemoteBundleInfo extends BundleInfo {
-    private static final Logger log = LoggerFactory.getLogger(RemoteBundleInfo.class);
+public class RemoteP2BundleInfo extends BundleInfo {
+    private static final Logger log = LoggerFactory.getLogger(RemoteP2BundleInfo.class);
 
     private final RemoteP2Repository repository;
 
-    private RemoteBundleInfo(
+    private RemoteP2BundleInfo(
         @NotNull RemoteP2Repository repositoryURL,
         @NotNull String bundleName,
         @NotNull String bundleVersion,
@@ -39,7 +39,10 @@ public class RemoteBundleInfo extends BundleInfo {
     }
 
     public boolean resolveBundle() {
-        log.info("Downloading " + getBundleName() + " from " + getRepositoryURL() + "... ");
+        if (path != null) {
+            return true;
+        }
+        log.info("Downloading " + getBundleName() + "_" + getBundleVersion() + " from " + getRepository().getName() + "... ");
         Path filePath = repository.resolveArtifact(this);
         if (filePath == null) {
             return false;
@@ -70,7 +73,7 @@ public class RemoteBundleInfo extends BundleInfo {
         return true;
     }
 
-    public RemoteP2Repository getRepositoryURL() {
+    public RemoteP2Repository getRepository() {
         return repository;
     }
 
@@ -83,12 +86,22 @@ public class RemoteBundleInfo extends BundleInfo {
         List<String> requireBundles = new ArrayList<>();
         Set<String> exportPackages = new LinkedHashSet<>();
         Set<String> importPackages = new LinkedHashSet<>();
-        int startLevel;
+        Integer startLevel;
+
         public RemoteBundleInfoBuilder() {
         }
 
-        public RemoteBundleInfo build() {
-            return new RemoteBundleInfo(repository, bundleName, bundleVersion, classpathLibs, requireBundles, exportPackages, importPackages, startLevel);
+        public RemoteP2BundleInfo build() {
+            return new RemoteP2BundleInfo(
+                repository,
+                bundleName,
+                bundleVersion,
+                classpathLibs,
+                requireBundles,
+                exportPackages,
+                importPackages,
+                startLevel
+            );
         }
 
         public RemoteBundleInfoBuilder bundleName(String bundleName) {

@@ -18,13 +18,15 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import javax.xml.stream.events.Attribute;
 import javax.xml.stream.events.StartElement;
-import java.io.IOException;
 
 class PluginXmlReaderExtension extends XmlReaderExtension {
 
@@ -36,7 +38,7 @@ class PluginXmlReaderExtension extends XmlReaderExtension {
             ? Integer.parseInt(startLevelAttr.getValue())
             : null;
         try {
-            PluginResolver.resolvePluginDependencies(result, idAttr.getValue(), startLevel);
+            PluginResolver.resolvePluginDependencies(result, idAttr.getValue(), startLevel, P2RepositoryManager.INSTANCE.getLookupCache());
         } catch (IOException e) {
             log.error("Failed to resolve plugin", e);
         }

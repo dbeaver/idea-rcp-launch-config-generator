@@ -1,5 +1,7 @@
-package org.jkiss.tools.rcplaunchconfig.utils;
+package org.jkiss.tools.rcplaunchconfig.util;
 
+import org.jkiss.code.NotNull;
+import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 
 import java.io.IOException;
@@ -37,10 +39,11 @@ public class SystemUtils {
         }
     }
 
-    public static Path tryToDownloadFile(URI artifactsURI, Path path)  {
+    @Nullable
+    public static Path tryToDownloadFile(@NotNull URI fileURI, @Nullable Path path)  {
         try {
-            if (tryToLoadFile(artifactsURI)) {
-                InputStream stream = artifactsURI.toURL().openStream();
+            if (tryToLoadFile(fileURI)) {
+                InputStream stream = fileURI.toURL().openStream();
                 if (path == null) {
                     path = Files.createTempFile("dbeaver", ".jar");
                 }
@@ -48,12 +51,12 @@ public class SystemUtils {
                 return path;
             }
         } catch (IOException | URISyntaxException e) {
-            throw null;
+            return null;
         }
         return null;
     }
 
-    public static boolean tryToLoadFile(URI artifactsURI) throws IOException, URISyntaxException {
+    public static boolean tryToLoadFile(@NotNull URI artifactsURI) throws IOException, URISyntaxException {
         HttpURLConnection httpURLConnection = (HttpURLConnection) artifactsURI.toURL().openConnection();
         boolean fileExist = httpURLConnection.getResponseCode() == HttpURLConnection.HTTP_OK;
         httpURLConnection.connect();

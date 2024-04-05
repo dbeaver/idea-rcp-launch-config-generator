@@ -57,6 +57,7 @@ public class ConfigIniProducer {
 
     private static @Nonnull String getOsgiBundlesValue(@Nonnull Collection<BundleInfo> bundles) {
         return bundles.stream()
+            .filter(it -> it.getPath() != null)
             .map(ConfigIniProducer::getBundleReference)
             .collect(Collectors.joining(","));
     }

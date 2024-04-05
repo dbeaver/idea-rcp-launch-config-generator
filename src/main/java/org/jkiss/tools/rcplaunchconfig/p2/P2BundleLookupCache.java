@@ -19,27 +19,27 @@ package org.jkiss.tools.rcplaunchconfig.p2;
 
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
-import org.jkiss.tools.rcplaunchconfig.RemoteBundleInfo;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 
 public class P2BundleLookupCache {
-    private final MultiValuedMap<String, RemoteBundleInfo> remoteBundlesByNames = new ArrayListValuedHashMap<>();
-    private final MultiValuedMap<String, RemoteBundleInfo> remoteBundlesByExports = new ArrayListValuedHashMap<>();
+    private final MultiValuedMap<String, RemoteP2BundleInfo> remoteBundlesByNames = new ArrayListValuedHashMap<>();
+    private final MultiValuedMap<String, RemoteP2BundleInfo> remoteBundlesByExports = new ArrayListValuedHashMap<>();
 
     public P2BundleLookupCache() {
     }
 
-    public MultiValuedMap<String, RemoteBundleInfo> getRemoteBundlesByNames() {
+    public MultiValuedMap<String, RemoteP2BundleInfo> getRemoteBundlesByNames() {
         return remoteBundlesByNames;
     }
 
-    public MultiValuedMap<String, RemoteBundleInfo> getRemoteBundlesByExports() {
+    public MultiValuedMap<String, RemoteP2BundleInfo> getRemoteBundlesByExports() {
         return remoteBundlesByExports;
     }
 
-    public void addRemoteBundle(RemoteBundleInfo remoteBundleInfo) {
-        remoteBundlesByNames.put(remoteBundleInfo.getBundleName(), remoteBundleInfo);
-        for (String exportPackage : remoteBundleInfo.getExportPackages()) {
-            remoteBundlesByExports.put(exportPackage, remoteBundleInfo);
+    public void addRemoteBundle(RemoteP2BundleInfo remoteP2BundleInfo) {
+        remoteBundlesByNames.put(remoteP2BundleInfo.getBundleName(), remoteP2BundleInfo);
+        for (String exportPackage : remoteP2BundleInfo.getExportPackages()) {
+            remoteBundlesByExports.put(exportPackage, remoteP2BundleInfo);
         }
     }
 }

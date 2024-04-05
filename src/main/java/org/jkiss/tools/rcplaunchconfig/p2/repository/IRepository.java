@@ -24,9 +24,10 @@ import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitial
 import java.nio.file.Path;
 
 public interface IRepository<BUNDLE extends BundleInfo> {
-
     String getName();
+
     Path resolveArtifact(BUNDLE bundleInfo);
+
     void init(P2BundleLookupCache cache) throws RepositoryInitialisationError;
 
 }
