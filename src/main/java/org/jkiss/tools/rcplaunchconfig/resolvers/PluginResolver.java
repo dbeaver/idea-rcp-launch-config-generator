@@ -94,6 +94,7 @@ public class PluginResolver {
             if (remoteP2BundleInfos == null || remoteP2BundleInfos.stream().findFirst().isEmpty()) {
                 log.error("Couldn't find plugin '{}'", bundleName);
             } else {
+                remoteP2BundleInfos.stream().findFirst().get().resolveBundle();
                 parseBundleInfo(result, remoteP2BundleInfos.stream().findFirst().get(), cache);
             }
 

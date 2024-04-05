@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.ParserConfigurationException;
@@ -37,12 +38,12 @@ import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
 public class ContentFileHandler extends DefaultHandler {
-    private static final Pattern ARCH_PATTERN = Pattern.compile("osgi\\.arch=([^&)]+)");
+    private static final Pattern ARCH_PATTERN = Pattern.compile(".*\\(osgi\\.arch=([^&)]+)\\).*");
 
-    private static final Pattern WS_PATTERN = Pattern.compile("osgi\\.ws=([^&)]+)");
-    private static final Pattern OS_PATTERN = Pattern.compile("osgi\\.os=([^&)]+)");
+    private static final Pattern WS_PATTERN = Pattern.compile(".*\\(osgi\\.ws=([^&)]+)\\).*");
+    private static final Pattern OS_PATTERN = Pattern.compile(".*\\(osgi\\.os=([^&)]+)\\).*");
 
-    private static final Pattern START_LEVEL_PATTERN = Pattern.compile("startLevel:\\s*(-?\\d+)\n");
+    private static final Pattern START_LEVEL_PATTERN = Pattern.compile(".*startLevel:\\s*(-?\\d+).*");
     private final RemoteP2Repository repository;
     private final P2BundleLookupCache cache;
     private RemoteP2BundleInfo.RemoteBundleInfoBuilder currentBundle;
@@ -93,7 +94,7 @@ public class ContentFileHandler extends DefaultHandler {
             } else if ("osgi.bundle".equalsIgnoreCase(namespace)) {
                 type = DependencyType.BUNDLE;
             } else {
-                return;
+                type = DependencyType.UNKNOWN;
             }
             String name = attributes.getValue("name");
             currentDependency = new Pair<>(name, type);
@@ -128,7 +129,7 @@ public class ContentFileHandler extends DefaultHandler {
             if (currentElementValidForOS) {
                 if (currentDependency.getSecond().equals(DependencyType.BUNDLE)) {
                     currentBundle.addToRequiredBundles(currentDependency.getFirst());
-                } else {
+                } else if (currentDependency.getSecond().equals(DependencyType.PLUGIN)) {
                     currentBundle.addToRequiredPackages(currentDependency.getFirst());
                 }
             }
@@ -140,7 +141,9 @@ public class ContentFileHandler extends DefaultHandler {
                 return;
             }
             if (currentElementValidForOS) {
-                currentBundle.addToExportPackage(currentDependency.getFirst());
+                if (currentDependency.getSecond().equals(DependencyType.PLUGIN)) {
+                    currentBundle.addToExportPackage(currentDependency.getFirst());
+                }
             }
             currentDependency = null;
             currentElementValidForOS = true;
@@ -158,15 +161,15 @@ public class ContentFileHandler extends DefaultHandler {
     public void characters(char[] ch, int start, int length) throws SAXException {
         String content = new String(ch, start, length);
         if (ContentType.INSTRUCTION.equals(currentContentType)) {
-            String level = getMatchOrNull(START_LEVEL_PATTERN, content);
+            String level = getMatchOrNull(START_LEVEL_PATTERN, content.trim());
             if (!CommonUtils.isEmpty(level)) {
-//                currentBundle.setStartLevel(CommonUtils.toInt(level, 0));
+                currentBundle.setStartLevel(Integer.valueOf(level));
             }
         }
         if (ContentType.FILTER.equals(currentContentType)) {
-            String os = getMatchOrNull(OS_PATTERN, content);
-            String ws = getMatchOrNull(WS_PATTERN, content);
-            String arch = getMatchOrNull(ARCH_PATTERN, content);
+            String os = getMatchOrNull(OS_PATTERN, content.trim());
+            String ws = getMatchOrNull(WS_PATTERN, content.trim());
+            String arch = getMatchOrNull(ARCH_PATTERN, content.trim());
             currentElementValidForOS = SystemUtils.matchesDeclaredOS(os, ws, arch);
         }
 
@@ -174,10 +177,11 @@ public class ContentFileHandler extends DefaultHandler {
     }
 
     private String getMatchOrNull(Pattern pattern, String content) {
-        if (!pattern.matcher(content).matches()) {
+        Matcher matcher = pattern.matcher(content);
+        if (!matcher.matches()) {
             return null;
         }
-        return OS_PATTERN.matcher(content).group(1);
+        return matcher.group(1);
     }
 
     private ContentFileHandler(RemoteP2Repository repository, P2BundleLookupCache cache) {
@@ -187,7 +191,8 @@ public class ContentFileHandler extends DefaultHandler {
 
     private enum DependencyType {
         PLUGIN,
-        BUNDLE
+        BUNDLE,
+        UNKNOWN
     }
 
     private enum ContentType {

@@ -109,15 +109,17 @@ public class DynamicImportsResolver {
             if (eclipseBundlesWithThisPackage.isEmpty()) {
                 Collection<RemoteP2BundleInfo> remoteP2BundleInfos = lookupCache.getRemoteBundlesByExports().get(packageToImport);
                 if (!failedToResolvePackagesToBundles.containsKey(packageToImport) && !lookupCache.getRemoteBundlesByExports().get(packageToImport).isEmpty()) {
-                    Optional<RemoteP2BundleInfo> remoteBundleInfo
-                        = remoteP2BundleInfos.stream().max(Comparator.comparing(BundleInfo::getBundleVersion));
-                    if (remoteBundleInfo.isPresent() && remoteBundleInfo.get().resolveBundle()) {
-                        for (var packageToExport : remoteBundleInfo.get().getExportPackages()) {
-                            eclipsePluginsByExportedPackages.put(packageToExport, remoteBundleInfo.get());
+                    for (RemoteP2BundleInfo remoteP2BundleInfo : remoteP2BundleInfos) {
+                        if (remoteP2BundleInfo.resolveBundle()) {
+                            for (var packageToExport : remoteP2BundleInfo.getExportPackages()) {
+                                eclipsePluginsByExportedPackages.put(packageToExport, remoteP2BundleInfo);
+                            }
+                            eclipseBundlesWithThisPackage.add(remoteP2BundleInfo);
+                        } else {
+                            failedToResolvePackagesToBundles.put(packageToImport, bundleInfo);
                         }
-                        eclipseBundlesWithThisPackage.add(remoteBundleInfo.get());
-                    } else {
-                        failedToResolvePackagesToBundles.put(packageToImport, bundleInfo);
+                    }
+                    if (eclipseBundlesWithThisPackage.isEmpty()) {
                         continue;
                     }
                 } else {

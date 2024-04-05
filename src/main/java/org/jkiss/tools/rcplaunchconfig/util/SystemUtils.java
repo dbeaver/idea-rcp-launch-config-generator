@@ -18,15 +18,15 @@ import java.util.jar.JarFile;
 public class SystemUtils {
     public static boolean matchesDeclaredOS(String ws, String os, String arch) {
         if (ws != null && !ws.equals(BundleInfo.currentWS)) {
-            return true;
+            return false;
         }
         if (os != null && !os.equals(BundleInfo.currentOS)) {
-            return true;
+            return false;
         }
         if (arch != null && !arch.equals(BundleInfo.currentArch)) {
-            return true;
+            return false;
         }
-        return false;
+        return true;
     }
 
     public static Path extractConfigFromJar(Path artifactJar, String config) throws IOException {

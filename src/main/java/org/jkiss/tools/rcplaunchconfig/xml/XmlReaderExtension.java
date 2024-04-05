@@ -37,7 +37,7 @@ abstract class XmlReaderExtension {
         Attribute osAttr = startElement.getAttributeByName(OS_ATTR_NAME);
         Attribute wsAttr = startElement.getAttributeByName(WS_ATTR_NAME);
         Attribute archAttr = startElement.getAttributeByName(ARCH_ATTR_NAME);
-        return !SystemUtils.matchesDeclaredOS(
+        return SystemUtils.matchesDeclaredOS(
             wsAttr == null ? null : wsAttr.getValue(),
             osAttr == null ? null : osAttr.getValue(),
             archAttr == null ? null : archAttr.getValue());
