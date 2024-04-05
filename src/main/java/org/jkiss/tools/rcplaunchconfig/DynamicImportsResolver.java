@@ -42,7 +42,7 @@ public class DynamicImportsResolver {
 
     private static final Logger log = LoggerFactory.getLogger(DynamicImportsResolver.class);
 
-    private static final Path MANIFEST_PATH = Paths.get("META-INF", "MANIFEST.MF");
+    public static final Path MANIFEST_PATH = Paths.get("META-INF", "MANIFEST.MF");
 
     private final MultiValuedMap<String, BundleInfo> failedToResolvePackagesToBundles = new ArrayListValuedHashMap<>();
 

@@ -25,7 +25,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-public final class BundleInfo {
+public class BundleInfo {
 
     public static String currentOS;
     public static String currentWS;
@@ -58,10 +58,10 @@ public final class BundleInfo {
         }
     }
 
-    private final Path path;
+    protected Path path;
     private final String bundleName;
     private final String bundleVersion;
-    private final List<String> classpathLibs;
+    protected List<String> classpathLibs;
     private final List<String> requireBundles;
     private final Set<String> exportPackages;
     private final Set<String> importPackages;
@@ -72,7 +72,7 @@ public final class BundleInfo {
     private String additionalVersions;
 
     public BundleInfo(
-        @Nonnull Path path,
+        @Nullable Path path,
         @Nonnull String bundleName,
         @Nonnull String bundleVersion,
         @Nonnull List<String> classpathLibs,

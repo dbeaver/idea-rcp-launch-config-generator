@@ -14,10 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jkiss.tools.rcplaunchconfig;
+package org.jkiss.tools.rcplaunchconfig.p2;
 
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
+import org.jkiss.tools.rcplaunchconfig.Artifact;
+import org.jkiss.tools.rcplaunchconfig.PathsManager;
+import org.jkiss.tools.rcplaunchconfig.RemoteBundleInfo;
 import org.jkiss.tools.rcplaunchconfig.xml.ContentFileHandler;
 import org.jkiss.tools.rcplaunchconfig.xml.IndexFileParser;
 import org.xml.sax.SAXException;
@@ -35,10 +38,24 @@ import java.util.Properties;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-public class RepositoryManager {
+public class P2RepositoryManager {
     private List<URL> repositoriesList;
     private MultiValuedMap<URL, Artifact> multiValuedMap = new ArrayListValuedHashMap();
-    public static final RepositoryManager INSTANCE = new RepositoryManager();
+    public static final P2RepositoryManager INSTANCE = new P2RepositoryManager();
+
+    public Path downloadArtifact(RemoteBundleInfo remoteBundleInfo) {
+        try {
+            Path eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
+            URL repositoryURL = remoteBundleInfo.getRepositoryURL();
+            URI pluginsFolder = repositoryURL.toURI().resolve("plugins/");
+            String pluginFilename = remoteBundleInfo.getBundleName() + "_" + remoteBundleInfo.getBundleVersion() + ".jar";
+            URI resolve = pluginsFolder.resolve(pluginFilename);
+            Path file = eclipsePluginsPath.resolve(pluginFilename);
+            return tryToDownloadFile(resolve, file);
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public void init(Properties settings, String eclipseVersion, String elkVersion) {
         String repositoriesString = (String) settings.get("repositories");
@@ -65,8 +82,8 @@ public class RepositoryManager {
         URI compositeArtifactJarURI = url.toURI().resolve("compositeArtifacts.jar");
         URI compositeArtifactJarXML = url.toURI().resolve("compositeArtifacts.xml");
         try {
-            Path compositeJar = tryToDownloadFile(compositeArtifactJarURI);
-            Path compositeXML = tryToDownloadFile(compositeArtifactJarXML);
+            Path compositeJar = tryToDownloadFile(compositeArtifactJarURI, null);
+            Path compositeXML = tryToDownloadFile(compositeArtifactJarXML, null);
             if (compositeJar != null) {
                 Path path = extractConfigFromJar(compositeJar, "compositeArtifacts.xml");
                 List<String> childrenURLs = IndexFileParser.INSTANCE.listChildrenRepositoriesFromFile(path.toFile());
@@ -88,29 +105,32 @@ public class RepositoryManager {
 
     private void loadArtifacts(URL url) throws URISyntaxException, IOException {
         URI artifactsURI = url.toURI().resolve("artifacts.jar");
-        Path path = tryToDownloadFile(artifactsURI);
+        Path path = tryToDownloadFile(artifactsURI, null);
         if (path != null) {
             indexArtifacts(url, path);
         }
         URI contentsURI = url.toURI().resolve("content.jar");
-        Path contentPath = tryToDownloadFile(contentsURI);
+        Path contentPath = tryToDownloadFile(contentsURI, null);
         if (contentPath != null) {
             Path contentsXMl = extractConfigFromJar(contentPath, "content.xml");
             try {
-                ContentFileHandler.parseContent(contentsXMl.toFile());
+                List<RemoteBundleInfo> remoteBundleInfos = ContentFileHandler.indexContent(contentsXMl.toFile(), url);
+                remoteBundleInfos.get(0).resolveBundle();
             } catch (SAXException | ParserConfigurationException e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    private Path tryToDownloadFile(URI artifactsURI)  {
+    private Path tryToDownloadFile(URI artifactsURI, Path path)  {
         try {
             if (tryToLoadFile(artifactsURI)) {
                 InputStream stream = artifactsURI.toURL().openStream();
-                Path artifact = Files.createTempFile("dbeaver", ".jar");
-                Files.copy(stream, artifact, StandardCopyOption.REPLACE_EXISTING);
-                return artifact;
+                if (path == null) {
+                    path = Files.createTempFile("dbeaver", ".jar");
+                }
+                Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING);
+                return path;
             }
         } catch (IOException | URISyntaxException e) {
             throw null;
@@ -148,7 +168,7 @@ public class RepositoryManager {
     }
 
 
-    private RepositoryManager() {
+    private P2RepositoryManager() {
 
     }
 }

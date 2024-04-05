@@ -88,7 +88,7 @@ public class ManifestParser {
             .trim();
     }
 
-    private static @Nonnull List<String> parseBundleClasspath(@Nonnull Attributes attrs) {
+    public static @Nonnull List<String> parseBundleClasspath(@Nonnull Attributes attrs) {
         var bundleClassPathArg = attrs.getValue("Bundle-ClassPath");
         if (bundleClassPathArg == null) {
             return List.of();

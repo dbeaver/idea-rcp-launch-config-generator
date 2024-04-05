@@ -16,6 +16,7 @@
  */
 package org.jkiss.tools.rcplaunchconfig;
 
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
@@ -41,8 +42,8 @@ public class EntryPoint {
         var settings = ConfigFileManager.readSettingsFile(params.configFilePath);
 
         var pathsManager = PathsManager.INSTANCE;
-        RepositoryManager repositoryManager = RepositoryManager.INSTANCE;
-        repositoryManager.init(settings, params.eclipseVersion, params.elkVersion);
+        P2RepositoryManager p2RepositoryManager = P2RepositoryManager.INSTANCE;
+        p2RepositoryManager.init(settings, params.eclipseVersion, params.elkVersion);
         pathsManager.init(settings, params.projectsFolderPath, params.eclipsePath);
         if (log.isDebugEnabled()) {
             var featuresPaths = pathsManager.getFeaturesLocations().stream()
