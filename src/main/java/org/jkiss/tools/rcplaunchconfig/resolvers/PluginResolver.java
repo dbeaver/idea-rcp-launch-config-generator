@@ -32,9 +32,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.stream.Collectors;
@@ -90,8 +88,8 @@ public class PluginResolver {
         if (bundleInfos.size() == 1) {
             parseBundleInfo(result, bundleInfos.get(0), cache);
         } else if (bundleInfos.isEmpty()) {
-            Collection<RemoteP2BundleInfo> remoteP2BundleInfos = cache.getRemoteBundlesByNames().get(bundleName);
-            if (remoteP2BundleInfos == null || remoteP2BundleInfos.stream().findFirst().isEmpty()) {
+            Optional<RemoteP2BundleInfo> remoteP2BundleInfos = cache.getRemoteBundlesByNames().get(bundleName).stream().max(Comparator.comparing(BundleInfo::getBundleVersion));
+            if (remoteP2BundleInfos.isEmpty()) {
                 log.error("Couldn't find plugin '{}'", bundleName);
             } else {
                 remoteP2BundleInfos.stream().findFirst().get().resolveBundle();

@@ -43,6 +43,8 @@ public class ContentFileHandler extends DefaultHandler {
     private static final Pattern WS_PATTERN = Pattern.compile(".*\\(osgi\\.ws=([^&)]+)\\).*");
     private static final Pattern OS_PATTERN = Pattern.compile(".*\\(osgi\\.os=([^&)]+)\\).*");
 
+    private static final Pattern SERVICE_LOADER_PATTERN = Pattern.compile(".*\\(osgi\\.serviceloader=([^&)]+)\\).*");
+
     private static final Pattern START_LEVEL_PATTERN = Pattern.compile(".*startLevel:\\s*(-?\\d+).*");
     private final RemoteP2Repository repository;
     private final P2BundleLookupCache cache;
@@ -93,11 +95,17 @@ public class ContentFileHandler extends DefaultHandler {
                 type = DependencyType.PLUGIN;
             } else if ("osgi.bundle".equalsIgnoreCase(namespace)) {
                 type = DependencyType.BUNDLE;
+            } else if ("osgi.serviceloader".equalsIgnoreCase(namespace)) {
+                type = DependencyType.SERVICE_LOADER;
             } else {
                 type = DependencyType.UNKNOWN;
             }
             String name = attributes.getValue("name");
             currentDependency = new Pair<>(name, type);
+        }
+        if ("requiredProperties".equalsIgnoreCase(qName) && "osgi.serviceloader".equalsIgnoreCase(attributes.getValue("namespace"))) {
+            String match = getMatchOrNull(SERVICE_LOADER_PATTERN, attributes.getValue("match"));
+            currentDependency = new Pair<>(match, DependencyType.SERVICE_LOADER);
         }
         if (currentBundle != null && "instruction".equalsIgnoreCase(qName) && "configure".equalsIgnoreCase(attributes.getValue("key"))) {
             currentContentType = ContentType.INSTRUCTION;
@@ -141,9 +149,16 @@ public class ContentFileHandler extends DefaultHandler {
                 return;
             }
             if (currentElementValidForOS) {
-                if (currentDependency.getSecond().equals(DependencyType.PLUGIN)) {
+                if (currentDependency.getSecond().equals(DependencyType.PLUGIN) || currentDependency.getSecond().equals(DependencyType.SERVICE_LOADER)) {
                     currentBundle.addToExportPackage(currentDependency.getFirst());
                 }
+            }
+            currentDependency = null;
+            currentElementValidForOS = true;
+        }
+        if (currentDependency != null && currentBundle != null && "requiredProperties".equalsIgnoreCase(qName)) {
+            if (currentElementValidForOS) {
+                currentBundle.addToRequiredPackages(currentDependency.getFirst());
             }
             currentDependency = null;
             currentElementValidForOS = true;
@@ -192,6 +207,7 @@ public class ContentFileHandler extends DefaultHandler {
     private enum DependencyType {
         PLUGIN,
         BUNDLE,
+        SERVICE_LOADER,
         UNKNOWN
     }
 
