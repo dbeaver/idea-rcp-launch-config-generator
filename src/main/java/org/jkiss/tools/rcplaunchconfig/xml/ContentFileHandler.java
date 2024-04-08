@@ -16,6 +16,7 @@
  */
 package org.jkiss.tools.rcplaunchconfig.xml;
 
+import org.jkiss.tools.rcplaunchconfig.p2.RemoteP2Feature;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
@@ -48,15 +49,19 @@ public class ContentFileHandler extends DefaultHandler {
     private ParserState currentState = ParserState.ROOT;
     private ContentType currentContentType = null;
     private final Set<RemoteP2BundleInfo> remoteP2BundleInfos = new HashSet<>();
-    private UnitInformation currentUnit;
 
-    public static Set<RemoteP2BundleInfo> indexContent(File file, RemoteP2Repository repository, P2BundleLookupCache cache) throws IOException, SAXException, ParserConfigurationException {
+    private final Set<RemoteP2Feature> remoteP2Features = new HashSet<>();
+    private UnitInformation currentUnit;
+    private String artifactID;
+
+    public static void indexContent(RemoteP2Repository repository, File file, P2BundleLookupCache cache) throws IOException, SAXException, ParserConfigurationException {
         SAXParserFactory factory = SAXParserFactory.newInstance();
         factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true );
         SAXParser saxParser = factory.newSAXParser();
         ContentFileHandler contentFileHandler = new ContentFileHandler(repository, cache);
         saxParser.parse(file, contentFileHandler);
-        return contentFileHandler.getRemoteBundleInfos();
+        repository.addRemoteBundles(contentFileHandler.remoteP2BundleInfos);
+        repository.addRemoteFeatures(contentFileHandler.remoteP2Features);
     }
 
 
@@ -75,6 +80,10 @@ public class ContentFileHandler extends DefaultHandler {
         return remoteP2BundleInfos;
     }
 
+    public Set<RemoteP2Feature> getRemoteP2Features() {
+        return remoteP2Features;
+    }
+
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
         if (ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qName)) {
@@ -82,6 +91,10 @@ public class ContentFileHandler extends DefaultHandler {
             String id = attributes.getValue(ContentFileConstants.ID_FIELD);
             String version = attributes.getValue(ContentFileConstants.VERSION_FIELD);
             this.currentUnit = new UnitInformation(id, version);
+        }
+        if (currentState.isInsideUnit() && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qName)
+            && "maven-artifactId".equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))) {
+                artifactID = attributes.getValue(ContentFileConstants.FIELD_VALUE);
         }
         if (
             currentState.equals(ParserState.PLUGIN_VALID) && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qName)
@@ -97,8 +110,10 @@ public class ContentFileHandler extends DefaultHandler {
         }
         if (
             currentState == ParserState.PLUGIN_VALID
-                && ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName)
-                || ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qName)
+                && (
+                    ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName)
+                    || ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qName)
+                    )
         ) {
             if (currentBundle == null) {
                 initBundle();
@@ -156,13 +171,23 @@ public class ContentFileHandler extends DefaultHandler {
                         initBundle();
                     }
                     RemoteP2BundleInfo bundle = currentBundle.build();
-                    if (repository.bundleIsIndexed(bundle)) {
+                    if (repository.isIndexed(bundle.getBundleName(), bundle.getBundleVersion())) {
                         cache.addRemoteBundle(bundle);
                         remoteP2BundleInfos.add(bundle);
                     }
                 }
+                if (currentState == ParserState.FEATURE_VALID) {
+                    RemoteP2Feature remoteP2Feature = new RemoteP2Feature(artifactID, currentUnit.version(), repository);
+                    if (repository.isIndexed(artifactID, currentUnit.version())) {
+                        repository.linkEclipseIdToArtifactID(currentUnit.id, artifactID);
+                        cache.addRemoteFeature(remoteP2Feature);
+                        remoteP2Features.add(remoteP2Feature);
+                    }
+                }
             }
             currentBundle = null;
+            currentUnit = null;
+            artifactID = null;
             currentState = ParserState.ROOT;
         }
         if (currentState.isInsideDependency() && ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName)) {

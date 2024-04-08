@@ -34,7 +34,7 @@ public class P2BundleLookupCache {
     }
 
     //TODO change API
-    public MultiValuedMap<String, RemoteP2Feature> remoteFeaturesByNames() {
+    public MultiValuedMap<String, RemoteP2Feature> getRemoteFeaturesByNames() {
         return remoteFeaturesByNames;
     }
 
@@ -47,5 +47,9 @@ public class P2BundleLookupCache {
         for (String exportPackage : remoteP2BundleInfo.getExportPackages()) {
             remoteBundlesByExports.put(exportPackage, remoteP2BundleInfo);
         }
+    }
+
+    public void addRemoteFeature(RemoteP2Feature feature) {
+        remoteFeaturesByNames.put(feature.name, feature);
     }
 }

@@ -43,7 +43,7 @@ public class RemoteP2BundleInfo extends BundleInfo {
             return true;
         }
         log.info("Downloading " + getBundleName() + "_" + getBundleVersion() + " from " + getRepository().getName() + "... ");
-        Path filePath = repository.resolveArtifact(this);
+        Path filePath = repository.resolveBundle(this);
         if (filePath == null) {
             return false;
         }

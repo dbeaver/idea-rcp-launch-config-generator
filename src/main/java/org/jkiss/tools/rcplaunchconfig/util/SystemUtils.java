@@ -4,6 +4,7 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -12,6 +13,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Iterator;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -32,11 +34,35 @@ public class SystemUtils {
     public static Path extractConfigFromJar(Path artifactJar, String config) throws IOException {
         try (JarFile jarFile = new JarFile(artifactJar.toFile())) {
             JarEntry jarEntry = jarFile.getJarEntry(config);
-            InputStream inputStream = jarFile.getInputStream(jarEntry);
-            Path configFile = Files.createTempFile("dbeaver", ".tmp");
-            Files.copy(inputStream, configFile, StandardCopyOption.REPLACE_EXISTING);
-            return configFile;
+            try (InputStream inputStream = jarFile.getInputStream(jarEntry)) {
+                Path configFile = Files.createTempFile("dbeaver", ".tmp");
+                Files.copy(inputStream, configFile, StandardCopyOption.REPLACE_EXISTING);
+                return configFile;
+            }
         }
+    }
+
+    public static boolean extractJarToFolder(Path jarPath, Path folderPath) throws IOException {
+        try (JarFile jarFile = new JarFile(jarPath.toFile())) {
+            Iterator<JarEntry> iterator = jarFile.entries().asIterator();
+            while (iterator.hasNext()) {
+                JarEntry entry = iterator.next();
+                Path childPath = folderPath.resolve(entry.getName());
+                if (entry.isDirectory()) {
+                    if (!childPath.toFile().exists()) {
+                        childPath.toFile().mkdirs();
+                    }
+                } else {
+                    try (InputStream inputStream = jarFile.getInputStream(entry)) {
+                        if (!childPath.toFile().exists()) {
+                            childPath.toFile().getParentFile().mkdirs();
+                        }
+                        Files.copy(inputStream, childPath, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     @Nullable

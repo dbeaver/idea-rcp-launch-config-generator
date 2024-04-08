@@ -90,4 +90,8 @@ public enum PathsManager {
     public @Nonnull Path getEclipsePluginsPath() {
         return eclipsePluginsPath;
     }
+
+    public Path getEclipseFeaturesPath() {
+        return eclipseFeaturesPath;
+    }
 }

@@ -17,8 +17,12 @@
 package org.jkiss.tools.rcplaunchconfig.resolvers;
 
 import jakarta.annotation.Nonnull;
+import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
+import org.jkiss.tools.rcplaunchconfig.p2.RemoteP2Feature;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.xml.XmlReader;
 import org.slf4j.Logger;
@@ -27,7 +31,10 @@ import org.slf4j.LoggerFactory;
 import javax.xml.stream.XMLStreamException;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class FeatureResolver {
@@ -45,17 +52,27 @@ public class FeatureResolver {
         }
 
         var featuresFoldersPaths = PathsManager.INSTANCE.getFeaturesLocations();
-
         var featureXmlFiles = featuresFoldersPaths.stream()
             .map(featuresFolderPath -> FileUtils.findFirstChildByPackageName(featuresFolderPath, bundleName))
             .filter(Objects::nonNull)
             .map(featureFolder -> FileUtils.findFirstChildByPackageName(featureFolder, FEATURES_XML_FILENAME))
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+            .toList();
 
         if (featureXmlFiles.size() == 1) {
             parseFeatureFile(result, bundleName, featureXmlFiles.get(0));
         } else if (featureXmlFiles.isEmpty()) {
+            P2BundleLookupCache lookupCache = P2RepositoryManager.INSTANCE.getLookupCache();
+            Optional<RemoteP2Feature> remoteP2FeatureOptional
+                = lookupCache.getRemoteFeaturesByNames().get(bundleName).stream().max(Comparator.comparing(RemoteP2Feature::getVersion));
+            if (remoteP2FeatureOptional.isPresent()) {
+                RemoteP2Feature remoteP2Feature = remoteP2FeatureOptional.get();
+                boolean success = remoteP2Feature.resolveFeature();
+                if (success) {
+                    File child = FileUtils.findFirstChildByPackageName(remoteP2Feature.getPath(), FEATURES_XML_FILENAME);
+                    parseFeatureFile(result, bundleName, child);
+                }
+            }
             log.error("Couldn't find feature '{}'", bundleName);
         } else {
             var featuresFilesPaths = featureXmlFiles.stream()

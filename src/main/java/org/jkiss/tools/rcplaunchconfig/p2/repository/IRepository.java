@@ -26,7 +26,7 @@ import java.nio.file.Path;
 public interface IRepository<BUNDLE extends BundleInfo> {
     String getName();
 
-    Path resolveArtifact(BUNDLE bundleInfo);
+    Path resolveBundle(BUNDLE bundleInfo);
 
     void init(P2BundleLookupCache cache) throws RepositoryInitialisationError;
 
