@@ -38,22 +38,17 @@ import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
 public class ContentFileHandler extends DefaultHandler {
-    private static final Pattern ARCH_PATTERN = Pattern.compile(".*\\(osgi\\.arch=([^&)]+)\\).*");
 
-    private static final Pattern WS_PATTERN = Pattern.compile(".*\\(osgi\\.ws=([^&)]+)\\).*");
-    private static final Pattern OS_PATTERN = Pattern.compile(".*\\(osgi\\.os=([^&)]+)\\).*");
 
-    private static final Pattern SERVICE_LOADER_PATTERN = Pattern.compile(".*\\(osgi\\.serviceloader=([^&)]+)\\).*");
-
-    private static final Pattern START_LEVEL_PATTERN = Pattern.compile(".*startLevel:\\s*(-?\\d+).*");
     private final RemoteP2Repository repository;
     private final P2BundleLookupCache cache;
     private RemoteP2BundleInfo.RemoteBundleInfoBuilder currentBundle;
     private Pair<String, DependencyType> currentDependency;
 
-    private boolean currentElementValidForOS = true;
+    private ParserState currentState = ParserState.ROOT;
     private ContentType currentContentType = null;
     private final Set<RemoteP2BundleInfo> remoteP2BundleInfos = new HashSet<>();
+    private UnitInformation currentUnit;
 
     public static Set<RemoteP2BundleInfo> indexContent(File file, RemoteP2Repository repository, P2BundleLookupCache cache) throws IOException, SAXException, ParserConfigurationException {
         SAXParserFactory factory = SAXParserFactory.newInstance();
@@ -82,59 +77,99 @@ public class ContentFileHandler extends DefaultHandler {
 
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
-        if ("unit".equalsIgnoreCase(qName)) {
-            currentBundle = new RemoteP2BundleInfo.RemoteBundleInfoBuilder();
-            String id = attributes.getValue("id");
-            String version = attributes.getValue("version");
-            currentBundle.bundleName(id).version(version).repositoryURL(repository);
+        if (ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qName)) {
+            currentState = ParserState.PLUGIN_VALID;
+            String id = attributes.getValue(ContentFileConstants.ID_FIELD);
+            String version = attributes.getValue(ContentFileConstants.VERSION_FIELD);
+            this.currentUnit = new UnitInformation(id, version);
         }
-        if ("required".equalsIgnoreCase(qName) || "provided".equalsIgnoreCase(qName)) {
-            String namespace = attributes.getValue("namespace");
-            DependencyType type;
-            if ("java.package".equalsIgnoreCase(namespace)) {
-                type = DependencyType.PLUGIN;
-            } else if ("osgi.bundle".equalsIgnoreCase(namespace)) {
-                type = DependencyType.BUNDLE;
-            } else if ("osgi.serviceloader".equalsIgnoreCase(namespace)) {
-                type = DependencyType.SERVICE_LOADER;
-            } else {
-                type = DependencyType.UNKNOWN;
+        if (
+            currentState.equals(ParserState.PLUGIN_VALID) && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qName)
+                && ContentFileConstants.MAVEN_TYPE_FIELD.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))
+        ) {
+            if ("eclipse-feature".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {
+                currentState = ParserState.FEATURE_VALID;
+            } else if ("jar".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
+                || "eclipse-plugin".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))){
+                currentState = ParserState.PLUGIN_VALID;
+                initBundle();
             }
-            String name = attributes.getValue("name");
+        }
+        if (
+            currentState == ParserState.PLUGIN_VALID
+                && ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName)
+                || ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qName)
+        ) {
+            if (currentBundle == null) {
+                initBundle();
+            }
+            currentState = ParserState.DEPENDENCY;
+            String namespace = attributes.getValue(ContentFileConstants.NAMESPACE_FIELD);
+            DependencyType type = DependencyType.getType(namespace);
+            String name = attributes.getValue(ContentFileConstants.NAME_FIELD);
             currentDependency = new Pair<>(name, type);
         }
-        if ("requiredProperties".equalsIgnoreCase(qName) && "osgi.serviceloader".equalsIgnoreCase(attributes.getValue("namespace"))) {
-            String match = getMatchOrNull(SERVICE_LOADER_PATTERN, attributes.getValue("match"));
+        if (
+            currentState == ParserState.PLUGIN_VALID
+                && ContentFileConstants.REQUIRED_PROPERTIES_KEYWORD.equalsIgnoreCase(qName)
+                && DependencyType.OSGI_SERVICELOADER.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAMESPACE_FIELD))
+        ) {
+            if (currentBundle == null) {
+                initBundle();
+            }
+            String match = getMatchOrNull(
+                ContentFileConstants.SERVICE_LOADER_PATTERN,
+                attributes.getValue(ContentFileConstants.MATCH_FIELD
+                ));
+            currentState = ParserState.DEPENDENCY;
             currentDependency = new Pair<>(match, DependencyType.SERVICE_LOADER);
         }
-        if (currentBundle != null && "instruction".equalsIgnoreCase(qName) && "configure".equalsIgnoreCase(attributes.getValue("key"))) {
+        if (!currentState.isInvalid()
+            && currentState.isInsideUnit()
+            && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qName)
+            && "configure".equalsIgnoreCase(attributes.getValue(ContentFileConstants.KEY_FIELD))
+        ) {
             currentContentType = ContentType.INSTRUCTION;
         }
-        if (currentBundle != null && "filter".equalsIgnoreCase(qName)) {
+        if (
+            !currentState.isInvalid()
+                && (currentState.isInsideUnit() || currentState.isInsideDependency())
+                && ContentFileConstants.FILTER_KEYWORD.equalsIgnoreCase(qName)
+        ) {
             currentContentType = ContentType.FILTER;
         }
 
         super.startElement(uri, localName, qName, attributes);
     }
 
+    private void initBundle() {
+        currentBundle = new RemoteP2BundleInfo.RemoteBundleInfoBuilder();
+        currentBundle.bundleName(currentUnit.id).version(currentUnit.version()).repositoryURL(repository);
+    }
+
     @Override
     public void endElement(String uri, String localName, String qName) throws SAXException {
-        if ("unit".equalsIgnoreCase(qName)) {
-            if (currentElementValidForOS) {
-                RemoteP2BundleInfo bundle = currentBundle.build();
-                if (repository.bundleIsIndexed(bundle)) {
-                    cache.addRemoteBundle(bundle);
-                    remoteP2BundleInfos.add(bundle);
+        if (currentState.isInsideUnit() && ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qName)) {
+            if (currentState != ParserState.UNIT_INVALID) {
+                if (currentState ==  ParserState.PLUGIN_VALID) {
+                    if (currentBundle == null) {
+                        initBundle();
+                    }
+                    RemoteP2BundleInfo bundle = currentBundle.build();
+                    if (repository.bundleIsIndexed(bundle)) {
+                        cache.addRemoteBundle(bundle);
+                        remoteP2BundleInfos.add(bundle);
+                    }
                 }
             }
             currentBundle = null;
-            currentElementValidForOS = true;
+            currentState = ParserState.ROOT;
         }
-        if ("required".equalsIgnoreCase(qName)) {
+        if (currentState.isInsideDependency() && ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName)) {
             if (currentDependency == null) {
                 return;
             }
-            if (currentElementValidForOS) {
+            if (currentState != ParserState.DEPENDENCY_INVALID) {
                 if (currentDependency.getSecond().equals(DependencyType.BUNDLE)) {
                     currentBundle.addToRequiredBundles(currentDependency.getFirst());
                 } else if (currentDependency.getSecond().equals(DependencyType.PLUGIN)) {
@@ -142,31 +177,32 @@ public class ContentFileHandler extends DefaultHandler {
                 }
             }
             currentDependency = null;
-            currentElementValidForOS = true;
+            currentState = ParserState.PLUGIN_VALID;
         }
-        if ("provided".equalsIgnoreCase(qName)) {
-            if (currentDependency == null) {
-                return;
-            }
-            if (currentElementValidForOS) {
+
+        if (currentState.isInsideDependency() && ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qName)) {
+            if (currentState != ParserState.DEPENDENCY_INVALID) {
                 if (currentDependency.getSecond().equals(DependencyType.PLUGIN) || currentDependency.getSecond().equals(DependencyType.SERVICE_LOADER)) {
                     currentBundle.addToExportPackage(currentDependency.getFirst());
                 }
             }
             currentDependency = null;
-            currentElementValidForOS = true;
+            currentState = ParserState.PLUGIN_VALID;
         }
-        if (currentDependency != null && currentBundle != null && "requiredProperties".equalsIgnoreCase(qName)) {
-            if (currentElementValidForOS) {
+        if (currentState.isInsideDependency()
+            && ContentFileConstants.REQUIRED_PROPERTIES_KEYWORD.equalsIgnoreCase(qName)) {
+            if (currentState != ParserState.DEPENDENCY_INVALID) {
                 currentBundle.addToRequiredPackages(currentDependency.getFirst());
             }
             currentDependency = null;
-            currentElementValidForOS = true;
+            currentState = ParserState.PLUGIN_VALID;
         }
-        if (currentBundle != null && "instruction".equalsIgnoreCase(qName) && ContentType.INSTRUCTION.equals(currentContentType)) {
+        if (currentState.isInsideUnit()
+            && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qName) && ContentType.INSTRUCTION.equals(currentContentType)) {
             currentContentType = null;
         }
-        if (currentBundle != null && "filter".equalsIgnoreCase(qName) && ContentType.FILTER.equals(currentContentType)) {
+        if ((currentState.isInsideUnit() || currentState.isInsideDependency())
+            && ContentFileConstants.FILTER_KEYWORD.equalsIgnoreCase(qName) && ContentType.FILTER.equals(currentContentType)) {
             currentContentType = null;
         }
         super.endElement(uri, localName, qName);
@@ -175,17 +211,19 @@ public class ContentFileHandler extends DefaultHandler {
     @Override
     public void characters(char[] ch, int start, int length) throws SAXException {
         String content = new String(ch, start, length);
-        if (ContentType.INSTRUCTION.equals(currentContentType)) {
-            String level = getMatchOrNull(START_LEVEL_PATTERN, content.trim());
+        if (!currentState.isInvalid() && ContentType.INSTRUCTION.equals(currentContentType)) {
+            String level = getMatchOrNull(ContentFileConstants.START_LEVEL_PATTERN, content.trim());
             if (!CommonUtils.isEmpty(level)) {
-                currentBundle.setStartLevel(Integer.valueOf(level));
+                currentBundle.setStartLevel(Integer.parseInt(level));
             }
         }
         if (ContentType.FILTER.equals(currentContentType)) {
-            String os = getMatchOrNull(OS_PATTERN, content.trim());
-            String ws = getMatchOrNull(WS_PATTERN, content.trim());
-            String arch = getMatchOrNull(ARCH_PATTERN, content.trim());
-            currentElementValidForOS = SystemUtils.matchesDeclaredOS(os, ws, arch);
+            String os = getMatchOrNull(ContentFileConstants.OS_PATTERN, content.trim());
+            String ws = getMatchOrNull(ContentFileConstants.WS_PATTERN, content.trim());
+            String arch = getMatchOrNull(ContentFileConstants.ARCH_PATTERN, content.trim());
+            if (!SystemUtils.matchesDeclaredOS(os, ws, arch)) {
+                currentState = currentState.isInsideDependency() ? ParserState.DEPENDENCY_INVALID : ParserState.UNIT_INVALID;
+            }
         }
 
         super.characters(ch, start, length);
@@ -204,11 +242,52 @@ public class ContentFileHandler extends DefaultHandler {
         this.cache = cache;
     }
 
+
+    private enum ParserState {
+        ROOT, // ROOT -> UNIT
+        FEATURE_VALID, // FEATURE_VALID -> UNIT_INVALID | UNIT
+        PLUGIN_VALID, // PLUGIN_VALID -> UNIT_INVALID | PLUGIN_DEPENDENCY |
+        DEPENDENCY, //  PLUGIN_IMPORT
+        DEPENDENCY_INVALID, // DEPENDENCY_INVALID -> PLUGIN_VALID
+        UNIT_INVALID; // UNIT_INVALID -> ROOT
+        private boolean isInsideDependency() {
+            return this.equals(DEPENDENCY) || this.equals(DEPENDENCY_INVALID);
+        }
+        private boolean isInsideUnit() {
+            return this.equals(FEATURE_VALID) || this.equals(PLUGIN_VALID) || this.equals(UNIT_INVALID);
+        }
+
+
+        private boolean isInvalid() {
+            return this.equals(DEPENDENCY_INVALID) || this.equals(UNIT_INVALID);
+        }
+    }
+    private record UnitInformation(String id, String version) {
+    }
+
     private enum DependencyType {
         PLUGIN,
         BUNDLE,
         SERVICE_LOADER,
-        UNKNOWN
+        UNKNOWN;
+
+        public static final String OSGI_SERVICELOADER = "osgi.serviceloader";
+        public static final String OSGI_BUNDLE = "osgi.bundle";
+        public static final String JAVA_PACKAGE = "java.package";
+
+        public static DependencyType getType(String namespace) {
+            DependencyType type;
+            if (JAVA_PACKAGE.equalsIgnoreCase(namespace)) {
+                type = DependencyType.PLUGIN;
+            } else if (OSGI_BUNDLE.equalsIgnoreCase(namespace)) {
+                type = DependencyType.BUNDLE;
+            } else if (OSGI_SERVICELOADER.equalsIgnoreCase(namespace)) {
+                type = DependencyType.SERVICE_LOADER;
+            } else {
+                type = DependencyType.UNKNOWN;
+            }
+            return type;
+        }
     }
 
     private enum ContentType {

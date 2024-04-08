@@ -20,6 +20,7 @@ import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,7 +46,13 @@ public enum PathsManager {
     ) throws IOException {
         this.eclipsePath = eclipsePath;
         eclipsePluginsPath = eclipsePath.resolve("plugins");
+        if (!eclipsePluginsPath.toFile().exists()) {
+            Files.createDirectories(eclipsePluginsPath);
+        }
         eclipseFeaturesPath = eclipsePath.resolve("features");
+        if (!eclipseFeaturesPath.toFile().exists()) {
+            Files.createDirectories(eclipseFeaturesPath);
+        }
         var featuresPathsString = (String) settings.get("featuresPaths");
         featuresPaths = Arrays.stream(featuresPathsString.split(";"))
             .map(String::trim)

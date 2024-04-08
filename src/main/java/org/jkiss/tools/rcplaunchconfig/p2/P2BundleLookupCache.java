@@ -23,6 +23,7 @@ import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 
 public class P2BundleLookupCache {
     private final MultiValuedMap<String, RemoteP2BundleInfo> remoteBundlesByNames = new ArrayListValuedHashMap<>();
+    private final MultiValuedMap<String, RemoteP2Feature> remoteFeaturesByNames = new ArrayListValuedHashMap<>();
     private final MultiValuedMap<String, RemoteP2BundleInfo> remoteBundlesByExports = new ArrayListValuedHashMap<>();
 
     public P2BundleLookupCache() {
@@ -30,6 +31,11 @@ public class P2BundleLookupCache {
 
     public MultiValuedMap<String, RemoteP2BundleInfo> getRemoteBundlesByNames() {
         return remoteBundlesByNames;
+    }
+
+    //TODO change API
+    public MultiValuedMap<String, RemoteP2Feature> remoteFeaturesByNames() {
+        return remoteFeaturesByNames;
     }
 
     public MultiValuedMap<String, RemoteP2BundleInfo> getRemoteBundlesByExports() {
