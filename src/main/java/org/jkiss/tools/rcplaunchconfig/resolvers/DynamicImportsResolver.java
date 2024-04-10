@@ -14,18 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jkiss.tools.rcplaunchconfig;
+package org.jkiss.tools.rcplaunchconfig.resolvers;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
+import org.jkiss.tools.rcplaunchconfig.BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.PathsManager;
+import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
-import org.jkiss.tools.rcplaunchconfig.resolvers.ManifestParser;
-import org.jkiss.tools.rcplaunchconfig.resolvers.PackageChecker;
-import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
-import org.jkiss.tools.rcplaunchconfig.util.SystemUtils;
+import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,7 +111,7 @@ public class DynamicImportsResolver {
                 Collection<RemoteP2BundleInfo> remoteP2BundleInfos = lookupCache.getRemoteBundlesByExports().get(packageToImport);
                 if (!failedToResolvePackagesToBundles.containsKey(packageToImport) && !lookupCache.getRemoteBundlesByExports().get(packageToImport).isEmpty()) {
                     for (RemoteP2BundleInfo remoteP2BundleInfo : remoteP2BundleInfos) {
-                        Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = SystemUtils.getMaxVersionRemoteBundle(remoteP2BundleInfo.getBundleName(), lookupCache);
+                        Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = BundleUtils.getMaxVersionRemoteBundle(remoteP2BundleInfo.getBundleName(), lookupCache);
                         if (maxVersionRemoteBundle.isPresent() && maxVersionRemoteBundle.get().resolveBundle()) {
                             for (var packageToExport : maxVersionRemoteBundle.get().getExportPackages()) {
                                 eclipsePluginsByExportedPackages.put(packageToExport, maxVersionRemoteBundle.get());

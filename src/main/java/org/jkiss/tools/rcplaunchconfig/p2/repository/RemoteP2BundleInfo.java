@@ -20,7 +20,7 @@ package org.jkiss.tools.rcplaunchconfig.p2.repository;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
-import org.jkiss.tools.rcplaunchconfig.DynamicImportsResolver;
+import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.ManifestParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,6 +96,7 @@ public class RemoteP2BundleInfo extends BundleInfo {
     boolean isZipped() {
         return zipped;
     }
+
     public RemoteP2Repository getRepository() {
         return repository;
     }
@@ -136,11 +137,6 @@ public class RemoteP2BundleInfo extends BundleInfo {
 
         public RemoteBundleInfoBuilder version(String bundleVersion) {
             this.bundleVersion = bundleVersion;
-            return this;
-        }
-
-        public RemoteBundleInfoBuilder classpathLibs(List<String> classpathLibs) {
-            this.classpathLibs = classpathLibs;
             return this;
         }
 

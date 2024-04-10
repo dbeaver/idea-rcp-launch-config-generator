@@ -24,7 +24,6 @@ import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.RemoteP2Feature;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
-import org.jkiss.tools.rcplaunchconfig.util.SystemUtils;
 import org.jkiss.tools.rcplaunchconfig.xml.ContentFileHandler;
 import org.jkiss.tools.rcplaunchconfig.xml.IndexFileParser;
 import org.slf4j.Logger;
@@ -58,7 +57,7 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
         return url.toString();
     }
 
-    private Map<String, String> eclipseIDToMavenID = new LinkedHashMap<>();
+
     public boolean isIndexed(String id, String version) {
         for (Artifact indexedArtifact : indexedArtifacts) {
             if (indexedArtifact.id().equalsIgnoreCase(id)
@@ -69,10 +68,6 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
         return false;
     }
 
-    public void linkEclipseIdToArtifactID(String eclipseID, String artifactID) {
-        eclipseIDToMavenID.put(eclipseID, artifactID);
-    }
-
     public Path resolveBundle(RemoteP2BundleInfo remoteP2BundleInfo) {
         try {
             Path eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
@@ -81,9 +76,9 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
             URI resolve = pluginsFolder.resolve(pluginFilename + ".jar");
             if (remoteP2BundleInfo.isZipped()) {
                 Path file = eclipsePluginsPath.resolve(pluginFilename);
-                Path jarPath = SystemUtils.tryToDownloadFile(resolve, null);
+                Path jarPath = FileUtils.tryToDownloadFile(resolve, null);
                 if (jarPath != null) {
-                    boolean success = SystemUtils.extractJarToFolder(jarPath, file);
+                    boolean success = FileUtils.extractJarToFolder(jarPath, file);
                     if (success) {
                         return file;
                     }
@@ -91,7 +86,7 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
                 return null;
             } else {
                 Path file = eclipsePluginsPath.resolve(pluginFilename + ".jar");
-                return  SystemUtils.tryToDownloadFile(resolve, file);
+                return  FileUtils.tryToDownloadFile(resolve, file);
             }
         } catch (URISyntaxException | IOException e) {
             log.error("Error resolving the artifact", e);
@@ -106,8 +101,8 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
             String featureName = remoteP2Feature.getName() + "_" + remoteP2Feature.getVersion();
             URI resolve = pluginsFolder.resolve(featureName + ".jar");
             Path filePath = eclipseFeaturesPath.resolve(featureName);
-            Path jarPath = SystemUtils.tryToDownloadFile(resolve, null);
-            SystemUtils.extractJarToFolder(jarPath, filePath);
+            Path jarPath = FileUtils.tryToDownloadFile(resolve, null);
+            FileUtils.extractJarToFolder(jarPath, filePath);
             return filePath;
         } catch (URISyntaxException | IOException e) {
             log.error("Error resolving the artifact", e);
@@ -121,10 +116,10 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
         try {
             URI compositeArtifactJarURI = url.toURI().resolve("compositeArtifacts.jar");
             URI compositeArtifactJarXML = url.toURI().resolve("compositeArtifacts.xml");
-            Path compositeJar = SystemUtils.tryToDownloadFile(compositeArtifactJarURI, null);
-            Path compositeXML = SystemUtils.tryToDownloadFile(compositeArtifactJarXML, null);
+            Path compositeJar = FileUtils.tryToDownloadFile(compositeArtifactJarURI, null);
+            Path compositeXML = FileUtils.tryToDownloadFile(compositeArtifactJarXML, null);
             if (compositeJar != null) {
-                Path path = SystemUtils.extractConfigFromJar(compositeJar, "compositeArtifacts.xml");
+                Path path = FileUtils.extractConfigFromJar(compositeJar, "compositeArtifacts.xml");
                 List<String> childrenURLs = IndexFileParser.INSTANCE.listChildrenRepositoriesFromFile(path.toFile());
                 for (String childrenURL : childrenURLs) {
                     RemoteP2Repository childP2repository = new RemoteP2Repository(url.toURI().resolve(childrenURL + "/").toURL());
@@ -150,14 +145,14 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
     private void loadArtifacts(P2BundleLookupCache cache) throws RepositoryInitialisationError {
         try {
             URI artifactsURI = url.toURI().resolve("artifacts.jar");
-            Path path = SystemUtils.tryToDownloadFile(artifactsURI, null);
+            Path path = FileUtils.tryToDownloadFile(artifactsURI, null);
             if (path != null) {
                 indexArtifacts(path);
             }
             URI contentsURI = url.toURI().resolve("content.jar");
-            Path contentPath = SystemUtils.tryToDownloadFile(contentsURI, null);
+            Path contentPath = FileUtils.tryToDownloadFile(contentsURI, null);
             if (contentPath != null) {
-                Path contentsXMl = SystemUtils.extractConfigFromJar(contentPath, "content.xml");
+                Path contentsXMl = FileUtils.extractConfigFromJar(contentPath, "content.xml");
                 ContentFileHandler.indexContent(this, contentsXMl.toFile(), cache);
                 log.info("Repository " + getName() + " indexed, " +
                     (remoteP2BundleInfoSet.size() + remoteP2FeatureSet.size()) + " artifacts found");
@@ -167,8 +162,8 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
         }
     }
 
-    public void addRemoteBundles(Collection<RemoteP2BundleInfo> bundleInfos) {
-        remoteP2BundleInfoSet.addAll(bundleInfos);
+    public void addRemoteBundles(Collection<RemoteP2BundleInfo> remoteBundles) {
+        remoteP2BundleInfoSet.addAll(remoteBundles);
     }
 
     public void addRemoteFeatures(Collection<RemoteP2Feature> features) {
@@ -176,7 +171,7 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
     }
 
     private void indexArtifacts(Path artifactJar) throws IOException, SAXException, RepositoryInitialisationError {
-        Path path = SystemUtils.extractConfigFromJar(artifactJar, "artifacts.xml");
+        Path path = FileUtils.extractConfigFromJar(artifactJar, "artifacts.xml");
         indexedArtifacts = IndexFileParser.INSTANCE.listArtifactsFromIndexFile(path.toFile());
     }
 }

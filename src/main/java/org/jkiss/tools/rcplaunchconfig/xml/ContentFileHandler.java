@@ -16,11 +16,12 @@
  */
 package org.jkiss.tools.rcplaunchconfig.xml;
 
+import org.jkiss.code.NotNull;
+import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.RemoteP2Feature;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
-import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
-import org.jkiss.tools.rcplaunchconfig.util.SystemUtils;
+import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.jkiss.utils.CommonUtils;
 import org.jkiss.utils.Pair;
 import org.xml.sax.Attributes;
@@ -54,16 +55,19 @@ public class ContentFileHandler extends DefaultHandler {
     private UnitInformation currentUnit;
     private String artifactID;
 
-    public static void indexContent(RemoteP2Repository repository, File file, P2BundleLookupCache cache) throws IOException, SAXException, ParserConfigurationException {
+    public static void indexContent(
+            @NotNull RemoteP2Repository repository,
+            @NotNull File contentFile,
+            @NotNull P2BundleLookupCache cache
+    ) throws IOException, SAXException, ParserConfigurationException {
         SAXParserFactory factory = SAXParserFactory.newInstance();
-        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true );
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         SAXParser saxParser = factory.newSAXParser();
         ContentFileHandler contentFileHandler = new ContentFileHandler(repository, cache);
-        saxParser.parse(file, contentFileHandler);
+        saxParser.parse(contentFile, contentFileHandler);
         repository.addRemoteBundles(contentFileHandler.remoteP2BundleInfos);
         repository.addRemoteFeatures(contentFileHandler.remoteP2Features);
     }
-
 
 
     @Override
@@ -76,46 +80,39 @@ public class ContentFileHandler extends DefaultHandler {
         super.endDocument();
     }
 
-    public Set<RemoteP2BundleInfo> getRemoteBundleInfos() {
-        return remoteP2BundleInfos;
-    }
-
-    public Set<RemoteP2Feature> getRemoteP2Features() {
-        return remoteP2Features;
-    }
-
     @Override
-    public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
-        if (ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qName)) {
+    public void startElement(String uri, String localName, String qualifiedName, Attributes attributes) throws SAXException {
+        if (ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             currentState = ParserState.PLUGIN_VALID;
             String id = attributes.getValue(ContentFileConstants.ID_FIELD);
             String version = attributes.getValue(ContentFileConstants.VERSION_FIELD);
             this.currentUnit = new UnitInformation(id, version);
         }
-        if (currentState.isInsideUnit() && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qName)
+        if (currentState.isInsideUnit() && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qualifiedName)
             && "maven-artifactId".equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))) {
-                artifactID = attributes.getValue(ContentFileConstants.FIELD_VALUE);
+            artifactID = attributes.getValue(ContentFileConstants.FIELD_VALUE);
         }
         if (
-            currentState.equals(ParserState.PLUGIN_VALID) && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qName)
+            currentState.equals(ParserState.PLUGIN_VALID) && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qualifiedName)
                 && ContentFileConstants.MAVEN_TYPE_FIELD.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))
         ) {
             if ("eclipse-feature".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {
                 currentState = ParserState.FEATURE_VALID;
             } else if ("jar".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-                || "eclipse-plugin".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))){
+                || "eclipse-plugin".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {
                 currentState = ParserState.PLUGIN_VALID;
                 initBundle();
             }
         }
         if (
             currentState == ParserState.PLUGIN_VALID
-                && (
-                    ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName)
-                    || ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qName)
-                    )
+                && (ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qualifiedName)
+                || ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qualifiedName))
         ) {
-            if (ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName) && "true".equalsIgnoreCase(attributes.getValue("optional"))) {
+            if (
+                ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qualifiedName)
+                    && "true".equalsIgnoreCase(attributes.getValue("optional"))
+            ) {
                 currentState = ParserState.DEPENDENCY_INVALID;
                 return;
             }
@@ -130,7 +127,7 @@ public class ContentFileHandler extends DefaultHandler {
         }
         if (
             currentState == ParserState.PLUGIN_VALID
-                && ContentFileConstants.REQUIRED_PROPERTIES_KEYWORD.equalsIgnoreCase(qName)
+                && ContentFileConstants.REQUIRED_PROPERTIES_KEYWORD.equalsIgnoreCase(qualifiedName)
                 && DependencyType.OSGI_SERVICELOADER.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAMESPACE_FIELD))
         ) {
             if (currentBundle == null) {
@@ -145,8 +142,7 @@ public class ContentFileHandler extends DefaultHandler {
         }
         if (!currentState.isInvalid()
             && currentState.isInsideUnit()
-            && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qName))
-        {
+            && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if ("configure".equalsIgnoreCase(attributes.getValue(ContentFileConstants.KEY_FIELD))) {
                 currentContentType = ContentType.INSTRUCTION;
             } else if (currentState == ParserState.PLUGIN_VALID
@@ -157,12 +153,12 @@ public class ContentFileHandler extends DefaultHandler {
         if (
             !currentState.isInvalid()
                 && (currentState.isInsideUnit() || currentState.isInsideDependency())
-                && ContentFileConstants.FILTER_KEYWORD.equalsIgnoreCase(qName)
+                && ContentFileConstants.FILTER_KEYWORD.equalsIgnoreCase(qualifiedName)
         ) {
             currentContentType = ContentType.FILTER;
         }
 
-        super.startElement(uri, localName, qName, attributes);
+        super.startElement(uri, localName, qualifiedName, attributes);
     }
 
     private void initBundle() {
@@ -171,10 +167,10 @@ public class ContentFileHandler extends DefaultHandler {
     }
 
     @Override
-    public void endElement(String uri, String localName, String qName) throws SAXException {
-        if (currentState.isInsideUnit() && ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qName)) {
+    public void endElement(String uri, String localName, String qualifiedName) throws SAXException {
+        if (currentState.isInsideUnit() && ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if (currentState != ParserState.UNIT_INVALID) {
-                if (currentState ==  ParserState.PLUGIN_VALID) {
+                if (currentState == ParserState.PLUGIN_VALID) {
                     if (currentBundle == null) {
                         initBundle();
                     }
@@ -187,7 +183,6 @@ public class ContentFileHandler extends DefaultHandler {
                 if (currentState == ParserState.FEATURE_VALID) {
                     RemoteP2Feature remoteP2Feature = new RemoteP2Feature(artifactID, currentUnit.version(), repository);
                     if (repository.isIndexed(artifactID, currentUnit.version())) {
-                        repository.linkEclipseIdToArtifactID(currentUnit.id, artifactID);
                         cache.addRemoteFeature(remoteP2Feature);
                         remoteP2Features.add(remoteP2Feature);
                     }
@@ -198,7 +193,7 @@ public class ContentFileHandler extends DefaultHandler {
             artifactID = null;
             currentState = ParserState.ROOT;
         }
-        if (currentState.isInsideDependency() && ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName)) {
+        if (currentState.isInsideDependency() && ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if (currentState != ParserState.DEPENDENCY_INVALID) {
                 if (currentDependency.getSecond().equals(DependencyType.BUNDLE)) {
                     currentBundle.addToRequiredBundles(currentDependency.getFirst());
@@ -210,9 +205,12 @@ public class ContentFileHandler extends DefaultHandler {
             currentState = ParserState.PLUGIN_VALID;
         }
 
-        if (currentState.isInsideDependency() && ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qName)) {
+        if (currentState.isInsideDependency() && ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if (currentState != ParserState.DEPENDENCY_INVALID) {
-                if (currentDependency.getSecond().equals(DependencyType.PLUGIN) || currentDependency.getSecond().equals(DependencyType.SERVICE_LOADER)) {
+                if (
+                    currentDependency.getSecond().equals(DependencyType.PLUGIN)
+                    || currentDependency.getSecond().equals(DependencyType.SERVICE_LOADER)
+                ) {
                     currentBundle.addToExportPackage(currentDependency.getFirst());
                 }
             }
@@ -220,22 +218,25 @@ public class ContentFileHandler extends DefaultHandler {
             currentState = ParserState.PLUGIN_VALID;
         }
         if (currentState.isInsideDependency()
-            && ContentFileConstants.REQUIRED_PROPERTIES_KEYWORD.equalsIgnoreCase(qName)) {
+            && ContentFileConstants.REQUIRED_PROPERTIES_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if (currentState != ParserState.DEPENDENCY_INVALID) {
                 currentBundle.addToRequiredPackages(currentDependency.getFirst());
             }
             currentDependency = null;
             currentState = ParserState.PLUGIN_VALID;
         }
-        if (currentState.isInsideUnit()
-            && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qName) && ContentType.INSTRUCTION.equals(currentContentType)) {
+        if (
+            currentState.isInsideUnit()
+                && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qualifiedName)
+                && ContentType.INSTRUCTION.equals(currentContentType)
+        ) {
             currentContentType = null;
         }
         if ((currentState.isInsideUnit() || currentState.isInsideDependency())
-            && ContentFileConstants.FILTER_KEYWORD.equalsIgnoreCase(qName) && ContentType.FILTER.equals(currentContentType)) {
+            && ContentFileConstants.FILTER_KEYWORD.equalsIgnoreCase(qualifiedName) && ContentType.FILTER.equals(currentContentType)) {
             currentContentType = null;
         }
-        super.endElement(uri, localName, qName);
+        super.endElement(uri, localName, qualifiedName);
     }
 
     @Override
@@ -251,7 +252,7 @@ public class ContentFileHandler extends DefaultHandler {
             String os = getMatchOrNull(ContentFileConstants.OS_PATTERN, content.trim());
             String ws = getMatchOrNull(ContentFileConstants.WS_PATTERN, content.trim());
             String arch = getMatchOrNull(ContentFileConstants.ARCH_PATTERN, content.trim());
-            if (!SystemUtils.matchesDeclaredOS(os, ws, arch)) {
+            if (!BundleUtils.matchesDeclaredOS(os, ws, arch)) {
                 currentState = currentState.isInsideDependency() ? ParserState.DEPENDENCY_INVALID : ParserState.UNIT_INVALID;
             }
         }
@@ -280,9 +281,11 @@ public class ContentFileHandler extends DefaultHandler {
         DEPENDENCY, //  PLUGIN_IMPORT
         DEPENDENCY_INVALID, // DEPENDENCY_INVALID -> PLUGIN_VALID
         UNIT_INVALID; // UNIT_INVALID -> ROOT
+
         private boolean isInsideDependency() {
             return this.equals(DEPENDENCY) || this.equals(DEPENDENCY_INVALID);
         }
+
         private boolean isInsideUnit() {
             return this.equals(FEATURE_VALID) || this.equals(PLUGIN_VALID) || this.equals(UNIT_INVALID);
         }
@@ -292,6 +295,7 @@ public class ContentFileHandler extends DefaultHandler {
             return this.equals(DEPENDENCY_INVALID) || this.equals(UNIT_INVALID);
         }
     }
+
     private record UnitInformation(String id, String version) {
     }
 

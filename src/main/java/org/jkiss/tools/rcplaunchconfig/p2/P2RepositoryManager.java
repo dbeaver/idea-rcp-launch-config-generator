@@ -16,8 +16,8 @@
  */
 package org.jkiss.tools.rcplaunchconfig.p2;
 
-import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.IRepository;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
 import org.slf4j.Logger;
@@ -33,11 +33,14 @@ public class P2RepositoryManager {
 
     public static final P2RepositoryManager INSTANCE = new P2RepositoryManager();
     private List<IRepository<?>> rootRepositories;
-    private P2BundleLookupCache cache = new P2BundleLookupCache();
+    private final P2BundleLookupCache cache = new P2BundleLookupCache();
 
     public void init(Properties settings, String eclipseVersion, String elkVersion) throws RepositoryInitialisationError {
         String repositoriesString = (String) settings.get("repositories");
-        String[] repositories = repositoriesString.replace("${eclipse-version}", eclipseVersion).replace("${elk-version}", elkVersion).split(";");
+        String[] repositories = repositoriesString.replace(
+            "${eclipse-version}",
+                eclipseVersion).replace("${elk-version}", elkVersion).split(";"
+        );
         indexRepositories(repositories);
         for (IRepository<?> repository : rootRepositories) {
             log.info("Indexing " + repository.getName() + " repository...");

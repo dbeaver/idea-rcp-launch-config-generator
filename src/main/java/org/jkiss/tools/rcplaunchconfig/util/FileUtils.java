@@ -19,15 +19,22 @@ package org.jkiss.tools.rcplaunchconfig.util;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
+import org.jkiss.code.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -182,6 +189,72 @@ public class FileUtils {
             }
         }
     }
+
+    public static Path extractConfigFromJar(Path artifactJar, String config) throws IOException {
+        try (JarFile jarFile = new JarFile(artifactJar.toFile())) {
+            JarEntry jarEntry = jarFile.getJarEntry(config);
+            try (InputStream inputStream = jarFile.getInputStream(jarEntry)) {
+                Path configFile = Files.createTempFile("dbeaver", ".tmp");
+                configFile.toFile().deleteOnExit();
+                Files.copy(inputStream, configFile, StandardCopyOption.REPLACE_EXISTING);
+                return configFile;
+            }
+        }
+    }
+
+    public static boolean extractJarToFolder(Path jarPath, Path folderPath) throws IOException {
+        try (JarFile jarFile = new JarFile(jarPath.toFile())) {
+            Iterator<JarEntry> iterator = jarFile.entries().asIterator();
+            while (iterator.hasNext()) {
+                JarEntry entry = iterator.next();
+                Path childPath = folderPath.resolve(entry.getName());
+                if (entry.isDirectory()) {
+                    if (!childPath.toFile().exists()) {
+                        childPath.toFile().mkdirs();
+                    }
+                } else {
+                    try (InputStream inputStream = jarFile.getInputStream(entry)) {
+                        if (!childPath.toFile().exists()) {
+                            childPath.toFile().getParentFile().mkdirs();
+                        }
+                        Files.copy(inputStream, childPath, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    @org.jkiss.code.Nullable
+    public static Path tryToDownloadFile(@NotNull URI fileURI, @org.jkiss.code.Nullable Path path)  {
+        try {
+            if (tryToLoadFile(fileURI)) {
+                InputStream stream = fileURI.toURL().openStream();
+                if (path == null) {
+                    path = Files.createTempFile("dbeaver", ".jar");
+                    path.toFile().deleteOnExit();
+                }
+                Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING);
+                return path;
+            }
+        } catch (IOException | URISyntaxException e) {
+            return null;
+        }
+        return null;
+    }
+
+    public static boolean tryToLoadFile(@NotNull URI artifactsURI) throws IOException, URISyntaxException {
+        HttpURLConnection httpURLConnection = (HttpURLConnection) artifactsURI.toURL().openConnection();
+        boolean fileExist = httpURLConnection.getResponseCode() == HttpURLConnection.HTTP_OK;
+        httpURLConnection.connect();
+        try {
+            fileExist = fileExist & httpURLConnection.getURL().toURI().equals(artifactsURI);
+        } finally {
+            httpURLConnection.disconnect();
+        }
+        return fileExist;
+    }
+
 }
 
 

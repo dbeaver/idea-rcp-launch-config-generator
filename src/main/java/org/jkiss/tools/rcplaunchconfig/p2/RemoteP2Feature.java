@@ -16,19 +16,12 @@
  */
 package org.jkiss.tools.rcplaunchconfig.p2;
 
-import org.jkiss.tools.rcplaunchconfig.DynamicImportsResolver;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
-import org.jkiss.tools.rcplaunchconfig.resolvers.ManifestParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.nio.file.Path;
-import java.util.jar.JarFile;
-import java.util.jar.Manifest;
 
 public class RemoteP2Feature {
     private static final Logger log = LoggerFactory.getLogger(RemoteP2BundleInfo.class);
