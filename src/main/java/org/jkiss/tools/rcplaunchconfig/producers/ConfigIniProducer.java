@@ -22,6 +22,8 @@ import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.Params;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,8 +88,21 @@ public class ConfigIniProducer {
         var eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
         var file = FileUtils.findFirstChildByPackageName(eclipsePluginsPath, OSGI_FRAMEWORK_BUNDLE_NAME);
         if (file == null) {
-            log.error("Failed to find '{}' in '{}'", OSGI_FRAMEWORK_BUNDLE_NAME, eclipsePluginsPath);
-            return "";
+            Collection<RemoteP2BundleInfo> remoteP2BundleInfos = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByNames().get(OSGI_FRAMEWORK_BUNDLE_NAME);
+            if (remoteP2BundleInfos == null || remoteP2BundleInfos.isEmpty()) {
+                log.error("Failed to find '{}' in '{}'", OSGI_FRAMEWORK_BUNDLE_NAME, eclipsePluginsPath);
+                return "";
+            } else {
+                RemoteP2BundleInfo remoteP2BundleInfo = remoteP2BundleInfos.stream().findFirst().get();
+                remoteP2BundleInfo.resolveBundle();
+                Path path = remoteP2BundleInfo.getPath();
+                if (path == null || !path.toFile().exists()) {
+                    log.error("Failed to find '{}' in '{}'", OSGI_FRAMEWORK_BUNDLE_NAME, eclipsePluginsPath);
+                    return "";
+                } else {
+                    file = path.toFile();
+                }
+            }
         }
         return file.getCanonicalPath();
     }

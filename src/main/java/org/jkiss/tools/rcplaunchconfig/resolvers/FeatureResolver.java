@@ -71,6 +71,7 @@ public class FeatureResolver {
                 if (success) {
                     File child = FileUtils.findFirstChildByPackageName(remoteP2Feature.getPath(), FEATURES_XML_FILENAME);
                     parseFeatureFile(result, bundleName, child);
+                    return;
                 }
             }
             log.error("Couldn't find feature '{}'", bundleName);

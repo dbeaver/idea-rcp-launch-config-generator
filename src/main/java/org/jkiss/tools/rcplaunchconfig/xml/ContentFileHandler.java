@@ -141,10 +141,14 @@ public class ContentFileHandler extends DefaultHandler {
         }
         if (!currentState.isInvalid()
             && currentState.isInsideUnit()
-            && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qName)
-            && "configure".equalsIgnoreCase(attributes.getValue(ContentFileConstants.KEY_FIELD))
-        ) {
-            currentContentType = ContentType.INSTRUCTION;
+            && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qName))
+        {
+            if ("configure".equalsIgnoreCase(attributes.getValue(ContentFileConstants.KEY_FIELD))) {
+                currentContentType = ContentType.INSTRUCTION;
+            } else if (currentState == ParserState.PLUGIN_VALID
+                && "zipped".equals(attributes.getValue(ContentFileConstants.KEY_FIELD))) {
+                currentBundle.setZipped(true);
+            }
         }
         if (
             !currentState.isInvalid()

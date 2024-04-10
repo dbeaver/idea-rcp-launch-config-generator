@@ -40,6 +40,7 @@ public class RemoteP2BundleInfo extends BundleInfo {
     private static final Logger log = LoggerFactory.getLogger(RemoteP2BundleInfo.class);
 
     private final RemoteP2Repository repository;
+    private final boolean zipped;
 
     private RemoteP2BundleInfo(
         @NotNull RemoteP2Repository repositoryURL,
@@ -49,10 +50,12 @@ public class RemoteP2BundleInfo extends BundleInfo {
         @NotNull List<String> requireBundles,
         @NotNull Set<String> exportPackages,
         @NotNull Set<String> importPackages,
-        @Nullable Integer startLevel
+        @Nullable Integer startLevel,
+        boolean zipped
     ) {
         super(null, bundleName, bundleVersion, classpathLibs, requireBundles, exportPackages, importPackages, startLevel);
         this.repository = repositoryURL;
+        this.zipped = zipped;
     }
 
     public boolean resolveBundle() {
@@ -90,6 +93,9 @@ public class RemoteP2BundleInfo extends BundleInfo {
         return true;
     }
 
+    boolean isZipped() {
+        return zipped;
+    }
     public RemoteP2Repository getRepository() {
         return repository;
     }
@@ -104,6 +110,7 @@ public class RemoteP2BundleInfo extends BundleInfo {
         Set<String> exportPackages = new LinkedHashSet<>();
         Set<String> importPackages = new LinkedHashSet<>();
         Integer startLevel;
+        private boolean zipped = false;
 
         public RemoteBundleInfoBuilder() {
         }
@@ -117,7 +124,8 @@ public class RemoteP2BundleInfo extends BundleInfo {
                 requireBundles,
                 exportPackages,
                 importPackages,
-                startLevel
+                startLevel,
+                zipped
             );
         }
 
@@ -158,6 +166,11 @@ public class RemoteP2BundleInfo extends BundleInfo {
 
         public RemoteBundleInfoBuilder setStartLevel(int startLevel) {
             this.startLevel = startLevel;
+            return this;
+        }
+
+        public RemoteBundleInfoBuilder setZipped(boolean zipped) {
+            this.zipped = zipped;
             return this;
         }
     }

@@ -77,11 +77,23 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
         try {
             Path eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
             URI pluginsFolder = url.toURI().resolve("plugins/");
-            String pluginFilename = remoteP2BundleInfo.getBundleName() + "_" + remoteP2BundleInfo.getBundleVersion() + ".jar";
-            URI resolve = pluginsFolder.resolve(pluginFilename);
-            Path file = eclipsePluginsPath.resolve(pluginFilename);
-            return SystemUtils.tryToDownloadFile(resolve, file);
-        } catch (URISyntaxException e) {
+            String pluginFilename = remoteP2BundleInfo.getBundleName() + "_" + remoteP2BundleInfo.getBundleVersion();
+            URI resolve = pluginsFolder.resolve(pluginFilename + ".jar");
+            if (remoteP2BundleInfo.isZipped()) {
+                Path file = eclipsePluginsPath.resolve(pluginFilename);
+                Path jarPath = SystemUtils.tryToDownloadFile(resolve, null);
+                if (jarPath != null) {
+                    boolean success = SystemUtils.extractJarToFolder(jarPath, file);
+                    if (success) {
+                        return file;
+                    }
+                }
+                return null;
+            } else {
+                Path file = eclipsePluginsPath.resolve(pluginFilename + ".jar");
+                return  SystemUtils.tryToDownloadFile(resolve, file);
+            }
+        } catch (URISyntaxException | IOException e) {
             log.error("Error resolving the artifact", e);
             return null;
         }
