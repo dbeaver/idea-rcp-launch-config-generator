@@ -24,6 +24,7 @@ import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
+import org.jkiss.tools.rcplaunchconfig.util.SystemUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +89,8 @@ public class PluginResolver {
         if (bundleInfos.size() == 1) {
             parseBundleInfo(result, bundleInfos.get(0), cache);
         } else if (bundleInfos.isEmpty()) {
-            Optional<RemoteP2BundleInfo> remoteP2BundleInfos = cache.getRemoteBundlesByNames().get(bundleName).stream().max(Comparator.comparing(BundleInfo::getBundleVersion));
+
+            Optional<RemoteP2BundleInfo> remoteP2BundleInfos = SystemUtils.getMaxVersionRemoteBundle(bundleName, cache);
             if (remoteP2BundleInfos.isEmpty()) {
                 log.error("Couldn't find plugin '{}'", bundleName);
             } else {

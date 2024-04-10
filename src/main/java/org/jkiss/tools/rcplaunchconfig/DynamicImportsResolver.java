@@ -25,6 +25,7 @@ import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.resolvers.ManifestParser;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PackageChecker;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
+import org.jkiss.tools.rcplaunchconfig.util.SystemUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -110,11 +111,12 @@ public class DynamicImportsResolver {
                 Collection<RemoteP2BundleInfo> remoteP2BundleInfos = lookupCache.getRemoteBundlesByExports().get(packageToImport);
                 if (!failedToResolvePackagesToBundles.containsKey(packageToImport) && !lookupCache.getRemoteBundlesByExports().get(packageToImport).isEmpty()) {
                     for (RemoteP2BundleInfo remoteP2BundleInfo : remoteP2BundleInfos) {
-                        if (remoteP2BundleInfo.resolveBundle()) {
-                            for (var packageToExport : remoteP2BundleInfo.getExportPackages()) {
-                                eclipsePluginsByExportedPackages.put(packageToExport, remoteP2BundleInfo);
+                        Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = SystemUtils.getMaxVersionRemoteBundle(remoteP2BundleInfo.getBundleName(), lookupCache);
+                        if (maxVersionRemoteBundle.isPresent() && maxVersionRemoteBundle.get().resolveBundle()) {
+                            for (var packageToExport : maxVersionRemoteBundle.get().getExportPackages()) {
+                                eclipsePluginsByExportedPackages.put(packageToExport, maxVersionRemoteBundle.get());
                             }
-                            eclipseBundlesWithThisPackage.add(remoteP2BundleInfo);
+                            eclipseBundlesWithThisPackage.add(maxVersionRemoteBundle.get());
                         } else {
                             failedToResolvePackagesToBundles.put(packageToImport, bundleInfo);
                         }

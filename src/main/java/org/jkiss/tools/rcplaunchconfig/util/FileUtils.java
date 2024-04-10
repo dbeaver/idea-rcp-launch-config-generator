@@ -38,10 +38,11 @@ public class FileUtils {
     private static final String NAME_AND_VERSION_SEPARATOR = "_";
 
     private static final Map<File, File[]> folderContents = new HashMap<>();
-    private static final Set<String> preferOlderBundles = Set.of(
+    public static final Set<String> preferOlderBundles = Set.of(
 //        "com.google.guava",
         "jakarta.servlet-api"
     );
+
 
     @Nullable
     public static File findFirstChildByPackageName(@Nonnull Path folder, @Nonnull String packageName) {
@@ -182,3 +183,5 @@ public class FileUtils {
         }
     }
 }
+
+

@@ -115,13 +115,17 @@ public class ContentFileHandler extends DefaultHandler {
                     || ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qName)
                     )
         ) {
+            if (ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName) && "true".equalsIgnoreCase(attributes.getValue("optional"))) {
+                currentState = ParserState.DEPENDENCY_INVALID;
+                return;
+            }
+            String name = attributes.getValue(ContentFileConstants.NAME_FIELD);
+            String namespace = attributes.getValue(ContentFileConstants.NAMESPACE_FIELD);
+            DependencyType type = DependencyType.getType(namespace);
+            currentState = ParserState.DEPENDENCY;
             if (currentBundle == null) {
                 initBundle();
             }
-            currentState = ParserState.DEPENDENCY;
-            String namespace = attributes.getValue(ContentFileConstants.NAMESPACE_FIELD);
-            DependencyType type = DependencyType.getType(namespace);
-            String name = attributes.getValue(ContentFileConstants.NAME_FIELD);
             currentDependency = new Pair<>(name, type);
         }
         if (
@@ -195,9 +199,6 @@ public class ContentFileHandler extends DefaultHandler {
             currentState = ParserState.ROOT;
         }
         if (currentState.isInsideDependency() && ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qName)) {
-            if (currentDependency == null) {
-                return;
-            }
             if (currentState != ParserState.DEPENDENCY_INVALID) {
                 if (currentDependency.getSecond().equals(DependencyType.BUNDLE)) {
                     currentBundle.addToRequiredBundles(currentDependency.getFirst());
@@ -273,9 +274,9 @@ public class ContentFileHandler extends DefaultHandler {
 
 
     private enum ParserState {
-        ROOT, // ROOT -> UNIT
-        FEATURE_VALID, // FEATURE_VALID -> UNIT_INVALID | UNIT
-        PLUGIN_VALID, // PLUGIN_VALID -> UNIT_INVALID | PLUGIN_DEPENDENCY |
+        ROOT, // ROOT -> FEATURE_VALID | PLUGIN_VALID
+        FEATURE_VALID, // FEATURE_VALID -> UNIT_INVALID | ROOT
+        PLUGIN_VALID, // PLUGIN_VALID -> UNIT_INVALID | DEPENDENCY
         DEPENDENCY, //  PLUGIN_IMPORT
         DEPENDENCY_INVALID, // DEPENDENCY_INVALID -> PLUGIN_VALID
         UNIT_INVALID; // UNIT_INVALID -> ROOT
