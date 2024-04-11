@@ -125,21 +125,6 @@ public class ContentFileHandler extends DefaultHandler {
             }
             currentDependency = new Pair<>(name, type);
         }
-        if (
-            currentState == ParserState.PLUGIN_VALID
-                && ContentFileConstants.REQUIRED_PROPERTIES_KEYWORD.equalsIgnoreCase(qualifiedName)
-                && DependencyType.OSGI_SERVICELOADER.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAMESPACE_FIELD))
-        ) {
-            if (currentBundle == null) {
-                initBundle();
-            }
-            String match = getMatchOrNull(
-                ContentFileConstants.SERVICE_LOADER_PATTERN,
-                attributes.getValue(ContentFileConstants.MATCH_FIELD
-                ));
-            currentState = ParserState.DEPENDENCY;
-            currentDependency = new Pair<>(match, DependencyType.SERVICE_LOADER);
-        }
         if (!currentState.isInvalid()
             && currentState.isInsideUnit()
             && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qualifiedName)) {
@@ -209,7 +194,6 @@ public class ContentFileHandler extends DefaultHandler {
             if (currentState != ParserState.DEPENDENCY_INVALID) {
                 if (
                     currentDependency.getSecond().equals(DependencyType.PLUGIN)
-                    || currentDependency.getSecond().equals(DependencyType.SERVICE_LOADER)
                 ) {
                     currentBundle.addToExportPackage(currentDependency.getFirst());
                 }
@@ -302,7 +286,6 @@ public class ContentFileHandler extends DefaultHandler {
     private enum DependencyType {
         PLUGIN,
         BUNDLE,
-        SERVICE_LOADER,
         UNKNOWN;
 
         public static final String OSGI_SERVICELOADER = "osgi.serviceloader";
@@ -315,8 +298,6 @@ public class ContentFileHandler extends DefaultHandler {
                 type = DependencyType.PLUGIN;
             } else if (OSGI_BUNDLE.equalsIgnoreCase(namespace)) {
                 type = DependencyType.BUNDLE;
-            } else if (OSGI_SERVICELOADER.equalsIgnoreCase(namespace)) {
-                type = DependencyType.SERVICE_LOADER;
             } else {
                 type = DependencyType.UNKNOWN;
             }

@@ -105,6 +105,7 @@ public class ManifestParser {
         }
         var packagesListWithoutQuotes = removeAllBetweenQuotes(packagesList);
         return Arrays.stream(packagesListWithoutQuotes.split(","))
+            .filter(ManifestParser::filterOptionalDependencies)
             .map(ManifestParser::trimBundleName)
             .collect(Collectors.toSet());
     }

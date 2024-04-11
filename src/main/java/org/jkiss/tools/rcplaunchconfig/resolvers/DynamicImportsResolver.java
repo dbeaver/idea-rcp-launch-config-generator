@@ -47,6 +47,7 @@ public class DynamicImportsResolver {
 
     private final MultiValuedMap<String, BundleInfo> failedToResolvePackagesToBundles = new ArrayListValuedHashMap<>();
 
+
     public void start(@Nonnull Result result, P2BundleLookupCache lookupCache) throws IOException {
         var eclipsePluginsByExportedPackages = readEclipsePluginsExportedPackages(PathsManager.INSTANCE.getEclipsePluginsPath());
 

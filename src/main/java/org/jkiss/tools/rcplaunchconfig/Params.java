@@ -28,7 +28,7 @@ public class Params {
     @Option(names = "-config", description = "Path to configuration properties file", required = true)
     public Path configFilePath;
 
-    @Option(names = "-elk.version", description = "ELK layout version", required = true)
+    @Option(names = "-elk.version", description = "ELK layout version")
     public String elkVersion;
 
     @Option(names = "-eclipse.version", description = "Eclipse version", required = true)
@@ -40,7 +40,7 @@ public class Params {
     @Option(names = "-projectsFolder", description = "Path to projects folder", required = true)
     public Path projectsFolderPath;
 
-    @Option(names = "-eclipse", description = "Path to Eclipse instance", required = true)
+    @Option(names = "-eclipse", description = "Path to folder with 3-rd party dependencies")
     public Path eclipsePath;
 
     @Option(names = "-output", description = "Place for result files", required = true)

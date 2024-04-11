@@ -17,6 +17,7 @@
 package org.jkiss.tools.rcplaunchconfig;
 
 import jakarta.annotation.Nonnull;
+import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 
 import java.io.IOException;
@@ -41,9 +42,12 @@ public enum PathsManager {
     public void init(
         @Nonnull Properties settings,
         @Nonnull Path projectsFolderPath,
-        @Nonnull Path eclipsePath,
+        @Nullable Path eclipsePath,
         @Nonnull Path... additionalBundlesPaths
     ) throws IOException {
+        if (eclipsePath == null) {
+            eclipsePath = projectsFolderPath.resolve("dbeaver-eclipse-workspace/");
+        }
         this.eclipsePath = eclipsePath;
         eclipsePluginsPath = eclipsePath.resolve("plugins");
         if (!eclipsePluginsPath.toFile().exists()) {

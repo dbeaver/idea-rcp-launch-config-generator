@@ -25,22 +25,28 @@ public enum PackageChecker {
     INSTANCE;
 
     private final Set<String> excludedPackages = Set.of(
+        "org.h2",
+        "system.bundle"
+    );
+    private final List<String> excludedPackageGroups = List.of(
+        "java.",
+        "sun.",
         "javax.net",
         "javax.crypto",
         "javax.security",
         "javax.sql",
         "javax.naming",
         "javax.xml.",
+        "javax.xml.stream",
+        "javax.mail",
+        "javax.servlet",
+        "javax.activation",
         "javax.management",
         "javax.imageio",
         "javax.script",
-        "javax.crypto.interfaces",
-        "org.h2",
-        "system.bundle"
-    );
-    private final List<String> excludedPackageGroups = List.of(
-        "java.",
-        "sun."
+        "org.xml.sax",
+        "org.w3c.dom",
+        "javax.crypto.interfaces"
     );
 
     public boolean isPackageExcluded(@Nonnull String bundleName) {

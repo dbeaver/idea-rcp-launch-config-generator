@@ -27,10 +27,11 @@ Accepts the following required parameters:
 
 Parameter | Description
 ------|----
--config | Path to file with configuration 
+-config | Path to file with configuration
+-eclipse.version | Version of eclipse(use ${eclipse-version} for maven version)
 -productFile | Path to .product file
 -projectsFolder | Path to projects folder
--eclipse | Path to Eclipse instance
+-eclipse | Path to folder with eclipse and other dependencies(optional, `${projectsFolder}/../dbeaver-eclipse-workspace` will be used if not specifed)
 -output | Place for result files
 
 For example, the command to create files for CB CE:
@@ -45,9 +46,13 @@ featuresPaths=dbeaver/features;
 bundlesPaths=\
   dbeaver-common/modules;\
   dbeaver/plugins;
+repositories=\
+  https://p2.dev.dbeaver.com/eclipse-repo/;\
+  https://download.eclipse.org/elk/updates/releases/${elk-version}/;
 ```
 featuresPaths: list of paths to Eclipse features folders  
 bundlesPaths: list of paths to Eclipse bundles folders
+repositories: list of repositories used to download third-party bundles from
 
 Preconfigured file `rcp-gen.properties` reside in repository [idea-workspace-dbeaver](https://github.com/dbeaver/idea-workspace-dbeaver)
 

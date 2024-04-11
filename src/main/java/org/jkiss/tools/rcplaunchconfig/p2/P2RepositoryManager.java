@@ -37,10 +37,13 @@ public class P2RepositoryManager {
 
     public void init(Properties settings, String eclipseVersion, String elkVersion) throws RepositoryInitialisationError {
         String repositoriesString = (String) settings.get("repositories");
-        String[] repositories = repositoriesString.replace(
+        String reposititoryString = repositoriesString.replace(
             "${eclipse-version}",
-                eclipseVersion).replace("${elk-version}", elkVersion).split(";"
-        );
+                eclipseVersion);
+        if (elkVersion != null) {
+            reposititoryString = reposititoryString.replace("${elk-version}", elkVersion);
+        }
+        String[] repositories = reposititoryString.split(";");
         indexRepositories(repositories);
         for (IRepository<?> repository : rootRepositories) {
             log.info("Indexing " + repository.getName() + " repository...");
