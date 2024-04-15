@@ -21,6 +21,7 @@ import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitial
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
+import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.xml.XmlReader;
 import org.slf4j.Logger;
@@ -93,6 +94,10 @@ public class EntryPoint {
             Files.writeString(
                 params.productFilePath.getParent().resolve(result.getProductName() + ".product.launch"),
                 launchConfig);
+        }
+        {
+            log.info("Loading test bundles");
+            PluginResolver.resolveTestBundles(result);
         }
     }
 }

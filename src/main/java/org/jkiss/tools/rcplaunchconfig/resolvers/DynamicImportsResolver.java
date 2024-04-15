@@ -47,6 +47,8 @@ public class DynamicImportsResolver {
 
     private final MultiValuedMap<String, BundleInfo> failedToResolvePackagesToBundles = new ArrayListValuedHashMap<>();
 
+    private Set<String> excludedBundles = Set.of("org.eclipse.rap.rwt");
+
 
     public void start(@Nonnull Result result, P2BundleLookupCache lookupCache) throws IOException {
         var eclipsePluginsByExportedPackages = readEclipsePluginsExportedPackages(PathsManager.INSTANCE.getEclipsePluginsPath());
@@ -112,6 +114,9 @@ public class DynamicImportsResolver {
                 Collection<RemoteP2BundleInfo> remoteP2BundleInfos = lookupCache.getRemoteBundlesByExports().get(packageToImport);
                 if (!failedToResolvePackagesToBundles.containsKey(packageToImport) && !lookupCache.getRemoteBundlesByExports().get(packageToImport).isEmpty()) {
                     for (RemoteP2BundleInfo remoteP2BundleInfo : remoteP2BundleInfos) {
+                        if (excludedBundles.contains(remoteP2BundleInfo.getBundleName())) {
+                            continue;
+                        }
                         Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = BundleUtils.getMaxVersionRemoteBundle(remoteP2BundleInfo.getBundleName(), lookupCache);
                         if (maxVersionRemoteBundle.isPresent() && maxVersionRemoteBundle.get().resolveBundle()) {
                             for (var packageToExport : maxVersionRemoteBundle.get().getExportPackages()) {

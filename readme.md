@@ -33,6 +33,7 @@ Parameter | Description
 -projectsFolder | Path to projects folder
 -eclipse | Path to folder with eclipse and other dependencies(optional, `${projectsFolder}/../dbeaver-eclipse-workspace` will be used if not specifed)
 -output | Place for result files
+-testBundles | Bundles required for launching unit tests
 
 For example, the command to create files for CB CE:
 

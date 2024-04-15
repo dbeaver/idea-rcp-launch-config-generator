@@ -34,6 +34,7 @@ public enum PathsManager {
 
     private Collection<Path> featuresPaths;
     private Collection<Path> bundlesPaths;
+    private Collection<String> testBundles;
 
     private Path eclipsePath;
     private Path eclipsePluginsPath;
@@ -77,6 +78,12 @@ public enum PathsManager {
             )
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
+        var testBundlesPathsString = (String) settings.get("testBundles");
+        testBundles =
+            Arrays.stream(testBundlesPathsString.split(";"))
+                .map(String::trim)
+                .collect(Collectors.toList());
+
     }
 
     public @Nonnull Collection<Path> getFeaturesLocations() {
@@ -85,6 +92,10 @@ public enum PathsManager {
 
     public @Nonnull Collection<Path> getBundlesLocations() {
         return bundlesPaths;
+    }
+
+    public @Nonnull Collection<String> getTestBundles() {
+        return testBundles;
     }
 
     public @Nonnull Path getEclipsePath() {

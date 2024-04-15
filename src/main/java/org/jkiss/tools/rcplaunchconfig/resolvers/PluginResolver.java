@@ -22,6 +22,7 @@ import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
@@ -136,6 +137,13 @@ public class PluginResolver {
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static void resolveTestBundles(Result result) throws IOException {
+        P2BundleLookupCache lookupCache = P2RepositoryManager.INSTANCE.getLookupCache();
+        for (String testBundle : PathsManager.INSTANCE.getTestBundles()) {
+            PluginResolver.resolvePluginDependencies(result, testBundle, null, lookupCache);
         }
     }
 
