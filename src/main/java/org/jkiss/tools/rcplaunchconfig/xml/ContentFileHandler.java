@@ -236,7 +236,7 @@ public class ContentFileHandler extends DefaultHandler {
             String os = getMatchOrNull(ContentFileConstants.OS_PATTERN, content.trim());
             String ws = getMatchOrNull(ContentFileConstants.WS_PATTERN, content.trim());
             String arch = getMatchOrNull(ContentFileConstants.ARCH_PATTERN, content.trim());
-            if (!BundleUtils.matchesDeclaredOS(os, ws, arch)) {
+            if (!BundleUtils.matchesDeclaredOS(ws, os, arch)) {
                 currentState = currentState.isInsideDependency() ? ParserState.DEPENDENCY_INVALID : ParserState.UNIT_INVALID;
             }
         }
