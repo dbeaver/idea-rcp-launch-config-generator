@@ -47,7 +47,7 @@ public enum PathsManager {
         @Nonnull Path... additionalBundlesPaths
     ) throws IOException {
         if (eclipsePath == null) {
-            eclipsePath = projectsFolderPath.resolve("dbeaver-eclipse-workspace/");
+            eclipsePath = projectsFolderPath.resolve("dbeaver-eclipse-workspace/dependencies/");
         }
         this.eclipsePath = eclipsePath;
         eclipsePluginsPath = eclipsePath.resolve("plugins");
