@@ -28,7 +28,7 @@ Parameter | Description
 -eclipse.version | Version of eclipse(use ${eclipse-version} for maven version)
 -productFile | Path to .product file
 -projectsFolder | Path to projects folder
--eclipse | Path to folder with eclipse and other dependencies(optional, `${projectsFolder}/../dbeaver-eclipse-workspace` will be used if not specifed)
+-eclipse | Path to folder with eclipse and other dependencies, should be the same The same as ECLIPSE_PATH in IDEA preferences(optional, `${projectsFolder}/../dbeaver-eclipse-workspace` will be used if not specifed)
 -output | Place for result files
 -testBundles | Bundles required for launching unit tests
 
