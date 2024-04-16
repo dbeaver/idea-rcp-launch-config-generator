@@ -12,7 +12,7 @@
 - Build project (CTRL+F9)
 - Execute run configuration `Generate DBeaver CE dev props` (it will generate RCP config files)
 - Execute run configuration `Run Eclipse (CE)` (it will launch DBeaver CE)
-- Set variable `ECLIPSE_PATH` to the value of `-eclipse` eclipse argument (Settings->Appearance and Behavior->Path variables).
+- Set variable `ECLIPSE_PATH` to the path where you want to keep external dependencies
 
 Now you can debug code in IDEA, modify Java classes on fly, etc.
 
