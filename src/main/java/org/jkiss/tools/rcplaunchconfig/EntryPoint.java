@@ -69,6 +69,14 @@ public class EntryPoint {
             .start(result, p2RepositoryManager.getLookupCache());
 
         var resultPath = params.resultFilesPath;
+        if (resultPath == null) {
+            resultPath = params.projectsFolderPath.resolve("dbeaver-eclipse-workspace/");
+        }
+        try {
+            Files.createDirectories(resultPath.getParent());
+        } catch (Throwable throwable) {
+            log.debug("Error creating target parent directories");
+        }
         try {
             FileUtils.removeAllFromDir(resultPath);
         } catch (Throwable e) {
