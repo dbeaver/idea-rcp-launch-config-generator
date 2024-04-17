@@ -1,18 +1,18 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2024 DBeaver Corp
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
- * All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * NOTICE:  All information contained herein is, and remains
- * the property of DBeaver Corp and its suppliers, if any.
- * The intellectual and technical concepts contained
- * herein are proprietary to DBeaver Corp and its suppliers
- * and may be covered by U.S. and Foreign Patents,
- * patents in process, and are protected by trade secret or copyright law.
- * Dissemination of this information or reproduction of this material
- * is strictly forbidden unless prior written permission is obtained
- * from DBeaver Corp.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.jkiss.tools.rcplaunchconfig.producers;
 
@@ -22,6 +22,8 @@ import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.Params;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +59,7 @@ public class ConfigIniProducer {
 
     private static @Nonnull String getOsgiBundlesValue(@Nonnull Collection<BundleInfo> bundles) {
         return bundles.stream()
+            .filter(it -> it.getPath() != null)
             .map(ConfigIniProducer::getBundleReference)
             .collect(Collectors.joining(","));
     }
@@ -85,8 +88,21 @@ public class ConfigIniProducer {
         var eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
         var file = FileUtils.findFirstChildByPackageName(eclipsePluginsPath, OSGI_FRAMEWORK_BUNDLE_NAME);
         if (file == null) {
-            log.error("Failed to find '{}' in '{}'", OSGI_FRAMEWORK_BUNDLE_NAME, eclipsePluginsPath);
-            return "";
+            Collection<RemoteP2BundleInfo> remoteP2BundleInfos = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByNames().get(OSGI_FRAMEWORK_BUNDLE_NAME);
+            if (remoteP2BundleInfos == null || remoteP2BundleInfos.isEmpty()) {
+                log.error("Failed to find '{}' in '{}'", OSGI_FRAMEWORK_BUNDLE_NAME, eclipsePluginsPath);
+                return "";
+            } else {
+                RemoteP2BundleInfo remoteP2BundleInfo = remoteP2BundleInfos.stream().findFirst().get();
+                remoteP2BundleInfo.resolveBundle();
+                Path path = remoteP2BundleInfo.getPath();
+                if (path == null || !path.toFile().exists()) {
+                    log.error("Failed to find '{}' in '{}'", OSGI_FRAMEWORK_BUNDLE_NAME, eclipsePluginsPath);
+                    return "";
+                } else {
+                    file = path.toFile();
+                }
+            }
         }
         return file.getCanonicalPath();
     }

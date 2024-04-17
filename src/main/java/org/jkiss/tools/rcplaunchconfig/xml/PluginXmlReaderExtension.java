@@ -1,30 +1,32 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2024 DBeaver Corp
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
- * All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * NOTICE:  All information contained herein is, and remains
- * the property of DBeaver Corp and its suppliers, if any.
- * The intellectual and technical concepts contained
- * herein are proprietary to DBeaver Corp and its suppliers
- * and may be covered by U.S. and Foreign Patents,
- * patents in process, and are protected by trade secret or copyright law.
- * Dissemination of this information or reproduction of this material
- * is strictly forbidden unless prior written permission is obtained
- * from DBeaver Corp.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.jkiss.tools.rcplaunchconfig.xml;
 
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import javax.xml.stream.events.Attribute;
 import javax.xml.stream.events.StartElement;
-import java.io.IOException;
 
 class PluginXmlReaderExtension extends XmlReaderExtension {
 
@@ -36,7 +38,7 @@ class PluginXmlReaderExtension extends XmlReaderExtension {
             ? Integer.parseInt(startLevelAttr.getValue())
             : null;
         try {
-            PluginResolver.resolvePluginDependencies(result, idAttr.getValue(), startLevel);
+            PluginResolver.resolvePluginDependencies(result, idAttr.getValue(), startLevel, P2RepositoryManager.INSTANCE.getLookupCache());
         } catch (IOException e) {
             log.error("Failed to resolve plugin", e);
         }

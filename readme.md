@@ -7,15 +7,12 @@
   - https://github.com/dbeaver/cloudbeaver (only if you need web based Beaver too)
   - https://github.com/dbeaver/idea-workspace-dbeaver
   - https://github.com/dbeaver/idea-rcp-launch-config-generator
-- Download and unpack Eclipse IDE from https://www.eclipse.org/downloads/packages/ (we recommend to use `Eclipse for RCP and RAP developers` package)
-- Launch Eclipse IDE and install all dependencies (use Help->Install new software):
-  - https://p2.dev.dbeaver.com/eclipse-repo (DBeaver and CloudBeaver 3rd party deps)
 - Launch IDEA
-- Set variable `ECLIPSE_PATH` to the location where Eclipse IDE is installed (Settings->Appearance and Behavior->Path variables).
 - Open IDEA project (e.g. `idea-workspace-dbeaver`)
 - Build project (CTRL+F9)
 - Execute run configuration `Generate DBeaver CE dev props` (it will generate RCP config files)
 - Execute run configuration `Run Eclipse (CE)` (it will launch DBeaver CE)
+- Set variable `ECLIPSE_PATH` to the path where you want to keep external dependencies
 
 Now you can debug code in IDEA, modify Java classes on fly, etc.
 
@@ -27,11 +24,13 @@ Accepts the following required parameters:
 
 Parameter | Description
 ------|----
--config | Path to file with configuration 
+-config | Path to file with configuration
+-eclipse.version | Version of eclipse(use ${eclipse-version} for maven version)
 -productFile | Path to .product file
 -projectsFolder | Path to projects folder
--eclipse | Path to Eclipse instance
+-eclipse | Path to folder with eclipse and other dependencies, should be the same The same as ECLIPSE_PATH in IDEA preferences(optional, `${projectsFolder}/../dbeaver-eclipse-workspace` will be used if not specifed)
 -output | Place for result files
+-testBundles | Bundles required for launching unit tests
 
 For example, the command to create files for CB CE:
 
@@ -45,9 +44,13 @@ featuresPaths=dbeaver/features;
 bundlesPaths=\
   dbeaver-common/modules;\
   dbeaver/plugins;
+repositories=\
+  https://p2.dev.dbeaver.com/eclipse-repo/;\
+  https://download.eclipse.org/elk/updates/releases/${elk-version}/;
 ```
 featuresPaths: list of paths to Eclipse features folders  
 bundlesPaths: list of paths to Eclipse bundles folders
+repositories: list of repositories used to download third-party bundles from
 
 Preconfigured file `rcp-gen.properties` reside in repository [idea-workspace-dbeaver](https://github.com/dbeaver/idea-workspace-dbeaver)
 

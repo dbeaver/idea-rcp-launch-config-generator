@@ -1,24 +1,28 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2024 DBeaver Corp
+ * Copyright (C) 2010-2024 DBeaver Corp and others
  *
- * All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * NOTICE:  All information contained herein is, and remains
- * the property of DBeaver Corp and its suppliers, if any.
- * The intellectual and technical concepts contained
- * herein are proprietary to DBeaver Corp and its suppliers
- * and may be covered by U.S. and Foreign Patents,
- * patents in process, and are protected by trade secret or copyright law.
- * Dissemination of this information or reproduction of this material
- * is strictly forbidden unless prior written permission is obtained
- * from DBeaver Corp.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.jkiss.tools.rcplaunchconfig.resolvers;
 
 import jakarta.annotation.Nonnull;
+import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
+import org.jkiss.tools.rcplaunchconfig.p2.RemoteP2Feature;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.xml.XmlReader;
 import org.slf4j.Logger;
@@ -27,7 +31,10 @@ import org.slf4j.LoggerFactory;
 import javax.xml.stream.XMLStreamException;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class FeatureResolver {
@@ -45,17 +52,28 @@ public class FeatureResolver {
         }
 
         var featuresFoldersPaths = PathsManager.INSTANCE.getFeaturesLocations();
-
         var featureXmlFiles = featuresFoldersPaths.stream()
             .map(featuresFolderPath -> FileUtils.findFirstChildByPackageName(featuresFolderPath, bundleName))
             .filter(Objects::nonNull)
             .map(featureFolder -> FileUtils.findFirstChildByPackageName(featureFolder, FEATURES_XML_FILENAME))
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+            .toList();
 
         if (featureXmlFiles.size() == 1) {
             parseFeatureFile(result, bundleName, featureXmlFiles.get(0));
         } else if (featureXmlFiles.isEmpty()) {
+            P2BundleLookupCache lookupCache = P2RepositoryManager.INSTANCE.getLookupCache();
+            Optional<RemoteP2Feature> remoteP2FeatureOptional
+                = lookupCache.getRemoteFeaturesByNames().get(bundleName).stream().max(Comparator.comparing(RemoteP2Feature::getVersion));
+            if (remoteP2FeatureOptional.isPresent()) {
+                RemoteP2Feature remoteP2Feature = remoteP2FeatureOptional.get();
+                boolean success = remoteP2Feature.resolveFeature();
+                if (success) {
+                    File child = FileUtils.findFirstChildByPackageName(remoteP2Feature.getPath(), FEATURES_XML_FILENAME);
+                    parseFeatureFile(result, bundleName, child);
+                    return;
+                }
+            }
             log.error("Couldn't find feature '{}'", bundleName);
         } else {
             var featuresFilesPaths = featureXmlFiles.stream()
