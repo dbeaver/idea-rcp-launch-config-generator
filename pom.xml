@@ -54,7 +54,6 @@
         <dependency>
             <groupId>com.dbeaver.common</groupId>
             <artifactId>org.jkiss.utils</artifactId>
-            <version>${dbeaver.common.version}</version>
         </dependency>
         <dependency>
             <groupId>jakarta.annotation</groupId>
@@ -79,7 +78,7 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.4.5</version>
+            <version>1.4.14</version>
         </dependency>
     </dependencies>
 
