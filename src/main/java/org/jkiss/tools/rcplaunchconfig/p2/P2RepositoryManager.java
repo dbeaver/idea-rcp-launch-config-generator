@@ -35,14 +35,11 @@ public class P2RepositoryManager {
     private List<IRepository<?>> rootRepositories;
     private final P2BundleLookupCache cache = new P2BundleLookupCache();
 
-    public void init(Properties settings, String eclipseVersion, String elkVersion) throws RepositoryInitialisationError {
+    public void init(Properties settings, String eclipseVersion) throws RepositoryInitialisationError {
         String repositoriesString = (String) settings.get("repositories");
         String reposititoryString = repositoriesString.replace(
             "${eclipse-version}",
                 eclipseVersion);
-        if (elkVersion != null) {
-            reposititoryString = reposititoryString.replace("${elk-version}", elkVersion);
-        }
         String[] repositories = reposititoryString.split(";");
         indexRepositories(repositories);
         for (IRepository<?> repository : rootRepositories) {

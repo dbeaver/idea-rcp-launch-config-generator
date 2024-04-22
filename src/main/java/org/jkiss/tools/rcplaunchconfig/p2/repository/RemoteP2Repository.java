@@ -30,11 +30,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.SAXException;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.*;
 
 public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
@@ -45,11 +50,13 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
 
     private final Set<RemoteP2BundleInfo> remoteP2BundleInfoSet = new LinkedHashSet<>();
     private final Set<RemoteP2Feature> remoteP2FeatureSet = new LinkedHashSet<>();
+    private final RepositoryCache fileCache;
 
     private List<Artifact> indexedArtifacts;
 
     public RemoteP2Repository(URL url) {
         this.url = url;
+        this.fileCache = new RepositoryCache();
     }
 
     @Override
@@ -113,11 +120,16 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
 
     @Override
     public void init(P2BundleLookupCache cache) throws RepositoryInitialisationError {
+        Path compositeJar, compositeXML;
+        compositeJar = fileCache.lookInRepositoryCache("compositeArtifacts.jar");
+        compositeXML = fileCache.lookInRepositoryCache("compositeArtifacts.xml");
         try {
-            URI compositeArtifactJarURI = url.toURI().resolve("compositeArtifacts.jar");
-            URI compositeArtifactJarXML = url.toURI().resolve("compositeArtifacts.xml");
-            Path compositeJar = FileUtils.tryToDownloadFile(compositeArtifactJarURI, null);
-            Path compositeXML = FileUtils.tryToDownloadFile(compositeArtifactJarXML, null);
+            if (compositeJar == null && compositeXML == null) {
+                URI compositeArtifactJarURI = url.toURI().resolve("compositeArtifacts.jar");
+                URI compositeArtifactJarXML = url.toURI().resolve("compositeArtifacts.xml");
+                compositeJar = FileUtils.tryToDownloadFile(compositeArtifactJarURI, fileCache.getCacheFilePath("compositeArtifacts.jar"));
+                compositeXML = FileUtils.tryToDownloadFile(compositeArtifactJarXML, fileCache.getCacheFilePath("compositeArtifacts.xml"));
+            }
             if (compositeJar != null) {
                 Path path = FileUtils.extractConfigFromJar(compositeJar, "compositeArtifacts.xml");
                 List<String> childrenURLs = IndexFileParser.INSTANCE.listChildrenRepositoriesFromFile(path.toFile());
@@ -141,16 +153,66 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
             throw new RepositoryInitialisationError("Error during" + getName() + " repository initialisation", exception);
         }
     }
+    private class RepositoryCache {
+
+        private final Path repositoryCache;
+
+        private RepositoryCache() {
+            Path eclipsePath = PathsManager.INSTANCE.getEclipsePath();
+            Path repositoryCache = eclipsePath.resolve("repositories")
+                .resolve(
+                    url.toString().replace('/', '_')
+                        .replace("https:", "")
+                        .replace("http:", "") + "/"
+                );
+            if (!repositoryCache.toFile().exists()) {
+                repositoryCache.toFile().mkdirs();
+            }
+            this.repositoryCache = repositoryCache;
+        }
+        private Path lookInRepositoryCache(String filename) {
+            try {
+                File file = getCacheFilePath(filename).toFile();
+                if (file.exists()) {
+                    if (isValidCacheFile(file)) {
+                        return file.toPath();
+                    } else {
+                        file.delete();
+                    }
+                }
+            } catch (IOException exception) {
+                log.warn("Error during accessing cache file, file will not be used", exception);
+                return null;
+            }
+            return null;
+        }
+
+        private Path getCacheFilePath(String filename) {
+            return repositoryCache.resolve(filename);
+        }
+
+        private static boolean isValidCacheFile(File compositeJar) throws IOException {
+            FileTime fileTime = Files.readAttributes(compositeJar.toPath(), BasicFileAttributes.class).creationTime();
+            Instant fileInstant = fileTime.toInstant();
+            return Instant.now().getEpochSecond() * 60 * 60 >= fileInstant.getEpochSecond();
+        }
+    }
 
     private void loadArtifacts(P2BundleLookupCache cache) throws RepositoryInitialisationError {
         try {
-            URI artifactsURI = url.toURI().resolve("artifacts.jar");
-            Path path = FileUtils.tryToDownloadFile(artifactsURI, null);
-            if (path != null) {
-                indexArtifacts(path);
+            Path artifactsIndexPath = fileCache.lookInRepositoryCache("artifacts.jar");
+            if (artifactsIndexPath == null) {
+                URI artifactsURI = url.toURI().resolve("artifacts.jar");
+                artifactsIndexPath = FileUtils.tryToDownloadFile(artifactsURI, fileCache.getCacheFilePath("artifacts.jar"));
             }
-            URI contentsURI = url.toURI().resolve("content.jar");
-            Path contentPath = FileUtils.tryToDownloadFile(contentsURI, null);
+            if (artifactsIndexPath != null) {
+                indexArtifacts(artifactsIndexPath);
+            }
+            Path contentPath = fileCache.lookInRepositoryCache("content.jar");
+            if (contentPath == null) {
+                URI contentsURI = url.toURI().resolve("content.jar");
+                contentPath = FileUtils.tryToDownloadFile(contentsURI, fileCache.getCacheFilePath("content.jar"));
+            }
             if (contentPath != null) {
                 Path contentsXMl = FileUtils.extractConfigFromJar(contentPath, "content.xml");
                 ContentFileHandler.indexContent(this, contentsXMl.toFile(), cache);

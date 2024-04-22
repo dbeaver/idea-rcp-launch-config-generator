@@ -43,7 +43,6 @@
                     <mainClass>org.jkiss.tools.rcplaunchconfig.EntryPoint</mainClass>
                     <arguments>
                         <argument>-eclipse.version=${eclipse-version}</argument>
-                        <argument>-elk.version=${elk-version}</argument>
                     </arguments>
                 </configuration>
             </plugin>

@@ -96,16 +96,25 @@ public class ContentFileHandler extends DefaultHandler {
             currentState.equals(ParserState.PLUGIN_VALID) && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qualifiedName)
                 && ContentFileConstants.MAVEN_TYPE_FIELD.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))
         ) {
-            if ("eclipse-feature".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {
+            if ("eclipse-feature".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
+            ) {
                 currentState = ParserState.FEATURE_VALID;
             } else if ("jar".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-                || "eclipse-plugin".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {
-                currentState = ParserState.PLUGIN_VALID;
-                initBundle();
+                || "eclipse-plugin".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
+                || "java-source".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
+            ) {
+                if ("java-source".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {
+                    currentState = ParserState.SOURCES_VALID;
+                    initBundle(true);
+                } else {
+                    currentState = ParserState.PLUGIN_VALID;
+                    initBundle(false);
+                }
+
             }
         }
         if (
-            currentState == ParserState.PLUGIN_VALID
+            currentState.isPluginOrComment()
                 && (ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qualifiedName)
                 || ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qualifiedName))
         ) {
@@ -121,7 +130,7 @@ public class ContentFileHandler extends DefaultHandler {
             DependencyType type = DependencyType.getType(namespace);
             currentState = ParserState.DEPENDENCY;
             if (currentBundle == null) {
-                initBundle();
+                initBundle(false);
             }
             currentDependency = new Pair<>(name, type);
         }
@@ -130,7 +139,7 @@ public class ContentFileHandler extends DefaultHandler {
             && ContentFileConstants.INSTRUCTION_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if ("configure".equalsIgnoreCase(attributes.getValue(ContentFileConstants.KEY_FIELD))) {
                 currentContentType = ContentType.INSTRUCTION;
-            } else if (currentState == ParserState.PLUGIN_VALID
+            } else if (currentState.isPluginOrComment()
                 && "zipped".equals(attributes.getValue(ContentFileConstants.KEY_FIELD))) {
                 currentBundle.setZipped(true);
             }
@@ -146,8 +155,9 @@ public class ContentFileHandler extends DefaultHandler {
         super.startElement(uri, localName, qualifiedName, attributes);
     }
 
-    private void initBundle() {
+    private void initBundle(boolean sourceBundle) {
         currentBundle = new RemoteP2BundleInfo.RemoteBundleInfoBuilder();
+        String bundleName = sourceBundle ? currentUnit.id + ".source" : currentUnit.id;
         currentBundle.bundleName(currentUnit.id).version(currentUnit.version()).repositoryURL(repository);
     }
 
@@ -155,9 +165,9 @@ public class ContentFileHandler extends DefaultHandler {
     public void endElement(String uri, String localName, String qualifiedName) throws SAXException {
         if (currentState.isInsideUnit() && ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if (currentState != ParserState.UNIT_INVALID) {
-                if (currentState == ParserState.PLUGIN_VALID) {
+                if (currentState.isPluginOrComment()) {
                     if (currentBundle == null) {
-                        initBundle();
+                        initBundle(false);
                     }
                     RemoteP2BundleInfo bundle = currentBundle.build();
                     if (repository.isIndexed(bundle.getBundleName(), bundle.getBundleVersion())) {
@@ -262,6 +272,7 @@ public class ContentFileHandler extends DefaultHandler {
         ROOT, // ROOT -> FEATURE_VALID | PLUGIN_VALID
         FEATURE_VALID, // FEATURE_VALID -> UNIT_INVALID | ROOT
         PLUGIN_VALID, // PLUGIN_VALID -> UNIT_INVALID | DEPENDENCY
+        SOURCES_VALID,
         DEPENDENCY, //  PLUGIN_IMPORT
         DEPENDENCY_INVALID, // DEPENDENCY_INVALID -> PLUGIN_VALID
         UNIT_INVALID; // UNIT_INVALID -> ROOT
@@ -271,9 +282,12 @@ public class ContentFileHandler extends DefaultHandler {
         }
 
         private boolean isInsideUnit() {
-            return this.equals(FEATURE_VALID) || this.equals(PLUGIN_VALID) || this.equals(UNIT_INVALID);
+            return this.equals(FEATURE_VALID) || isPluginOrComment()|| this.equals(UNIT_INVALID);
         }
 
+        private boolean isPluginOrComment() {
+            return this.equals(PLUGIN_VALID) || this.equals(SOURCES_VALID);
+        }
 
         private boolean isInvalid() {
             return this.equals(DEPENDENCY_INVALID) || this.equals(UNIT_INVALID);
