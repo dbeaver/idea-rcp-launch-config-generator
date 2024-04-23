@@ -172,6 +172,9 @@ public class DynamicImportsResolver {
         for (var folderOrJar : children) {
             BundleInfo bundleInfo;
             if (folderOrJar.isDirectory()) {
+                if (folderOrJar.getName().equals(".DS_Store")) {
+                    continue;
+                }
                 var manifestFile = folderOrJar.toPath().resolve(MANIFEST_PATH).toFile();
                 if (!manifestFile.exists()) {
                     log.error("Cannot find '{}'", manifestFile.getPath());

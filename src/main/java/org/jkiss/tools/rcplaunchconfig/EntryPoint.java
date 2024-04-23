@@ -30,6 +30,9 @@ import org.slf4j.LoggerFactory;
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class EntryPoint {
@@ -37,11 +40,14 @@ public class EntryPoint {
 
     public static void main(String[] args) throws IOException, XMLStreamException, RepositoryInitialisationError {
         var params = new Params();
+        log.info("Process started with the following arguments: " + Arrays.toString(args));
         params.init(args);
         if (!params.productFilePath.toFile().exists()) {
             log.error("'{}' is not exists", params.productFilePath);
             return;
         }
+        log.info("Dependency folder location: " + params.eclipsePath);
+        log.info("Target location: " + params.productFilePath);
         var settings = ConfigFileManager.readSettingsFile(params.configFilePath);
 
         var pathsManager = PathsManager.INSTANCE;
@@ -103,6 +109,13 @@ public class EntryPoint {
         {
             log.info("Loading test bundles");
             PluginResolver.resolveTestBundles(result);
+        }
+
+        List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
+        if (additionalLibraries != null) {
+            for (Path additionalLibrary : additionalLibraries) {
+                FileUtils.copyFolder(additionalLibrary, PathsManager.INSTANCE.getEclipsePath());
+            }
         }
     }
 }
