@@ -264,6 +264,8 @@ public class FileUtils {
                         .substring(sourceFolder.toString().length()));
                     try {
                         Files.copy(source, destination, StandardCopyOption.COPY_ATTRIBUTES);
+                    } catch (FileAlreadyExistsException ignore) {
+
                     } catch (IOException e) {
                         log.error("Error transferring data");
                     }

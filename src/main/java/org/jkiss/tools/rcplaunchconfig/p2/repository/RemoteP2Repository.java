@@ -191,10 +191,10 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
             return repositoryCache.resolve(filename);
         }
 
-        private static boolean isValidCacheFile(File compositeJar) throws IOException {
-            FileTime fileTime = Files.readAttributes(compositeJar.toPath(), BasicFileAttributes.class).creationTime();
+        private static boolean isValidCacheFile(File file) throws IOException {
+            FileTime fileTime = Files.readAttributes(file.toPath(), BasicFileAttributes.class).creationTime();
             Instant fileInstant = fileTime.toInstant();
-            return Instant.now().getEpochSecond() * 60 * 60 >= fileInstant.getEpochSecond();
+            return Instant.now().plusSeconds(60 * 60).getEpochSecond() >= fileInstant.getEpochSecond();
         }
     }
 
