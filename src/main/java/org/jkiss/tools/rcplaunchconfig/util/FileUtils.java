@@ -255,6 +255,23 @@ public class FileUtils {
         return fileExist;
     }
 
+
+    public static void copyFolder(Path sourceFolder, Path target) throws IOException {
+        try (Stream<Path> fileStream = Files.walk(sourceFolder)) {
+            fileStream
+                .forEach(source -> {
+                    Path destination = Paths.get(target.resolve(sourceFolder.getFileName()).toString(), source.toString()
+                        .substring(sourceFolder.toString().length()));
+                    try {
+                        Files.copy(source, destination, StandardCopyOption.COPY_ATTRIBUTES);
+                    } catch (FileAlreadyExistsException ignore) {
+
+                    } catch (IOException e) {
+                        log.error("Error transferring data");
+                    }
+                });
+        }
+    }
 }
 
 

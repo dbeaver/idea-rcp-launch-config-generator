@@ -46,7 +46,7 @@ bundlesPaths=\
   dbeaver/plugins;
 repositories=\
   https://p2.dev.dbeaver.com/eclipse-repo/;\
-  https://download.eclipse.org/elk/updates/releases/${elk-version}/;
+  https://download.eclipse.org/elk/updates/releases/0.8.1/;
 ```
 featuresPaths: list of paths to Eclipse features folders  
 bundlesPaths: list of paths to Eclipse bundles folders

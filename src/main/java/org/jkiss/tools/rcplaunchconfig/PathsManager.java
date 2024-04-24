@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Properties;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -39,6 +40,7 @@ public enum PathsManager {
     private Path eclipsePath;
     private Path eclipsePluginsPath;
     private Path eclipseFeaturesPath;
+    private List<Path> additionalLibraries;
 
     public void init(
         @Nonnull Properties settings,
@@ -83,6 +85,14 @@ public enum PathsManager {
             Arrays.stream(testBundlesPathsString.split(";"))
                 .map(String::trim)
                 .collect(Collectors.toList());
+        var additionalLibrariesString = (String) settings.get("additionalLibrariesPaths");
+        if (additionalLibrariesString != null) {
+            this.additionalLibraries = Arrays.stream(additionalLibrariesString.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve)
+                .filter(FileUtils::exists)
+                .collect(Collectors.toList());;
+        }
 
     }
 
@@ -104,6 +114,10 @@ public enum PathsManager {
 
     public @Nonnull Path getEclipsePluginsPath() {
         return eclipsePluginsPath;
+    }
+
+    public @Nullable List<Path> getAdditionalLibraries() {
+        return additionalLibraries;
     }
 
     public Path getEclipseFeaturesPath() {

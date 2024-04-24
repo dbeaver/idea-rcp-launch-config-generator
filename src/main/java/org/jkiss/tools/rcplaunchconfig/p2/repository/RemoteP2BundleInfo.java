@@ -20,6 +20,7 @@ package org.jkiss.tools.rcplaunchconfig.p2.repository;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.ManifestParser;
 import org.slf4j.Logger;
@@ -29,10 +30,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
@@ -88,6 +86,14 @@ public class RemoteP2BundleInfo extends BundleInfo {
             } catch (IOException e) {
                 log.error("Cannot load bundle", e);
                 return false;
+            }
+        }
+        Collection<RemoteP2BundleInfo> sourceBundle = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByNames().get(getBundleName() + ".source");
+        if (!sourceBundle.isEmpty()) {
+            for (RemoteP2BundleInfo remoteP2BundleInfo : sourceBundle) {
+                if (remoteP2BundleInfo.getBundleVersion().equalsIgnoreCase(getBundleVersion())) {
+                    remoteP2BundleInfo.resolveBundle();
+                }
             }
         }
         return true;
