@@ -192,7 +192,7 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
         }
 
         private static boolean isValidCacheFile(File file) throws IOException {
-            FileTime fileTime = Files.readAttributes(file.toPath(), BasicFileAttributes.class).creationTime();
+            FileTime fileTime = Files.readAttributes(file.toPath(), BasicFileAttributes.class).lastModifiedTime();
             Instant fileInstant = fileTime.toInstant();
             return Instant.now().minusSeconds(60 * 60).getEpochSecond() <= fileInstant.getEpochSecond();
         }
