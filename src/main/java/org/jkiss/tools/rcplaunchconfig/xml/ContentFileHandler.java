@@ -17,11 +17,11 @@
 package org.jkiss.tools.rcplaunchconfig.xml;
 
 import org.jkiss.code.NotNull;
+import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.RemoteP2Feature;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
-import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.jkiss.utils.CommonUtils;
 import org.jkiss.utils.Pair;
 import org.xml.sax.Attributes;
@@ -32,6 +32,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.xml.XMLConstants;
@@ -82,7 +83,7 @@ public class ContentFileHandler extends DefaultHandler {
 
     @Override
     public void startElement(String uri, String localName, String qualifiedName, Attributes attributes) throws SAXException {
-        if (ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qualifiedName)) {
+         if (ContentFileConstants.UNIT_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             currentState = ParserState.PLUGIN_VALID;
             String id = attributes.getValue(ContentFileConstants.ID_FIELD);
             String version = attributes.getValue(ContentFileConstants.VERSION_FIELD);
@@ -243,10 +244,8 @@ public class ContentFileHandler extends DefaultHandler {
             }
         }
         if (ContentType.FILTER.equals(currentContentType)) {
-            String os = getMatchOrNull(ContentFileConstants.OS_PATTERN, content.trim());
-            String ws = getMatchOrNull(ContentFileConstants.WS_PATTERN, content.trim());
-            String arch = getMatchOrNull(ContentFileConstants.ARCH_PATTERN, content.trim());
-            if (!BundleUtils.matchesDeclaredOS(ws, os, arch)) {
+            String filter = content.trim();
+            if (!FilterEvaluator.parseEval(filter)) {
                 currentState = currentState.isInsideDependency() ? ParserState.DEPENDENCY_INVALID : ParserState.UNIT_INVALID;
             }
         }
@@ -322,5 +321,96 @@ public class ContentFileHandler extends DefaultHandler {
     private enum ContentType {
         INSTRUCTION,
         FILTER
+    }
+
+    private class FilterEvaluator {
+        public static boolean parseEval(String filter) {
+            if (filter.length() <= 1) {
+                return true;
+            }
+            char[] filterArray = filter.toCharArray();
+            return parseSubCondition(filterArray, 0);
+        }
+
+        private static boolean parseSubCondition(char[] filterArray, int i) {
+            Stack<Character> currentGroup = new Stack<>();
+            currentGroup.push('(');
+            int j = i + 1;
+            StringBuilder currentCondition = new StringBuilder();
+            boolean orCondition = false;
+            Boolean isTrue = null;
+            //(&amp;(osgi.os=macosx)(|(osgi.arch=aarch64)(osgi.arch=x86_64)))
+
+            while (!currentGroup.isEmpty()) {
+                char c = filterArray[j];
+                if (c == '(') {
+                    if (currentGroup.size() == 1) {
+                        if (!currentCondition.isEmpty()) {
+                            String condition = currentCondition.toString();
+                            switch (condition) {
+                                case "&amp;":
+                                    break;
+                                case "|":
+                                    orCondition = true;
+                                    break;
+                                default:
+                                    return evalSimpleCondition(condition);
+                            }
+                            currentCondition = new StringBuilder();
+                        }
+                        if (isTrue == null) {
+                            isTrue = parseSubCondition(filterArray, j);
+                        } else {
+                            if (orCondition) {
+                                isTrue |= parseSubCondition(filterArray, j);
+                            } else {
+                                isTrue &= parseSubCondition(filterArray, j);
+                            }
+                        }
+                    }
+                    currentGroup.push('(');
+                } else if (c == ')') {
+                    if (!currentCondition.isEmpty()) {
+                        String condition = currentCondition.toString();
+                        switch (condition) {
+                            case "&amp;":
+                                break;
+                            case "|":
+                                orCondition = true;
+                                break;
+                            default:
+                                return evalSimpleCondition(condition);
+                        }
+                        currentCondition = new StringBuilder();
+                    }
+                    currentGroup.pop();
+                } else if (currentGroup.size() == 1) {
+                    currentCondition.append(filterArray[j]);
+                }
+                j++;
+            }
+            return isTrue == null | Boolean.TRUE.equals(isTrue);
+        }
+        private static boolean evalSimpleCondition(String condition) {
+            String[] split = condition.split("=");
+            if (split.length != 2) {
+                return true;
+            }
+            String parameter = split[0];
+            String value = split[1];
+            switch (parameter) {
+                case ContentFileConstants.OS_FILTER -> {
+                    return value.equals(BundleInfo.currentOS);
+                }
+                case ContentFileConstants.WS_FILTER -> {
+                    return value.equals(BundleInfo.currentWS);
+                }
+                case ContentFileConstants.ARCH_FILTER -> {
+                    return value.equals(BundleInfo.currentArch);
+                }
+            }
+            return true;
+        }
+
     }
 }
