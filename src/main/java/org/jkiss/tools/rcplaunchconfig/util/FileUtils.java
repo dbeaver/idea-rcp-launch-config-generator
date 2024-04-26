@@ -117,7 +117,7 @@ public class FileUtils {
         return result;
     }
 
-    private static @Nonnull BundleVersion extractVersion(@Nonnull File file) {
+    public static @Nonnull BundleVersion extractVersion(@Nonnull File file) {
         return new BundleVersion(StringUtils.substringAfterLast(file.getName(), NAME_AND_VERSION_SEPARATOR));
     }
 

@@ -21,6 +21,8 @@ import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 
+import java.util.Collection;
+
 public class P2BundleLookupCache {
     private final MultiValuedMap<String, RemoteP2BundleInfo> remoteBundlesByNames = new ArrayListValuedHashMap<>();
     private final MultiValuedMap<String, RemoteP2Feature> remoteFeaturesByNames = new ArrayListValuedHashMap<>();
@@ -29,17 +31,16 @@ public class P2BundleLookupCache {
     public P2BundleLookupCache() {
     }
 
-    public MultiValuedMap<String, RemoteP2BundleInfo> getRemoteBundlesByNames() {
-        return remoteBundlesByNames;
+    public Collection<RemoteP2BundleInfo> getRemoteBundlesByName(String name) {
+        return remoteBundlesByNames.get(name);
     }
 
-    //TODO change API
-    public MultiValuedMap<String, RemoteP2Feature> getRemoteFeaturesByNames() {
-        return remoteFeaturesByNames;
+    public Collection<RemoteP2Feature> getRemoteFeaturesByName(String name) {
+        return remoteFeaturesByNames.get(name);
     }
 
-    public MultiValuedMap<String, RemoteP2BundleInfo> getRemoteBundlesByExports() {
-        return remoteBundlesByExports;
+    public Collection<RemoteP2BundleInfo> getRemoteBundlesByExport(String export) {
+        return remoteBundlesByExports.get(export);
     }
 
     public void addRemoteBundle(RemoteP2BundleInfo remoteP2BundleInfo) {
