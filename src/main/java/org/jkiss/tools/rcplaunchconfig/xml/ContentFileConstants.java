@@ -19,12 +19,10 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 import java.util.regex.Pattern;
 
 public class ContentFileConstants {
-    public static final Pattern ARCH_PATTERN = Pattern.compile(".*\\(osgi\\.arch=([^&)]+)\\).*");
+    public static final String ARCH_FILTER = "osgi.arch";
 
-    public static final Pattern WS_PATTERN = Pattern.compile(".*\\(osgi\\.ws=([^&)]+)\\).*");
-    public static final Pattern OS_PATTERN = Pattern.compile(".*\\(osgi\\.os=([^&)]+)\\).*");
-
-    public static final Pattern SERVICE_LOADER_PATTERN = Pattern.compile(".*\\(osgi\\.serviceloader=([^&)]+)\\).*");
+    public static final String WS_FILTER = "osgi.ws";
+    public static final String OS_FILTER = "osgi.os";
 
     public static final Pattern START_LEVEL_PATTERN = Pattern.compile(".*startLevel:\\s*(-?\\d+).*");
     public static final String REQUIRED_PROPERTIES_KEYWORD = "requiredProperties";
