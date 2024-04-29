@@ -111,8 +111,8 @@ public class DynamicImportsResolver {
             }
             var eclipseBundlesWithThisPackage = new ArrayList<>(eclipsePluginsByExportedPackages.get(packageToImport));
             if (eclipseBundlesWithThisPackage.isEmpty()) {
-                Collection<RemoteP2BundleInfo> remoteP2BundleInfos = lookupCache.getRemoteBundlesByExports().get(packageToImport);
-                if (!failedToResolvePackagesToBundles.containsKey(packageToImport) && !lookupCache.getRemoteBundlesByExports().get(packageToImport).isEmpty()) {
+                Collection<RemoteP2BundleInfo> remoteP2BundleInfos = lookupCache.getRemoteBundlesByExport(packageToImport);
+                if (!failedToResolvePackagesToBundles.containsKey(packageToImport) && !lookupCache.getRemoteBundlesByExport(packageToImport).isEmpty()) {
                     for (RemoteP2BundleInfo remoteP2BundleInfo : remoteP2BundleInfos) {
                         if (excludedBundles.contains(remoteP2BundleInfo.getBundleName())) {
                             continue;

@@ -88,7 +88,7 @@ public class ConfigIniProducer {
         var eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
         var file = FileUtils.findFirstChildByPackageName(eclipsePluginsPath, OSGI_FRAMEWORK_BUNDLE_NAME);
         if (file == null) {
-            Collection<RemoteP2BundleInfo> remoteP2BundleInfos = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByNames().get(OSGI_FRAMEWORK_BUNDLE_NAME);
+            Collection<RemoteP2BundleInfo> remoteP2BundleInfos = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByName(OSGI_FRAMEWORK_BUNDLE_NAME);
             if (remoteP2BundleInfos == null || remoteP2BundleInfos.isEmpty()) {
                 log.error("Failed to find '{}' in '{}'", OSGI_FRAMEWORK_BUNDLE_NAME, eclipsePluginsPath);
                 return "";
