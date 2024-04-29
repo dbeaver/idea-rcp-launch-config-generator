@@ -24,6 +24,7 @@ import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.util.BundleVersion;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.slf4j.Logger;
@@ -86,9 +87,14 @@ public class PluginResolver {
             .map(pluginJarOrFolder -> extractBundleInfo(pluginJarOrFolder, startLevel))
             .filter(Objects::nonNull)
             .toList();
-
         if (bundleInfos.size() == 1) {
-            parseBundleInfo(result, bundleInfos.get(0), cache);
+            Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = BundleUtils.getMaxVersionRemoteBundle(bundleName, cache);
+            if (maxVersionRemoteBundle.isPresent() && BundleUtils.isRemoteBundleVersionGreater(maxVersionRemoteBundle.get(), bundleInfos.get(0))) {
+                maxVersionRemoteBundle.get().resolveBundle();
+                parseBundleInfo(result, bundleInfos.get(0), cache);
+            } else {
+                parseBundleInfo(result, bundleInfos.get(0), cache);
+            }
         } else if (bundleInfos.isEmpty()) {
 
             Optional<RemoteP2BundleInfo> remoteP2BundleInfos = BundleUtils.getMaxVersionRemoteBundle(bundleName, cache);

@@ -88,7 +88,7 @@ public class RemoteP2BundleInfo extends BundleInfo {
                 return false;
             }
         }
-        Collection<RemoteP2BundleInfo> sourceBundle = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByNames().get(getBundleName() + ".source");
+        Collection<RemoteP2BundleInfo> sourceBundle = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByName(getBundleName() + ".source");
         if (!sourceBundle.isEmpty()) {
             for (RemoteP2BundleInfo remoteP2BundleInfo : sourceBundle) {
                 if (remoteP2BundleInfo.getBundleVersion().equalsIgnoreCase(getBundleVersion())) {

@@ -17,12 +17,13 @@
 package org.jkiss.tools.rcplaunchconfig.resolvers;
 
 import jakarta.annotation.Nonnull;
-import org.jkiss.tools.rcplaunchconfig.BundleInfo;
+import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.RemoteP2Feature;
+import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.xml.XmlReader;
 import org.slf4j.Logger;
@@ -31,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import javax.xml.stream.XMLStreamException;
 import java.io.File;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.Optional;
@@ -60,17 +60,21 @@ public class FeatureResolver {
             .toList();
 
         if (featureXmlFiles.size() == 1) {
-            parseFeatureFile(result, bundleName, featureXmlFiles.get(0));
+            Optional<RemoteP2Feature> maxVersionRemoteFeature = BundleUtils.getMaxVersionRemoteFeature(bundleName, P2RepositoryManager.INSTANCE.getLookupCache());
+            if (maxVersionRemoteFeature.isPresent() && BundleUtils.isRemoteFeatureVersionGreater(maxVersionRemoteFeature.get(), FileUtils.extractVersion(featureXmlFiles.get(0).getParentFile()))) {
+                if (!resolveRemoteFeature(result, bundleName, maxVersionRemoteFeature.get())) {
+                    log.error("Couldn't resolve newer version feature '{}'", bundleName);
+                }
+            } else {
+                parseFeatureFile(result, bundleName, featureXmlFiles.get(0));
+            }
         } else if (featureXmlFiles.isEmpty()) {
             P2BundleLookupCache lookupCache = P2RepositoryManager.INSTANCE.getLookupCache();
             Optional<RemoteP2Feature> remoteP2FeatureOptional
-                = lookupCache.getRemoteFeaturesByNames().get(bundleName).stream().max(Comparator.comparing(RemoteP2Feature::getVersion));
+                = lookupCache.getRemoteFeaturesByName(bundleName).stream().max(Comparator.comparing(RemoteP2Feature::getVersion));
             if (remoteP2FeatureOptional.isPresent()) {
                 RemoteP2Feature remoteP2Feature = remoteP2FeatureOptional.get();
-                boolean success = remoteP2Feature.resolveFeature();
-                if (success) {
-                    File child = FileUtils.findFirstChildByPackageName(remoteP2Feature.getPath(), FEATURES_XML_FILENAME);
-                    parseFeatureFile(result, bundleName, child);
+                if (resolveRemoteFeature(result, bundleName, remoteP2Feature)) {
                     return;
                 }
             }
@@ -88,6 +92,16 @@ public class FeatureResolver {
             log.warn("Found multiple features '{}'. First will be used.\n  {}", bundleName, featuresFilesPaths);
             parseFeatureFile(result, bundleName, featureXmlFiles.get(0));
         }
+    }
+
+    private static boolean resolveRemoteFeature(@NotNull Result result, @NotNull String bundleName, RemoteP2Feature remoteP2Feature) throws XMLStreamException, IOException {
+        boolean success = remoteP2Feature.resolveFeature();
+        if (success) {
+            File child = FileUtils.findFirstChildByPackageName(remoteP2Feature.getPath(), FEATURES_XML_FILENAME);
+            parseFeatureFile(result, bundleName, child);
+            return true;
+        }
+        return false;
     }
 
     private static void parseFeatureFile(
