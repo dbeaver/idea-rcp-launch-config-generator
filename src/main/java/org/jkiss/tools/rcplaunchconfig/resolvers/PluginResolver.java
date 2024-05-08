@@ -24,7 +24,7 @@ import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
-import org.jkiss.tools.rcplaunchconfig.util.BundleVersion;
+import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.slf4j.Logger;
@@ -159,7 +159,7 @@ public class PluginResolver {
         P2BundleLookupCache cache
     ) throws IOException {
         result.addBundle(bundleInfo);
-
+        IMLConfigurationProducer.INSTANCE.addRequiredBundle(bundleInfo, bundleInfo.getBundleName());
         for (var requireBundle : bundleInfo.getRequireBundles()) {
             PluginResolver.resolvePluginDependencies(result, requireBundle, null, cache);
         }

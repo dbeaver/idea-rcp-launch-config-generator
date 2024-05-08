@@ -25,6 +25,7 @@ import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -141,6 +142,7 @@ public class DynamicImportsResolver {
                 log.debug("Multiple plugins exports same package: '{}'\n  {}\n  All bundles will be used", packageToImport, bundlesPathsList);
             }
             for (var bundleToAdd : eclipseBundlesWithThisPackage) {
+                IMLConfigurationProducer.INSTANCE.addRequiredBundle(bundleInfo, bundleToAdd.getBundleName());
                 bundlesToAddByImportPackage.put(packageToImport, bundleToAdd);
 
                 var newResult = new DynamicImportResult(result);

@@ -20,6 +20,7 @@ import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
+import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
 import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
@@ -110,7 +111,9 @@ public class EntryPoint {
             log.info("Loading test bundles");
             PluginResolver.resolveTestBundles(result);
         }
-
+        {
+            IMLConfigurationProducer.INSTANCE.generateIMLFiles();
+        }
         List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
         if (additionalLibraries != null) {
             for (Path additionalLibrary : additionalLibraries) {

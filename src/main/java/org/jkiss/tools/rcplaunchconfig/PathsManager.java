@@ -41,6 +41,8 @@ public enum PathsManager {
     private Path eclipsePluginsPath;
     private Path eclipseFeaturesPath;
     private List<Path> additionalLibraries;
+    private Path imlModules;
+    private Path imlLibraries;
 
     public void init(
         @Nonnull Properties settings,
@@ -55,6 +57,14 @@ public enum PathsManager {
         eclipsePluginsPath = eclipsePath.resolve("plugins");
         if (!eclipsePluginsPath.toFile().exists()) {
             Files.createDirectories(eclipsePluginsPath);
+        }
+        imlModules = eclipsePath.resolve("idea-configuration");
+        if (!imlModules.toFile().exists()) {
+            Files.createDirectories(imlModules);
+        }
+        imlLibraries = imlModules.resolve(".idea/libraries");
+        if (!imlLibraries.toFile().exists()) {
+            Files.createDirectories(imlLibraries);
         }
         eclipseFeaturesPath = eclipsePath.resolve("features");
         if (!eclipseFeaturesPath.toFile().exists()) {
@@ -122,5 +132,13 @@ public enum PathsManager {
 
     public Path getEclipseFeaturesPath() {
         return eclipseFeaturesPath;
+    }
+
+    public Path getImlModules() {
+        return imlModules;
+    }
+
+    public Path getImlLibraries() {
+        return imlLibraries;
     }
 }
