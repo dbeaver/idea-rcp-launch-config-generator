@@ -112,7 +112,7 @@ public class EntryPoint {
             PluginResolver.resolveTestBundles(result);
         }
         {
-            IMLConfigurationProducer.INSTANCE.generateIMLFiles();
+            IMLConfigurationProducer.INSTANCE.generateIMLFiles(result);
         }
         List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
         if (additionalLibraries != null) {

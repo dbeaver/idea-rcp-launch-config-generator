@@ -17,7 +17,6 @@
 
 package org.jkiss.tools.rcplaunchconfig.p2.repository;
 
-import org.apache.commons.collections4.Bag;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
@@ -53,7 +52,8 @@ public class RemoteP2BundleInfo extends BundleInfo {
         @Nullable Integer startLevel,
         boolean zipped
     ) {
-        super(null, bundleName, bundleVersion, classpathLibs, requireBundles, reexportedBundles, exportPackages, importPackages, startLevel);
+        // TODO *IMPORTANT* DON'T FORGET ABOUT FRAGMENT HOSTS AND REEXPORTS
+        super(null, bundleName, bundleVersion, classpathLibs, requireBundles, reexportedBundles, exportPackages, importPackages, null, startLevel);
         this.repository = repositoryURL;
         this.zipped = zipped;
     }

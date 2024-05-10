@@ -18,12 +18,10 @@ package org.jkiss.tools.rcplaunchconfig;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
+import org.apache.commons.collections4.Bag;
 
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 public class BundleInfo {
 
@@ -59,6 +57,7 @@ public class BundleInfo {
     }
 
     private final Set<String> reexportedBundles;
+    private final String fragmentHost;
 
     protected Path path;
     private final String bundleName;
@@ -72,6 +71,7 @@ public class BundleInfo {
     // E.g. jakarta.annotation-api of different versions (1.x and 2.x) are completely different and export different packages
     // Thus we need all versions
     private String additionalVersions;
+    private Set<BundleInfo> fragments = new HashSet<>();
 
     public BundleInfo(
         @Nullable Path path,
@@ -82,8 +82,8 @@ public class BundleInfo {
         @Nonnull Set<String> reexportedBundles,
         @Nonnull Set<String> exportPackages,
         @Nonnull Set<String> importPackages,
-        @Nullable Integer startLevel
-    ) {
+        @Nullable String fragmentHost,
+        @Nullable Integer startLevel) {
         this.path = path;
         this.bundleName = bundleName;
         this.bundleVersion = bundleVersion;
@@ -93,6 +93,7 @@ public class BundleInfo {
         this.exportPackages = exportPackages;
         this.importPackages = importPackages;
         this.startLevel = startLevel;
+        this.fragmentHost = fragmentHost;
     }
 
     public @Nullable Path getPath() {
@@ -127,6 +128,14 @@ public class BundleInfo {
         return importPackages;
     }
 
+    public @Nullable String getFragmentHost() {
+        return fragmentHost;
+    }
+
+    public Set<BundleInfo> getFragments() {
+        return fragments;
+    }
+
     public @Nullable Integer getStartLevel() {
         return startLevel;
     }
@@ -144,6 +153,10 @@ public class BundleInfo {
                 additionalVersions += "," + version;
             }
         }
+    }
+
+    public void addFragmentBundle(BundleInfo fragment) {
+        this.fragments.add(fragment);
     }
 
     @Override

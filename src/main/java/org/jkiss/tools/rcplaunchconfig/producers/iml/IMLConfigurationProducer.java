@@ -4,6 +4,7 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
+import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
@@ -16,10 +17,10 @@ import java.util.*;
 
 public class IMLConfigurationProducer {
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
-    private final HashMap<BundleInfo, Set<String>> bundleImports = new LinkedHashMap<>();
-    public void generateIMLFiles() throws IOException {
+    private final HashMap<String, Set<BundleInfo>> bundlePackageImports = new LinkedHashMap<>();
+    public void generateIMLFiles(Result result) throws IOException {
         List<BundleInfo> modules = new ArrayList<>();
-        for (BundleInfo bundleInfo : bundleImports.keySet()) {
+        for (BundleInfo bundleInfo : result.getBundlesByNames().values()) {
             if (getImlModulePath(bundleInfo).toFile().exists()) {
                 return;
             }
@@ -30,7 +31,7 @@ public class IMLConfigurationProducer {
                 createConfigFile(imlFilePath, moduleConfig);
             } else {
                 Path imlLibrariesPath = getLibrariesPath(bundleInfo);
-                String libraryConfig = generateIMlLibraryConfig(bundleInfo);
+                String libraryConfig = generateIMlLibraryConfig(bundleInfo, result);
                 createConfigFile(imlLibrariesPath, libraryConfig);
             }
         }
@@ -39,8 +40,8 @@ public class IMLConfigurationProducer {
         createConfigFile(getImplModuleConfigPath(), modulesConfig);
     }
 
-    public void addRequiredBundle(BundleInfo bundleInfo, String importBundleName) {
-        bundleImports.computeIfAbsent(bundleInfo, x -> new LinkedHashSet<>()).add(importBundleName);
+    public void AddRequiredBundleforPackage(String packageName, BundleInfo bundleInfo) {
+        bundlePackageImports.computeIfAbsent(packageName, it -> new HashSet<>()).add(bundleInfo);
     }
 
     private static void createConfigFile(Path imlLibrariesPath, String libraryConfig) throws IOException {
@@ -70,7 +71,7 @@ public class IMLConfigurationProducer {
     }
 
     @Nullable
-    private String generateIMlLibraryConfig(@NotNull BundleInfo bundleInfo) throws MalformedURLException {
+    private String generateIMlLibraryConfig(@NotNull BundleInfo bundleInfo, Result result) throws MalformedURLException {
         if (bundleInfo.getPath() == null) {
             return null;
         }
@@ -78,13 +79,13 @@ public class IMLConfigurationProducer {
         builder.append("<component name=\"libraryTable\">").append("\n");
         builder.append(" <library name=\"").append(bundleInfo.getBundleName()).append("\">\n");
         builder.append("   <CLASSES>").append("\n");
-        appendLibraryInfo(builder, bundleInfo);
+        appendLibraryInfo(builder, bundleInfo, result);
         builder.append("  </CLASSES>").append("\n");
         Collection<RemoteP2BundleInfo> remoteBundlesByName = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByName(bundleInfo.getBundleName() + ".source");
         builder.append("   <SOURCES>").append("\n");
         if (!remoteBundlesByName.isEmpty()) {
             RemoteP2BundleInfo remoteP2BundleInfo = remoteBundlesByName.stream().findFirst().get();
-            appendLibraryInfo(builder, remoteP2BundleInfo);
+            appendLibraryInfo(builder, remoteP2BundleInfo, result);
         }
         builder.append("   </SOURCES>").append("\n");
         builder.append("   <jarDirectory url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("lib"), true, false)).append("\" ").append("recursive=\"false\"/>\n");
@@ -93,7 +94,7 @@ public class IMLConfigurationProducer {
         return builder.toString();
     }
 
-    private static void appendLibraryInfo(@NotNull StringBuilder builder, @NotNull BundleInfo bundleInfo) throws MalformedURLException {
+    private void appendLibraryInfo(@NotNull StringBuilder builder, @NotNull BundleInfo bundleInfo, Result result) throws MalformedURLException {
         if (bundleInfo.getPath() == null) {
             return;
         }
@@ -105,15 +106,31 @@ public class IMLConfigurationProducer {
         } else {
             builder.append("    <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true, true)).append("\"/>\n");
         }
+        for (BundleInfo fragment : bundleInfo.getFragments()) {
+            appendLibraryInfo(builder, fragment, result);
+        }
+        if (!bundleInfo.getReexportedBundles().isEmpty()) {
+            for (String reexportedBundle : bundleInfo.getReexportedBundles()) {
+                appendLibraryInfo(builder, result.getBundleByName(reexportedBundle), result);
+            }
+            for (String importPackage : bundleInfo.getImportPackages()) {
+                if (bundlePackageImports.get(importPackage) != null) {
+                    for (BundleInfo info : bundlePackageImports.get(importPackage)) {
+                        appendLibraryInfo(builder, info, result);
+                    }
+                }
+            }
+        }
+
     }
 
-    private static String getFormattedRelativePath(@NotNull Path bundlePath, boolean library, boolean jar) {
+    private String getFormattedRelativePath(@NotNull Path bundlePath, boolean library, boolean jar) {
         String type = jar ? "jar://" : "file://";
         String prefix = library ? type + "$PROJECT_DIR$/../" : type + "$MODULE_DIR$/../";
         return prefix + getRelativizedPath(bundlePath).toString().replace("\\", "/") + (jar ? "!/" : "");
     }
     @NotNull
-    private static Path getRelativizedPath(@NotNull Path bundlePath) {
+    private Path getRelativizedPath(@NotNull Path bundlePath) {
         return PathsManager.INSTANCE.getEclipsePath().getParent().getParent().relativize(bundlePath);
     }
 
@@ -134,17 +151,32 @@ public class IMLConfigurationProducer {
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
         for (String requireBundle : bundleInfo.getRequireBundles()) {
-            boolean isExported = bundleInfo.getReexportedBundles().contains(requireBundle);
-            if (DevPropertiesProducer.isBundleAcceptable(requireBundle)) {
-                builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireBundle).append(isExported ? "\" exported=\"\"" : "\"").append("/>").append("\n");
-            } else {
-                builder.append("  <orderEntry type = \"library\" name=\"").append(requireBundle).append(isExported ? "\" exported=\"\" " : "\" ").append("level=\"project\"/>").append("\n");
+            appendBundleInfo(bundleInfo, requireBundle, builder);
+        }
+        if (bundleInfo.getFragmentHost() != null) {
+            appendBundleInfo(bundleInfo, bundleInfo.getFragmentHost(), builder);
+        }
+        for (String importPackage : bundleInfo.getImportPackages()) {
+            if (bundlePackageImports.get(importPackage) != null) {
+                for (BundleInfo info : bundlePackageImports.get(importPackage)) {
+                    appendBundleInfo(bundleInfo, info.getBundleName(), builder);
+                }
             }
         }
         builder.append(" </component>").append("\n");
         builder.append("</module>");
         return builder.toString();
     }
+
+    private static void appendBundleInfo(@NotNull BundleInfo bundleInfo, String requireBundle, StringBuilder builder) {
+        boolean isExported = bundleInfo.getReexportedBundles().contains(requireBundle);
+        if (DevPropertiesProducer.isBundleAcceptable(requireBundle)) {
+            builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireBundle).append(isExported ? "\" exported=\"\"" : "\"").append("/>").append("\n");
+        } else {
+            builder.append("  <orderEntry type = \"library\" name=\"").append(requireBundle).append(isExported ? "\" exported=\"\" " : "\" ").append("level=\"project\"/>").append("\n");
+        }
+    }
+
     private Path getImlModulePath(BundleInfo bundleInfo) {
         return PathsManager.INSTANCE.getImlModules().resolve(bundleInfo.getBundleName() + ".iml");
     }

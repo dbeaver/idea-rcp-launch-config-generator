@@ -107,6 +107,11 @@ public class DynamicImportsResolver {
                 parsedResultPluginsByExportedPackages.containsKey(packageToImport) ||
                 bundlesToAddByImportPackage.containsKey(packageToImport)
             ) {
+                if (parsedResultPluginsByExportedPackages.containsKey(packageToImport)) {
+                    for (BundleInfo info : parsedResultPluginsByExportedPackages.get(packageToImport)) {
+                        IMLConfigurationProducer.INSTANCE.AddRequiredBundleforPackage(packageToImport, info);
+                    }
+                }
                 // skip packages which is excluded or already resolved or planned to add
                 continue;
             }
@@ -141,8 +146,8 @@ public class DynamicImportsResolver {
                     .collect(Collectors.joining("\n  "));
                 log.debug("Multiple plugins exports same package: '{}'\n  {}\n  All bundles will be used", packageToImport, bundlesPathsList);
             }
+            eclipseBundlesWithThisPackage.forEach(it -> IMLConfigurationProducer.INSTANCE.AddRequiredBundleforPackage(packageToImport, it));
             for (var bundleToAdd : eclipseBundlesWithThisPackage) {
-                IMLConfigurationProducer.INSTANCE.addRequiredBundle(bundleInfo, bundleToAdd.getBundleName());
                 bundlesToAddByImportPackage.put(packageToImport, bundleToAdd);
 
                 var newResult = new DynamicImportResult(result);

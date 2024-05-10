@@ -68,6 +68,7 @@ public class ManifestParser {
                 .map(ManifestParser::trimBundleName).collect(Collectors.toSet());;
         var exportPackageArg = splitPackagesList(attributes.getValue("Export-Package"));
         var importPackageArg = splitPackagesList(attributes.getValue("Import-Package"));
+        String fragmentHost = attributes.getValue("Fragment-Host") == null ? null : trimBundleName(attributes.getValue("Fragment-Host"));
 
         return new BundleInfo(
             pathToContainingFolderOrJar,
@@ -78,7 +79,7 @@ public class ManifestParser {
             reexportedBundles,
             exportPackageArg,
             importPackageArg,
-            startLevel
+            fragmentHost, startLevel
         );
     }
 
