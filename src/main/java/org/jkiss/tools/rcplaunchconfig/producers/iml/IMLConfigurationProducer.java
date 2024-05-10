@@ -8,6 +8,7 @@ import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
+import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -135,18 +136,25 @@ public class IMLConfigurationProducer {
     }
 
     @Nullable
-    private String generateIMLBundleConfig(@NotNull BundleInfo bundleInfo) {
+    private String generateIMLBundleConfig(@NotNull BundleInfo bundleInfo) throws IOException {
         if (bundleInfo.getPath() == null) {
             return null;
         }
         StringBuilder builder = new StringBuilder();
         builder.append("<module type=\"JAVA_MODULE\" version=\"4\">\n");
         builder.append(" <component name=\"NewModuleRootManager\">\n");
-        builder.append("  <output url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("target"), false, false)).append("\"/>").append("\n");
+        Properties properties = readBuildConfiguration(bundleInfo.getPath());
+        List<String> outputs = properties.get("output..") != null ? List.of(((String) properties.get("output..")).split(",")) : List.of();
+        builder.append("  <output url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(outputs.get(0)), false, false)).append("\"/>").append("\n");
         builder.append("  <exclude-output/>").append("\n");
         builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">").append("\n");
-        builder.append("   <sourceFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("src"), false, false)).append("\"/>").append("\n");
-        builder.append("   <excludeFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("target"), false, false)).append("\"/>").append("\n");
+        List<String> sources = properties.get("source..") != null ? List.of(((String) properties.get("source..")).split(",")) : List.of();
+        for (String source : sources) {
+            builder.append("   <sourceFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false)).append("\"/>").append("\n");
+        }
+        for (String output : outputs) {
+            builder.append("   <excludeFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(output), false, false)).append("\"/>").append("\n");
+        }
         builder.append("  </content>").append("\n");
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
@@ -166,6 +174,11 @@ public class IMLConfigurationProducer {
         builder.append(" </component>").append("\n");
         builder.append("</module>");
         return builder.toString();
+    }
+
+    private Properties readBuildConfiguration(Path bundlePath) throws IOException {
+        Path resolve = bundlePath.resolve("build.properties");
+        return FileUtils.readPropertiesFile(resolve);
     }
 
     private static void appendBundleInfo(@NotNull BundleInfo bundleInfo, String requireBundle, StringBuilder builder) {
