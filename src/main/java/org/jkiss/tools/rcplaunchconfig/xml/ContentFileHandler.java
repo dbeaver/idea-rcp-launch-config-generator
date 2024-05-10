@@ -193,7 +193,7 @@ public class ContentFileHandler extends DefaultHandler {
             if (currentState != ParserState.DEPENDENCY_INVALID) {
                 if (currentDependency.getSecond().equals(DependencyType.BUNDLE)) {
                     currentBundle.addToRequiredBundles(currentDependency.getFirst());
-                } else if (currentDependency.getSecond().equals(DependencyType.PLUGIN)) {
+                } else if (currentDependency.getSecond().equals(DependencyType.PACKAGE)) {
                     currentBundle.addToRequiredPackages(currentDependency.getFirst());
                 }
             }
@@ -204,7 +204,7 @@ public class ContentFileHandler extends DefaultHandler {
         if (currentState.isInsideDependency() && ContentFileConstants.PROVIDED_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if (currentState != ParserState.DEPENDENCY_INVALID) {
                 if (
-                    currentDependency.getSecond().equals(DependencyType.PLUGIN)
+                    currentDependency.getSecond().equals(DependencyType.PACKAGE)
                 ) {
                     currentBundle.addToExportPackage(currentDependency.getFirst());
                 }
@@ -297,7 +297,7 @@ public class ContentFileHandler extends DefaultHandler {
     }
 
     private enum DependencyType {
-        PLUGIN,
+        PACKAGE,
         BUNDLE,
         UNKNOWN;
 
@@ -308,7 +308,7 @@ public class ContentFileHandler extends DefaultHandler {
         public static DependencyType getType(String namespace) {
             DependencyType type;
             if (JAVA_PACKAGE.equalsIgnoreCase(namespace)) {
-                type = DependencyType.PLUGIN;
+                type = DependencyType.PACKAGE;
             } else if (OSGI_BUNDLE.equalsIgnoreCase(namespace)) {
                 type = DependencyType.BUNDLE;
             } else {

@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ManifestParser {
 
@@ -54,16 +55,17 @@ public class ManifestParser {
         var classPath = parseBundleClasspath(attributes);
 
         var requireBundlesArg = attributes.getValue("Require-Bundle");
-        List<String> requireBundles = requireBundlesArg == null
+        Stream<String> requiredBundlesStream = getRequiredBundlesStream(requireBundlesArg);
+        List<String> requireBundles = requiredBundlesStream == null
             ? List.of()
-            : Arrays.stream(
-                removeAllBetweenQuotes(requireBundlesArg)
-                    .split(",")
-            )
-            .filter(ManifestParser::filterOptionalDependencies)
+            : requiredBundlesStream
             .map(ManifestParser::trimBundleName)
             .collect(Collectors.toList());
 
+        requiredBundlesStream = getRequiredBundlesStream(requireBundlesArg);
+        Set<String> reexportedBundles = requiredBundlesStream == null ? Set.of() :
+            requiredBundlesStream.filter(it -> it.contains("visibility:=reexport"))
+                .map(ManifestParser::trimBundleName).collect(Collectors.toSet());;
         var exportPackageArg = splitPackagesList(attributes.getValue("Export-Package"));
         var importPackageArg = splitPackagesList(attributes.getValue("Import-Package"));
 
@@ -73,10 +75,21 @@ public class ManifestParser {
             bundleVersionArg != null ? bundleVersionArg.trim() : "",
             classPath,
             requireBundles,
+            reexportedBundles,
             exportPackageArg,
             importPackageArg,
             startLevel
         );
+    }
+
+    @org.jkiss.code.Nullable
+    private static Stream<String> getRequiredBundlesStream(String requireBundlesArg) {
+        Stream<String> requiredBundlesStream = requireBundlesArg == null ? null : Arrays.stream(
+                removeAllBetweenQuotes(requireBundlesArg)
+                    .split(",")
+            )
+            .filter(ManifestParser::filterOptionalDependencies);
+        return requiredBundlesStream;
     }
 
     private static boolean filterOptionalDependencies(@Nonnull String depString) {

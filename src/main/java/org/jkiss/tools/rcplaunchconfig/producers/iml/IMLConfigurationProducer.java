@@ -87,7 +87,7 @@ public class IMLConfigurationProducer {
             appendLibraryInfo(builder, remoteP2BundleInfo);
         }
         builder.append("   </SOURCES>").append("\n");
-        builder.append("   <jarDirectory url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("lib"), true)).append("\" ").append("recursive=\"false\"/>\n");
+        builder.append("   <jarDirectory url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("lib"), true, false)).append("\" ").append("recursive=\"false\"/>\n");
         builder.append(" </library>\n");
         builder.append("</component>");
         return builder.toString();
@@ -100,16 +100,17 @@ public class IMLConfigurationProducer {
         if (bundleInfo.getPath().toFile().isDirectory()) {
             List<String> classpathLibs = bundleInfo.getClasspathLibs();
             for (String classpathLib : classpathLibs) {
-                builder.append("    <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(classpathLib), true)).append("\"/>\n");
+                builder.append("    <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(classpathLib), true, true)).append("\"/>\n");
             }
         } else {
-            builder.append("    <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true)).append("\"/>\n");
+            builder.append("    <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true, true)).append("\"/>\n");
         }
     }
 
-    private static String getFormattedRelativePath(@NotNull Path bundlePath, boolean library) {
-        String prefix = library ? "file://$PROJECT_DIR$/../" : "file://$MODULE_DIR$/../";
-        return prefix + getRelativizedPath(bundlePath).toString().replace("\\", "/");
+    private static String getFormattedRelativePath(@NotNull Path bundlePath, boolean library, boolean jar) {
+        String type = jar ? "jar://" : "file://";
+        String prefix = library ? type + "$PROJECT_DIR$/../" : type + "$MODULE_DIR$/../";
+        return prefix + getRelativizedPath(bundlePath).toString().replace("\\", "/") + (jar ? "!/" : "");
     }
     @NotNull
     private static Path getRelativizedPath(@NotNull Path bundlePath) {
@@ -124,19 +125,20 @@ public class IMLConfigurationProducer {
         StringBuilder builder = new StringBuilder();
         builder.append("<module type=\"JAVA_MODULE\" version=\"4\">\n");
         builder.append(" <component name=\"NewModuleRootManager\">\n");
-        builder.append("  <output url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("target"), false)).append("\"/>").append("\n");
+        builder.append("  <output url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("target"), false, false)).append("\"/>").append("\n");
         builder.append("  <exclude-output/>").append("\n");
-        builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false)).append("\">").append("\n");
-        builder.append("   <sourceFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("src"), false)).append("\"/>").append("\n");
-        builder.append("   <excludeFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("target"), false)).append("\"/>").append("\n");
+        builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">").append("\n");
+        builder.append("   <sourceFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("src"), false, false)).append("\"/>").append("\n");
+        builder.append("   <excludeFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("target"), false, false)).append("\"/>").append("\n");
         builder.append("  </content>").append("\n");
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
         for (String requireBundle : bundleInfo.getRequireBundles()) {
+            boolean isExported = bundleInfo.getReexportedBundles().contains(requireBundle);
             if (DevPropertiesProducer.isBundleAcceptable(requireBundle)) {
-                builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireBundle).append("\"/>").append("\n");
+                builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireBundle).append(isExported ? "\" exported=\"\"" : "\"").append("/>").append("\n");
             } else {
-                builder.append("  <orderEntry type = \"library\" name=\"").append(requireBundle).append("\" level=\"project\"/>").append("\n");
+                builder.append("  <orderEntry type = \"library\" name=\"").append(requireBundle).append(isExported ? "\" exported=\"\" " : "\" ").append("level=\"project\"/>").append("\n");
             }
         }
         builder.append(" </component>").append("\n");

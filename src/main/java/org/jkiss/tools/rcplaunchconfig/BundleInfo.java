@@ -58,6 +58,8 @@ public class BundleInfo {
         }
     }
 
+    private final Set<String> reexportedBundles;
+
     protected Path path;
     private final String bundleName;
     private final String bundleVersion;
@@ -77,6 +79,7 @@ public class BundleInfo {
         @Nonnull String bundleVersion,
         @Nonnull List<String> classpathLibs,
         @Nonnull List<String> requireBundles,
+        @Nonnull Set<String> reexportedBundles,
         @Nonnull Set<String> exportPackages,
         @Nonnull Set<String> importPackages,
         @Nullable Integer startLevel
@@ -86,6 +89,7 @@ public class BundleInfo {
         this.bundleVersion = bundleVersion;
         this.classpathLibs = classpathLibs;
         this.requireBundles = requireBundles;
+        this.reexportedBundles = reexportedBundles;
         this.exportPackages = exportPackages;
         this.importPackages = importPackages;
         this.startLevel = startLevel;
@@ -113,6 +117,10 @@ public class BundleInfo {
 
     public @Nonnull Set<String> getExportPackages() {
         return exportPackages;
+    }
+
+    public @Nonnull Set<String> getReexportedBundles() {
+        return reexportedBundles;
     }
 
     public @Nonnull Set<String> getImportPackages() {

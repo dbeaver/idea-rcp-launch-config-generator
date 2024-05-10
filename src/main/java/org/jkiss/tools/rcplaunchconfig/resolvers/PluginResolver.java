@@ -67,6 +67,7 @@ public class PluginResolver {
                     previousParsedBundle.getBundleVersion(),
                     previousParsedBundle.getClasspathLibs(),
                     previousParsedBundle.getRequireBundles(),
+                    previousParsedBundle.getReexportedBundles(),
                     previousParsedBundle.getExportPackages(),
                     previousParsedBundle.getImportPackages(),
                     startLevel
