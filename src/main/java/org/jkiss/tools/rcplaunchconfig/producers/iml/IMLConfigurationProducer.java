@@ -22,18 +22,12 @@ public class IMLConfigurationProducer {
     public void generateIMLFiles(Result result) throws IOException {
         List<BundleInfo> modules = new ArrayList<>();
         for (BundleInfo bundleInfo : result.getBundlesByNames().values()) {
-            if (getImlModulePath(bundleInfo).toFile().exists()) {
-                return;
-            }
+
             if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
-                String moduleConfig = generateIMLBundleConfig(bundleInfo);
+                String moduleConfig = generateIMLBundleConfig(bundleInfo, result);
                 modules.add(bundleInfo);
                 Path imlFilePath = getImlModulePath(bundleInfo);
                 createConfigFile(imlFilePath, moduleConfig);
-            } else {
-                Path imlLibrariesPath = getLibrariesPath(bundleInfo);
-                String libraryConfig = generateIMlLibraryConfig(bundleInfo, result);
-                createConfigFile(imlLibrariesPath, libraryConfig);
             }
         }
 
@@ -45,7 +39,10 @@ public class IMLConfigurationProducer {
         bundlePackageImports.computeIfAbsent(packageName, it -> new HashSet<>()).add(bundleInfo);
     }
 
-    private static void createConfigFile(Path imlLibrariesPath, String libraryConfig) throws IOException {
+    private void createConfigFile(Path imlLibrariesPath, String libraryConfig) throws IOException {
+        if (imlLibrariesPath.toFile().exists()) {
+            imlLibrariesPath.toFile().delete();
+        }
         boolean fileCreated = imlLibrariesPath.toFile().createNewFile();
         if (fileCreated) {
             try (PrintWriter out = new PrintWriter(imlLibrariesPath.toFile())) {
@@ -70,64 +67,47 @@ public class IMLConfigurationProducer {
         builder.append("</project>");
         return builder.toString();
     }
-
-    @Nullable
-    private String generateIMlLibraryConfig(@NotNull BundleInfo bundleInfo, Result result) throws MalformedURLException {
-        if (bundleInfo.getPath() == null) {
-            return null;
-        }
-        StringBuilder builder = new StringBuilder();
-        builder.append("<component name=\"libraryTable\">").append("\n");
-        builder.append(" <library name=\"").append(bundleInfo.getBundleName()).append("\">\n");
-        builder.append("   <CLASSES>").append("\n");
-        appendLibraryInfo(builder, bundleInfo, result);
-        builder.append("  </CLASSES>").append("\n");
-        Collection<RemoteP2BundleInfo> remoteBundlesByName = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByName(bundleInfo.getBundleName() + ".source");
-        builder.append("   <SOURCES>").append("\n");
-        if (!remoteBundlesByName.isEmpty()) {
-            RemoteP2BundleInfo remoteP2BundleInfo = remoteBundlesByName.stream().findFirst().get();
-            appendLibraryInfo(builder, remoteP2BundleInfo, result);
-        }
-        builder.append("   </SOURCES>").append("\n");
-        builder.append("   <jarDirectory url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve("lib"), true, false)).append("\" ").append("recursive=\"false\"/>\n");
-        builder.append(" </library>\n");
-        builder.append("</component>");
-        return builder.toString();
-    }
-
-    private void appendLibraryInfo(@NotNull StringBuilder builder, @NotNull BundleInfo bundleInfo, Result result) throws MalformedURLException {
-        if (bundleInfo.getPath() == null) {
+    private void appendLibraryInfo(@NotNull StringBuilder builder, @NotNull BundleInfo bundleInfo, Result result, @NotNull Set<String> resolvedBundles) throws MalformedURLException {
+        if (bundleInfo.getPath() == null || resolvedBundles.contains(bundleInfo.getBundleName())) {
             return;
         }
+        resolvedBundles.add(bundleInfo.getBundleName());
         if (bundleInfo.getPath().toFile().isDirectory()) {
             List<String> classpathLibs = bundleInfo.getClasspathLibs();
-            for (String classpathLib : classpathLibs) {
-                builder.append("    <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(classpathLib), true, true)).append("\"/>\n");
+            if (!classpathLibs.isEmpty()) {
+                for (String classpathLib : classpathLibs) {
+                    appendClasspathLib(builder, bundleInfo, classpathLib);
+                }
+            } else {
+                builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true, false)).append("\"/>\n");
             }
         } else {
-            builder.append("    <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true, true)).append("\"/>\n");
+            builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true, true)).append("\"/>\n");
         }
         for (BundleInfo fragment : bundleInfo.getFragments()) {
-            appendLibraryInfo(builder, fragment, result);
+            appendLibraryInfo(builder, fragment, result, resolvedBundles);
         }
         if (!bundleInfo.getReexportedBundles().isEmpty()) {
             for (String reexportedBundle : bundleInfo.getReexportedBundles()) {
-                appendLibraryInfo(builder, result.getBundleByName(reexportedBundle), result);
+                appendLibraryInfo(builder, result.getBundleByName(reexportedBundle), result, resolvedBundles);
             }
             for (String importPackage : bundleInfo.getImportPackages()) {
                 if (bundlePackageImports.get(importPackage) != null) {
                     for (BundleInfo info : bundlePackageImports.get(importPackage)) {
-                        appendLibraryInfo(builder, info, result);
+                        appendLibraryInfo(builder, info, result, resolvedBundles);
                     }
                 }
             }
         }
+    }
 
+    private void appendClasspathLib(@NotNull StringBuilder builder, @NotNull BundleInfo bundleInfo, String classpathLib) {
+        builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(classpathLib), true, true)).append("\"/>\n");
     }
 
     private String getFormattedRelativePath(@NotNull Path bundlePath, boolean library, boolean jar) {
         String type = jar ? "jar://" : "file://";
-        String prefix = library ? type + "$PROJECT_DIR$/../" : type + "$MODULE_DIR$/../";
+        String prefix = type + "$MODULE_DIR$/../../";
         return prefix + getRelativizedPath(bundlePath).toString().replace("\\", "/") + (jar ? "!/" : "");
     }
     @NotNull
@@ -136,7 +116,7 @@ public class IMLConfigurationProducer {
     }
 
     @Nullable
-    private String generateIMLBundleConfig(@NotNull BundleInfo bundleInfo) throws IOException {
+    private String generateIMLBundleConfig(@NotNull BundleInfo bundleInfo, Result result) throws IOException {
         if (bundleInfo.getPath() == null) {
             return null;
         }
@@ -145,7 +125,9 @@ public class IMLConfigurationProducer {
         builder.append(" <component name=\"NewModuleRootManager\">\n");
         Properties properties = readBuildConfiguration(bundleInfo.getPath());
         List<String> outputs = properties.get("output..") != null ? List.of(((String) properties.get("output..")).split(",")) : List.of();
-        builder.append("  <output url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(outputs.get(0)), false, false)).append("\"/>").append("\n");
+        if (!outputs.isEmpty()) {
+            builder.append("  <output url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(outputs.get(0)), false, false)).append("\"/>").append("\n");
+        }
         builder.append("  <exclude-output/>").append("\n");
         builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">").append("\n");
         List<String> sources = properties.get("source..") != null ? List.of(((String) properties.get("source..")).split(",")) : List.of();
@@ -158,18 +140,26 @@ public class IMLConfigurationProducer {
         builder.append("  </content>").append("\n");
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
+        HashSet<String> resolvedBundles = new HashSet<>();
         for (String requireBundle : bundleInfo.getRequireBundles()) {
-            appendBundleInfo(bundleInfo, requireBundle, builder);
+            appendBundleInfo(bundleInfo, requireBundle, builder, result, resolvedBundles);
         }
         if (bundleInfo.getFragmentHost() != null) {
-            appendBundleInfo(bundleInfo, bundleInfo.getFragmentHost(), builder);
+            appendBundleInfo(bundleInfo, bundleInfo.getFragmentHost(), builder, result, resolvedBundles);
         }
         for (String importPackage : bundleInfo.getImportPackages()) {
             if (bundlePackageImports.get(importPackage) != null) {
                 for (BundleInfo info : bundlePackageImports.get(importPackage)) {
-                    appendBundleInfo(bundleInfo, info.getBundleName(), builder);
+                    appendBundleInfo(bundleInfo, info.getBundleName(), builder, result, resolvedBundles);
                 }
             }
+        }
+        if (!bundleInfo.getClasspathLibs().isEmpty()) {
+            initLibraryEntry(builder, true);
+            for (String classpathLib : bundleInfo.getClasspathLibs()) {
+                appendClasspathLib(builder, bundleInfo, classpathLib);
+            }
+            endLibraryEntry(builder);
         }
         builder.append(" </component>").append("\n");
         builder.append("</module>");
@@ -181,13 +171,45 @@ public class IMLConfigurationProducer {
         return FileUtils.readPropertiesFile(resolve);
     }
 
-    private static void appendBundleInfo(@NotNull BundleInfo bundleInfo, String requireBundle, StringBuilder builder) {
+    private void appendBundleInfo(@NotNull BundleInfo bundleInfo, String requireBundle, StringBuilder builder, Result result, Set<String> resolvedBundles) throws MalformedURLException {
+        BundleInfo bundleByName = result.getBundleByName(requireBundle);
+        if (bundleByName == null || resolvedBundles.contains(bundleByName.getBundleName())) {
+            return;
+        }
         boolean isExported = bundleInfo.getReexportedBundles().contains(requireBundle);
         if (DevPropertiesProducer.isBundleAcceptable(requireBundle)) {
+            resolvedBundles.add(requireBundle);
             builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireBundle).append(isExported ? "\" exported=\"\"" : "\"").append("/>").append("\n");
         } else {
-            builder.append("  <orderEntry type = \"library\" name=\"").append(requireBundle).append(isExported ? "\" exported=\"\" " : "\" ").append("level=\"project\"/>").append("\n");
+            addModuleLibrary(requireBundle, builder, result, resolvedBundles, isExported);
         }
+    }
+
+    private void addModuleLibrary(
+        String requiredLibrary,
+        StringBuilder builder,
+        Result result,
+        Set<String> resolvedBundles,
+        boolean isExported
+    ) throws MalformedURLException {
+        initLibraryEntry(builder, isExported);
+        BundleInfo bundleByName = result.getBundleByName(requiredLibrary);
+        appendLibraryInfo(builder, bundleByName, result, resolvedBundles);
+        endLibraryEntry(builder);
+    }
+
+    private static void endLibraryEntry(StringBuilder builder) {
+        builder.append("     </CLASSES>\n");
+        builder.append("     <JAVADOC />\n");
+        builder.append("     <SOURCES />\n");
+        builder.append("   </library>\n");
+        builder.append("  </orderEntry>\n");
+    }
+
+    private static void initLibraryEntry(StringBuilder builder, boolean isExported) {
+        builder.append("  <orderEntry type = \"module-library\"").append(isExported ? " exported=\"\">" : ">").append("\n");
+        builder.append("   <library>\n");
+        builder.append("     <CLASSES>\n");
     }
 
     private Path getImlModulePath(BundleInfo bundleInfo) {

@@ -58,7 +58,7 @@ public enum PathsManager {
         if (!eclipsePluginsPath.toFile().exists()) {
             Files.createDirectories(eclipsePluginsPath);
         }
-        imlModules = eclipsePath.resolve("idea-configuration");
+        imlModules = eclipsePath.getParent().resolve("idea-configuration");
         if (!imlModules.toFile().exists()) {
             Files.createDirectories(imlModules);
         }
