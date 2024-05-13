@@ -5,8 +5,6 @@ import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
-import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
-import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 
@@ -15,6 +13,7 @@ import java.io.PrintWriter;
 import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class IMLConfigurationProducer {
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
@@ -30,9 +29,50 @@ public class IMLConfigurationProducer {
                 createConfigFile(imlFilePath, moduleConfig);
             }
         }
-
-        String modulesConfig = generateModulesConfig(modules);
+        List<Path> rootModules = generateRootModules(modules);
+        String modulesConfig = generateModulesConfig(modules, rootModules);
         createConfigFile(getImplModuleConfigPath(), modulesConfig);
+    }
+
+    private List<Path> generateRootModules(List<BundleInfo> modules) throws IOException {
+        Set<Path> presentModules = PathsManager.INSTANCE.getModulesRoots().stream().filter((it) -> modules.stream().anyMatch(moduleit -> moduleit.getPath().startsWith(it))).collect(Collectors.toSet());
+        List<Path> rootModules = new ArrayList<>();
+        Path imlModuleRoot = PathsManager.INSTANCE.getImlModules();
+        for (Path presentModule : presentModules) {
+            String rootModuleConfig = generateRootModule(presentModule);
+            Path rootIml = imlModuleRoot.resolve(presentModule.getFileName() + ".iml");
+            rootModules.add(rootIml);
+            createConfigFile(rootIml, rootModuleConfig);
+        }
+        Path rootIml = imlModuleRoot.resolve(imlModuleRoot.getFileName() + ".iml");
+        createConfigFile(rootIml, generateImlRepositoryRootModule(imlModuleRoot));
+        rootModules.add(rootIml);
+        return rootModules;
+    }
+
+    private String generateImlRepositoryRootModule(Path imlRoot) {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<module type=\"WEB_MODULE\" version=\"4\">\n" +
+                "  <component name=\"NewModuleRootManager\" inherit-compiler-output=\"true\">\n" +
+                "    <exclude-output />\n" +
+                "    <content url=\"file://$MODULE_DIR$/../" + imlRoot.getFileName() + "\" />\n" +
+                "    <orderEntry type=\"inheritedJdk\" />\n" +
+                "    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n" +
+                "  </component>\n" +
+                "</module>";
+    }
+    private String generateRootModule(Path presentModule) {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<module type=\"JAVA_MODULE\" version=\"4\">\n" +
+                "  <component name=\"NewModuleRootManager\">\n" +
+                "    <output url=\"file://$MODULE_DIR$/target/classes\" />\n" +
+                "    <output-test url=\"file://$MODULE_DIR$/target/classes\" />\n" +
+                "    <content url =\"" + getFormattedRelativePath(presentModule, false) + "\">\n" +
+                "    </content>\n" +
+                "    <orderEntry type=\"inheritedJdk\" />\n" +
+                "    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n" +
+                "  </component>\n" +
+                "</module>";
     }
 
     public void AddRequiredBundleforPackage(String packageName, BundleInfo bundleInfo) {
@@ -51,12 +91,17 @@ public class IMLConfigurationProducer {
         }
     }
 
-    private String generateModulesConfig(List<BundleInfo> modules) {
+    private String generateModulesConfig(List<BundleInfo> modules, List<Path> rootModules) {
         StringBuilder builder = new StringBuilder();
         builder.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         builder.append("<project version=\"4\">\n");
         builder.append("  <component name=\"ProjectModuleManager\">\n");
         builder.append("    <modules>\n");
+        for (Path rootModule : rootModules) {
+            builder.append("      <module fileurl=\"file://$PROJECT_DIR$/")
+                    .append(rootModule.getFileName()).append("\" filepath=\"$PROJECT_DIR$/")
+                    .append(rootModule.getFileName()).append("\"/>\n");
+        }
         for (BundleInfo module : modules) {
             builder.append("      <module fileurl=\"file://$PROJECT_DIR$/")
                 .append(module.getBundleName()).append(".iml\"").append(" filepath=\"$PROJECT_DIR$/")
@@ -79,10 +124,10 @@ public class IMLConfigurationProducer {
                     appendClasspathLib(builder, bundleInfo, classpathLib);
                 }
             } else {
-                builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true, false)).append("\"/>\n");
+                builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false)).append("\"/>\n");
             }
         } else {
-            builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true, true)).append("\"/>\n");
+            builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true)).append("\"/>\n");
         }
         for (BundleInfo fragment : bundleInfo.getFragments()) {
             appendLibraryInfo(builder, fragment, result, resolvedBundles);
@@ -102,13 +147,13 @@ public class IMLConfigurationProducer {
     }
 
     private void appendClasspathLib(@NotNull StringBuilder builder, @NotNull BundleInfo bundleInfo, String classpathLib) {
-        builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(classpathLib), true, true)).append("\"/>\n");
+        builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(classpathLib), true)).append("\"/>\n");
     }
 
-    private String getFormattedRelativePath(@NotNull Path bundlePath, boolean library, boolean jar) {
+    private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar) {
         String type = jar ? "jar://" : "file://";
         String prefix = type + "$MODULE_DIR$/../../";
-        return prefix + getRelativizedPath(bundlePath).toString().replace("\\", "/") + (jar ? "!/" : "");
+        return prefix + getRelativizedPath(pathToFormat).toString().replace("\\", "/") + (jar ? "!/" : "");
     }
     @NotNull
     private Path getRelativizedPath(@NotNull Path bundlePath) {
@@ -126,16 +171,16 @@ public class IMLConfigurationProducer {
         Properties properties = readBuildConfiguration(bundleInfo.getPath());
         List<String> outputs = properties.get("output..") != null ? List.of(((String) properties.get("output..")).split(",")) : List.of();
         if (!outputs.isEmpty()) {
-            builder.append("  <output url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(outputs.get(0)), false, false)).append("\"/>").append("\n");
+            builder.append("  <output url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(outputs.get(0)), false)).append("\"/>").append("\n");
         }
         builder.append("  <exclude-output/>").append("\n");
-        builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">").append("\n");
+        builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false)).append("\">").append("\n");
         List<String> sources = properties.get("source..") != null ? List.of(((String) properties.get("source..")).split(",")) : List.of();
         for (String source : sources) {
-            builder.append("   <sourceFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false)).append("\"/>").append("\n");
+            builder.append("   <sourceFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false)).append("\"/>").append("\n");
         }
         for (String output : outputs) {
-            builder.append("   <excludeFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(output), false, false)).append("\"/>").append("\n");
+            builder.append("   <excludeFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(output), false)).append("\"/>").append("\n");
         }
         builder.append("  </content>").append("\n");
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");

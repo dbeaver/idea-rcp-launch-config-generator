@@ -40,6 +40,7 @@ public enum PathsManager {
     private Path eclipsePath;
     private Path eclipsePluginsPath;
     private Path eclipseFeaturesPath;
+    private List<Path> modulesRoots;
     private List<Path> additionalLibraries;
     private Path imlModules;
     private Path imlLibraries;
@@ -78,6 +79,13 @@ public enum PathsManager {
             .collect(Collectors.toList());
         featuresPaths.add(eclipseFeaturesPath);
 
+        String modulesPathsString = (String) settings.get("moduleRoots");
+        modulesRoots = Arrays.stream(modulesPathsString.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve)
+                .filter(FileUtils::exists)
+                .collect(Collectors.toList());
+
         var bundlesPathsString = (String) settings.get("bundlesPaths");
         bundlesPaths = Stream.concat(
                 Arrays.stream(bundlesPathsString.split(";"))
@@ -108,6 +116,10 @@ public enum PathsManager {
 
     public @Nonnull Collection<Path> getFeaturesLocations() {
         return featuresPaths;
+    }
+
+    public @Nonnull List<Path> getModulesRoots() {
+        return modulesRoots;
     }
 
     public @Nonnull Collection<Path> getBundlesLocations() {
