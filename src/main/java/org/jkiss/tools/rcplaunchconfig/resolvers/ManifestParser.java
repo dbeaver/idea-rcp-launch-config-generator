@@ -19,6 +19,7 @@ package org.jkiss.tools.rcplaunchconfig.resolvers;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
+import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,13 +63,10 @@ public class ManifestParser {
             .map(ManifestParser::trimBundleName)
             .collect(Collectors.toList());
 
-        requiredBundlesStream = getRequiredBundlesStream(requireBundlesArg);
-        Set<String> reexportedBundles = requiredBundlesStream == null ? Set.of() :
-            requiredBundlesStream.filter(it -> it.contains("visibility:=reexport"))
-                .map(ManifestParser::trimBundleName).collect(Collectors.toSet());;
+        Set<String> reexportedBundles = parseReexportedBundles(attributes);
         var exportPackageArg = splitPackagesList(attributes.getValue("Export-Package"));
         var importPackageArg = splitPackagesList(attributes.getValue("Import-Package"));
-        String fragmentHost = attributes.getValue("Fragment-Host") == null ? null : trimBundleName(attributes.getValue("Fragment-Host"));
+        String fragmentHost = parseFragmentHost(attributes);
 
         return new BundleInfo(
             pathToContainingFolderOrJar,
@@ -81,6 +79,22 @@ public class ManifestParser {
             importPackageArg,
             fragmentHost, startLevel
         );
+    }
+
+    @org.jkiss.code.Nullable
+    public static String parseFragmentHost(Attributes attributes) {
+        return attributes.getValue("Fragment-Host") == null ? null : trimBundleName(attributes.getValue("Fragment-Host"));
+    }
+
+    @NotNull
+    public static Set<String> parseReexportedBundles(@Nonnull Attributes attrs) {
+        var requireBundlesArg = attrs.getValue("Require-Bundle");
+        Stream<String> requiredBundlesStream;
+        requiredBundlesStream = getRequiredBundlesStream(requireBundlesArg);
+        Set<String> reexportedBundles = requiredBundlesStream == null ? Set.of() :
+            requiredBundlesStream.filter(it -> it.contains("visibility:=reexport"))
+                .map(ManifestParser::trimBundleName).collect(Collectors.toSet());
+        return reexportedBundles;
     }
 
     @org.jkiss.code.Nullable

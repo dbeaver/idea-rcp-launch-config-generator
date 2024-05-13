@@ -56,8 +56,8 @@ public class BundleInfo {
         }
     }
 
-    private final Set<String> reexportedBundles;
-    private final String fragmentHost;
+    protected Set<String> reexportedBundles;
+    protected String fragmentHost;
 
     protected Path path;
     private final String bundleName;

@@ -52,7 +52,6 @@ public class RemoteP2BundleInfo extends BundleInfo {
         @Nullable Integer startLevel,
         boolean zipped
     ) {
-        // TODO *IMPORTANT* DON'T FORGET ABOUT FRAGMENT HOSTS AND REEXPORTS
         super(null, bundleName, bundleVersion, classpathLibs, requireBundles, reexportedBundles, exportPackages, importPackages, null, startLevel);
         this.repository = repositoryURL;
         this.zipped = zipped;
@@ -77,6 +76,8 @@ public class RemoteP2BundleInfo extends BundleInfo {
             try (var inputStream = new FileInputStream(manifestFile)) {
                 var manifest = new Manifest(inputStream);
                 this.classpathLibs = ManifestParser.parseBundleClasspath(manifest.getMainAttributes());
+                this.reexportedBundles = ManifestParser.parseReexportedBundles(manifest.getMainAttributes());
+                this.fragmentHost = ManifestParser.parseFragmentHost(manifest.getMainAttributes());
             } catch (IOException e) {
                 log.error("Cannot load bundle", e);
                 return false;
@@ -85,6 +86,8 @@ public class RemoteP2BundleInfo extends BundleInfo {
             try (var jarFile = new JarFile(path.toFile())) {
                 var manifest = jarFile.getManifest();
                 this.classpathLibs = ManifestParser.parseBundleClasspath(manifest.getMainAttributes());
+                this.reexportedBundles = ManifestParser.parseReexportedBundles(manifest.getMainAttributes());
+                this.fragmentHost = ManifestParser.parseFragmentHost(manifest.getMainAttributes());
             } catch (IOException e) {
                 log.error("Cannot load bundle", e);
                 return false;
