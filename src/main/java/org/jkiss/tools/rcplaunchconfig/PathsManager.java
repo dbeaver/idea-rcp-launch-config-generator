@@ -43,7 +43,6 @@ public enum PathsManager {
     private List<Path> modulesRoots;
     private List<Path> additionalLibraries;
     private Path imlModules;
-    private Path imlLibraries;
 
     public void init(
         @Nonnull Properties settings,
@@ -63,10 +62,7 @@ public enum PathsManager {
         if (!imlModules.toFile().exists()) {
             Files.createDirectories(imlModules);
         }
-        imlLibraries = imlModules.resolve(".idea/libraries");
-        if (!imlLibraries.toFile().exists()) {
-            Files.createDirectories(imlLibraries);
-        }
+
         eclipseFeaturesPath = eclipsePath.resolve("features");
         if (!eclipseFeaturesPath.toFile().exists()) {
             Files.createDirectories(eclipseFeaturesPath);
@@ -109,7 +105,7 @@ public enum PathsManager {
                 .map(String::trim)
                 .map(projectsFolderPath::resolve)
                 .filter(FileUtils::exists)
-                .collect(Collectors.toList());;
+                .collect(Collectors.toList());
         }
 
     }
@@ -146,11 +142,8 @@ public enum PathsManager {
         return eclipseFeaturesPath;
     }
 
-    public Path getImlModules() {
+    public Path getImlModulesPath() {
         return imlModules;
     }
 
-    public Path getImlLibraries() {
-        return imlLibraries;
-    }
 }
