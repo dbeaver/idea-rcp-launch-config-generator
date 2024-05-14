@@ -40,6 +40,14 @@ public class EntryPoint {
     private static final Logger log = LoggerFactory.getLogger(EntryPoint.class);
 
     public static void main(String[] args) throws IOException, XMLStreamException, RepositoryInitialisationError {
+        try {
+            launchGenerate(args);
+        } catch (Exception exception) {
+            exception.printStackTrace(System.out);
+        }
+    }
+
+    private static void launchGenerate(String[] args) throws IOException, RepositoryInitialisationError, XMLStreamException {
         var params = new Params();
         log.info("Process started with the following arguments: " + Arrays.toString(args));
         params.init(args);

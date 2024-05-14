@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -98,11 +99,10 @@ public class IMLConfigurationProducer {
     }
 
     private void createConfigFile(@NotNull Path imlLibrariesPath, @NotNull String libraryConfig) throws IOException {
-        if (imlLibrariesPath.toFile().exists()) {
-            imlLibrariesPath.toFile().delete();
-        }
-        boolean fileCreated = imlLibrariesPath.toFile().createNewFile();
-        if (fileCreated) {
+        Files.deleteIfExists(imlLibrariesPath);
+        Files.createDirectories(imlLibrariesPath.getParent());
+        Files.createFile(imlLibrariesPath);
+        if (Files.exists(imlLibrariesPath)) {
             try (PrintWriter out = new PrintWriter(imlLibrariesPath.toFile())) {
                 out.print(libraryConfig);
             }
