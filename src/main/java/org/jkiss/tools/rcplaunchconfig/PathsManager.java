@@ -23,10 +23,7 @@ import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -40,7 +37,7 @@ public enum PathsManager {
     private Path eclipsePath;
     private Path eclipsePluginsPath;
     private Path eclipseFeaturesPath;
-    private List<Path> modulesRoots;
+    private Set<Path> modulesRoots;
     private List<Path> additionalLibraries;
     private Path imlModules;
 
@@ -75,13 +72,6 @@ public enum PathsManager {
             .collect(Collectors.toList());
         featuresPaths.add(eclipseFeaturesPath);
 
-        String modulesPathsString = (String) settings.get("moduleRoots");
-        modulesRoots = Arrays.stream(modulesPathsString.split(";"))
-                .map(String::trim)
-                .map(projectsFolderPath::resolve)
-                .filter(FileUtils::exists)
-                .collect(Collectors.toList());
-
         var bundlesPathsString = (String) settings.get("bundlesPaths");
         bundlesPaths = Stream.concat(
                 Arrays.stream(bundlesPathsString.split(";"))
@@ -94,6 +84,20 @@ public enum PathsManager {
             )
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
+        Set<Path> collect = Stream.concat(Arrays.stream(bundlesPathsString.split(";")).map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of)).collect(Collectors.toSet());
+        Set<Path> set = new HashSet<>();
+        for (Path path : collect) {
+            Path root = path;
+            while (root.getParent() != null) {
+                root = root.getParent();
+            }
+            Path resolvedRoot = projectsFolderPath.resolve(root);
+            if (FileUtils.exists(resolvedRoot)) {
+                set.add(resolvedRoot);
+            }
+        }
+        modulesRoots = set;
+
         var testBundlesPathsString = (String) settings.get("testBundles");
         testBundles =
             Arrays.stream(testBundlesPathsString.split(";"))
@@ -114,7 +118,7 @@ public enum PathsManager {
         return featuresPaths;
     }
 
-    public @Nonnull List<Path> getModulesRoots() {
+    public @Nonnull Collection<Path> getModulesRoots() {
         return modulesRoots;
     }
 
