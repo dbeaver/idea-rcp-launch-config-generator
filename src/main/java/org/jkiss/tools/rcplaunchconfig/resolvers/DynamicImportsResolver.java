@@ -25,6 +25,7 @@ import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,6 +107,11 @@ public class DynamicImportsResolver {
                 parsedResultPluginsByExportedPackages.containsKey(packageToImport) ||
                 bundlesToAddByImportPackage.containsKey(packageToImport)
             ) {
+                if (parsedResultPluginsByExportedPackages.containsKey(packageToImport)) {
+                    for (BundleInfo info : parsedResultPluginsByExportedPackages.get(packageToImport)) {
+                        IMLConfigurationProducer.INSTANCE.addRequiredBundleforPackage(packageToImport, info);
+                    }
+                }
                 // skip packages which is excluded or already resolved or planned to add
                 continue;
             }
@@ -140,6 +146,7 @@ public class DynamicImportsResolver {
                     .collect(Collectors.joining("\n  "));
                 log.debug("Multiple plugins exports same package: '{}'\n  {}\n  All bundles will be used", packageToImport, bundlesPathsList);
             }
+            eclipseBundlesWithThisPackage.forEach(it -> IMLConfigurationProducer.INSTANCE.addRequiredBundleforPackage(packageToImport, it));
             for (var bundleToAdd : eclipseBundlesWithThisPackage) {
                 bundlesToAddByImportPackage.put(packageToImport, bundleToAdd);
 

@@ -24,7 +24,6 @@ import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
-import org.jkiss.tools.rcplaunchconfig.util.BundleVersion;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.slf4j.Logger;
@@ -67,8 +66,10 @@ public class PluginResolver {
                     previousParsedBundle.getBundleVersion(),
                     previousParsedBundle.getClasspathLibs(),
                     previousParsedBundle.getRequireBundles(),
+                    previousParsedBundle.getReexportedBundles(),
                     previousParsedBundle.getExportPackages(),
                     previousParsedBundle.getImportPackages(),
+                    previousParsedBundle.getFragmentHost(),
                     startLevel
                 );
                 result.addBundle(newParsedBundle);
@@ -159,7 +160,20 @@ public class PluginResolver {
         P2BundleLookupCache cache
     ) throws IOException {
         result.addBundle(bundleInfo);
-
+        if (bundleInfo.getFragmentHost() != null) {
+            BundleInfo hostBundle = result.getBundleByName(bundleInfo.getFragmentHost());
+            if (hostBundle == null) {
+                Collection<RemoteP2BundleInfo> remoteBundlesByName = cache.getRemoteBundlesByName(bundleInfo.getFragmentHost());
+                if (!remoteBundlesByName.isEmpty()) {
+                    hostBundle = remoteBundlesByName.stream().findFirst().orElse(null);
+                }
+            }
+            if (hostBundle != null) {
+                hostBundle.addFragmentBundle(bundleInfo);
+            } else {
+                log.error("Fragment host bundle not found");
+            }
+        }
         for (var requireBundle : bundleInfo.getRequireBundles()) {
             PluginResolver.resolvePluginDependencies(result, requireBundle, null, cache);
         }

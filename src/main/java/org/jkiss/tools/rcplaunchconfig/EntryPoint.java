@@ -20,6 +20,7 @@ import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
+import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
 import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
@@ -39,6 +40,14 @@ public class EntryPoint {
     private static final Logger log = LoggerFactory.getLogger(EntryPoint.class);
 
     public static void main(String[] args) throws IOException, XMLStreamException, RepositoryInitialisationError {
+        try {
+            launchGenerate(args);
+        } catch (Exception exception) {
+            exception.printStackTrace(System.out);
+        }
+    }
+
+    private static void launchGenerate(String[] args) throws IOException, RepositoryInitialisationError, XMLStreamException {
         var params = new Params();
         log.info("Process started with the following arguments: " + Arrays.toString(args));
         params.init(args);
@@ -110,7 +119,9 @@ public class EntryPoint {
             log.info("Loading test bundles");
             PluginResolver.resolveTestBundles(result);
         }
-
+        {
+            IMLConfigurationProducer.INSTANCE.generateIMLFiles(result);
+        }
         List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
         if (additionalLibraries != null) {
             for (Path additionalLibrary : additionalLibraries) {

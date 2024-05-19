@@ -23,10 +23,7 @@ import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -40,7 +37,9 @@ public enum PathsManager {
     private Path eclipsePath;
     private Path eclipsePluginsPath;
     private Path eclipseFeaturesPath;
+    private Set<Path> modulesRoots;
     private List<Path> additionalLibraries;
+    private Path imlModules;
 
     public void init(
         @Nonnull Properties settings,
@@ -49,13 +48,18 @@ public enum PathsManager {
         @Nonnull Path... additionalBundlesPaths
     ) throws IOException {
         if (eclipsePath == null) {
-            eclipsePath = projectsFolderPath.resolve("dbeaver-eclipse-workspace/dependencies/");
+            eclipsePath = projectsFolderPath.resolve("dbeaver-workspace/dependencies/");
         }
         this.eclipsePath = eclipsePath;
         eclipsePluginsPath = eclipsePath.resolve("plugins");
         if (!eclipsePluginsPath.toFile().exists()) {
             Files.createDirectories(eclipsePluginsPath);
         }
+        imlModules = eclipsePath.getParent().resolve("idea-configuration");
+        if (!imlModules.toFile().exists()) {
+            Files.createDirectories(imlModules);
+        }
+
         eclipseFeaturesPath = eclipsePath.resolve("features");
         if (!eclipseFeaturesPath.toFile().exists()) {
             Files.createDirectories(eclipseFeaturesPath);
@@ -80,6 +84,20 @@ public enum PathsManager {
             )
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
+        Set<Path> collect = Stream.concat(Arrays.stream(bundlesPathsString.split(";")).map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of)).collect(Collectors.toSet());
+        Set<Path> set = new HashSet<>();
+        for (Path path : collect) {
+            Path root = path;
+            while (root.getParent() != null) {
+                root = root.getParent();
+            }
+            Path resolvedRoot = projectsFolderPath.resolve(root);
+            if (FileUtils.exists(resolvedRoot)) {
+                set.add(resolvedRoot);
+            }
+        }
+        modulesRoots = set;
+
         var testBundlesPathsString = (String) settings.get("testBundles");
         testBundles =
             Arrays.stream(testBundlesPathsString.split(";"))
@@ -91,13 +109,17 @@ public enum PathsManager {
                 .map(String::trim)
                 .map(projectsFolderPath::resolve)
                 .filter(FileUtils::exists)
-                .collect(Collectors.toList());;
+                .collect(Collectors.toList());
         }
 
     }
 
     public @Nonnull Collection<Path> getFeaturesLocations() {
         return featuresPaths;
+    }
+
+    public @Nonnull Collection<Path> getModulesRoots() {
+        return modulesRoots;
     }
 
     public @Nonnull Collection<Path> getBundlesLocations() {
@@ -123,4 +145,9 @@ public enum PathsManager {
     public Path getEclipseFeaturesPath() {
         return eclipseFeaturesPath;
     }
+
+    public Path getImlModulesPath() {
+        return imlModules;
+    }
+
 }

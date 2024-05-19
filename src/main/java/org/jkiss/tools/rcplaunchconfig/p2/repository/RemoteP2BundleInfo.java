@@ -47,11 +47,12 @@ public class RemoteP2BundleInfo extends BundleInfo {
         @NotNull List<String> classpathLibs,
         @NotNull List<String> requireBundles,
         @NotNull Set<String> exportPackages,
+        @NotNull Set<String> reexportedBundles,
         @NotNull Set<String> importPackages,
         @Nullable Integer startLevel,
         boolean zipped
     ) {
-        super(null, bundleName, bundleVersion, classpathLibs, requireBundles, exportPackages, importPackages, startLevel);
+        super(null, bundleName, bundleVersion, classpathLibs, requireBundles, reexportedBundles, exportPackages, importPackages, null, startLevel);
         this.repository = repositoryURL;
         this.zipped = zipped;
     }
@@ -75,6 +76,8 @@ public class RemoteP2BundleInfo extends BundleInfo {
             try (var inputStream = new FileInputStream(manifestFile)) {
                 var manifest = new Manifest(inputStream);
                 this.classpathLibs = ManifestParser.parseBundleClasspath(manifest.getMainAttributes());
+                this.reexportedBundles = ManifestParser.parseReexportedBundles(manifest.getMainAttributes());
+                this.fragmentHost = ManifestParser.parseFragmentHost(manifest.getMainAttributes());
             } catch (IOException e) {
                 log.error("Cannot load bundle", e);
                 return false;
@@ -83,6 +86,8 @@ public class RemoteP2BundleInfo extends BundleInfo {
             try (var jarFile = new JarFile(path.toFile())) {
                 var manifest = jarFile.getManifest();
                 this.classpathLibs = ManifestParser.parseBundleClasspath(manifest.getMainAttributes());
+                this.reexportedBundles = ManifestParser.parseReexportedBundles(manifest.getMainAttributes());
+                this.fragmentHost = ManifestParser.parseFragmentHost(manifest.getMainAttributes());
             } catch (IOException e) {
                 log.error("Cannot load bundle", e);
                 return false;
@@ -108,14 +113,15 @@ public class RemoteP2BundleInfo extends BundleInfo {
     }
 
     public static class RemoteBundleInfoBuilder {
-        String bundleName;
-        String bundleVersion;
-        List<String> classpathLibs;
+        private String bundleName;
+        private String bundleVersion;
+        private List<String> classpathLibs;
 
-        RemoteP2Repository repository;
-        List<String> requireBundles = new ArrayList<>();
-        Set<String> exportPackages = new LinkedHashSet<>();
-        Set<String> importPackages = new LinkedHashSet<>();
+        private RemoteP2Repository repository;
+        private final List<String> requireBundles = new ArrayList<>();
+        private Set<String> reexportedBundles = new HashSet<>();
+        private final Set<String> exportPackages = new LinkedHashSet<>();
+        private final Set<String> importPackages = new LinkedHashSet<>();
         Integer startLevel;
         private boolean zipped = false;
 
@@ -130,10 +136,16 @@ public class RemoteP2BundleInfo extends BundleInfo {
                 classpathLibs,
                 requireBundles,
                 exportPackages,
+                reexportedBundles,
                 importPackages,
                 startLevel,
                 zipped
             );
+        }
+
+        public RemoteBundleInfoBuilder addReexportedBundle(String reexportedBundle) {
+            this.reexportedBundles.add(reexportedBundle);
+            return this;
         }
 
         public RemoteBundleInfoBuilder bundleName(String bundleName) {

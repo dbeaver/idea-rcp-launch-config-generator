@@ -18,12 +18,10 @@ package org.jkiss.tools.rcplaunchconfig;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
+import org.apache.commons.collections4.Bag;
 
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 public class BundleInfo {
 
@@ -58,6 +56,9 @@ public class BundleInfo {
         }
     }
 
+    protected Set<String> reexportedBundles;
+    protected String fragmentHost;
+
     protected Path path;
     private final String bundleName;
     private final String bundleVersion;
@@ -70,6 +71,7 @@ public class BundleInfo {
     // E.g. jakarta.annotation-api of different versions (1.x and 2.x) are completely different and export different packages
     // Thus we need all versions
     private String additionalVersions;
+    private Set<BundleInfo> fragments = new HashSet<>();
 
     public BundleInfo(
         @Nullable Path path,
@@ -77,18 +79,21 @@ public class BundleInfo {
         @Nonnull String bundleVersion,
         @Nonnull List<String> classpathLibs,
         @Nonnull List<String> requireBundles,
+        @Nonnull Set<String> reexportedBundles,
         @Nonnull Set<String> exportPackages,
         @Nonnull Set<String> importPackages,
-        @Nullable Integer startLevel
-    ) {
+        @Nullable String fragmentHost,
+        @Nullable Integer startLevel) {
         this.path = path;
         this.bundleName = bundleName;
         this.bundleVersion = bundleVersion;
         this.classpathLibs = classpathLibs;
         this.requireBundles = requireBundles;
+        this.reexportedBundles = reexportedBundles;
         this.exportPackages = exportPackages;
         this.importPackages = importPackages;
         this.startLevel = startLevel;
+        this.fragmentHost = fragmentHost;
     }
 
     public @Nullable Path getPath() {
@@ -115,8 +120,20 @@ public class BundleInfo {
         return exportPackages;
     }
 
+    public @Nonnull Set<String> getReexportedBundles() {
+        return reexportedBundles;
+    }
+
     public @Nonnull Set<String> getImportPackages() {
         return importPackages;
+    }
+
+    public @Nullable String getFragmentHost() {
+        return fragmentHost;
+    }
+
+    public Set<BundleInfo> getFragments() {
+        return fragments;
     }
 
     public @Nullable Integer getStartLevel() {
@@ -136,6 +153,10 @@ public class BundleInfo {
                 additionalVersions += "," + version;
             }
         }
+    }
+
+    public void addFragmentBundle(BundleInfo fragment) {
+        this.fragments.add(fragment);
     }
 
     @Override
