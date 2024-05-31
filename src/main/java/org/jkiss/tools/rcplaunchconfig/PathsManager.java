@@ -32,7 +32,9 @@ public enum PathsManager {
 
     private Collection<Path> featuresPaths;
     private Collection<Path> bundlesPaths;
+    private Collection<Path> productsPaths;
     private Collection<String> testBundles;
+
 
     private Path eclipsePath;
     private Path eclipsePluginsPath;
@@ -84,7 +86,11 @@ public enum PathsManager {
             )
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
-        Set<Path> collect = Stream.concat(Arrays.stream(bundlesPathsString.split(";")).map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of)).collect(Collectors.toSet());
+        var productsPathsString = (String) settings.get("productsPaths");
+        productsPaths = Arrays.stream(productsPathsString.split(";")).map(String::trim)
+            .map(projectsFolderPath::resolve).filter(FileUtils::exists).collect(Collectors.toList());
+        Set<Path> collect = Stream.concat(Arrays.stream(bundlesPathsString.split(";"))
+            .map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of)).collect(Collectors.toSet());
         Set<Path> set = new HashSet<>();
         for (Path path : collect) {
             Path root = path;
@@ -109,7 +115,7 @@ public enum PathsManager {
                 .map(String::trim)
                 .map(projectsFolderPath::resolve)
                 .filter(FileUtils::exists)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList());;
         }
 
     }
@@ -136,6 +142,10 @@ public enum PathsManager {
 
     public @Nonnull Path getEclipsePluginsPath() {
         return eclipsePluginsPath;
+    }
+
+    public Collection<Path> getProductsPaths() {
+        return productsPaths;
     }
 
     public @Nullable List<Path> getAdditionalLibraries() {

@@ -21,6 +21,8 @@ import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 
 import javax.xml.namespace.QName;
+import javax.xml.stream.XMLEventReader;
+import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.events.Attribute;
 import javax.xml.stream.events.StartElement;
 
@@ -45,5 +47,5 @@ abstract class XmlReaderExtension {
 
 
 
-    public abstract void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement);
+    public abstract void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader) throws XMLStreamException;
 }

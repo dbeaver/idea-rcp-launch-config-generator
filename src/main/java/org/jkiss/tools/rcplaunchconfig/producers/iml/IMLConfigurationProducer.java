@@ -25,18 +25,24 @@ public class IMLConfigurationProducer {
     private final HashMap<String, Set<BundleInfo>> bundlePackageImports = new LinkedHashMap<>();
 
     private final Set<String> generatedLibraries = new HashSet<>();
+    private Set<Path> rootModules = new HashSet<>();
+    private Set<BundleInfo> modules = new HashSet<>();
 
+    private Map<Path, Result> products = new LinkedHashMap<Path, Result>();
     /**
      * Generates IML configuration from the result
      *
-     * @param result result of dependency resolving
+     * @param result      result of dependency resolving
+     * @param productPath
      * @throws IOException file access error
      */
-    public void generateIMLFiles(@NotNull Result result) throws IOException {
+    public void generateIMLFiles(@NotNull Result result, Path productPath) throws IOException {
         log.info("Generating IML configuration in " + PathsManager.INSTANCE.getImlModulesPath());
         List<BundleInfo> modules = new ArrayList<>();
         for (BundleInfo bundleInfo : result.getBundlesByNames().values()) {
-
+            if (this.modules.contains(bundleInfo)) {
+                continue;
+            }
             if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
                 String moduleConfig = generateIMLBundleConfig(bundleInfo, result);
                 modules.add(bundleInfo);
@@ -44,16 +50,81 @@ public class IMLConfigurationProducer {
                 createConfigFile(imlFilePath, moduleConfig);
             }
         }
+
+        products.put(productPath, result);
         log.info(modules.size() + " module IML config generated");
-        List<Path> rootModules = generateRootModules(modules);
-        String modulesConfig = generateModulesConfig(modules, rootModules);
-        createConfigFile(getImplModuleConfigPath(), modulesConfig);
+        this.modules.addAll(modules);
+        rootModules.addAll(generateRootModules(modules));
     }
 
-    private List<Path> generateRootModules(@NotNull List<BundleInfo> modules) throws IOException {
+    public void generateImplConfiguration() throws IOException {
+        String modulesConfig = generateModulesConfig();
+        createConfigFile(getImplModuleConfigPath(), modulesConfig);
+        for (Map.Entry<Path, Result> pathPairEntry : products.entrySet()) {
+            String config =
+                generateLaunchConfig(
+                    pathPairEntry.getKey(),
+                    pathPairEntry.getValue()
+                );
+            createConfigFile(getXMLRunConfigurationPath()
+                .resolve("RUN_" + pathPairEntry.getValue().getProductName().replace(" ", "_") + ".xml"), config);
+        }
+    }
+
+    private String generateLaunchConfig(Path productPath, Result result) {
+        StringBuilder config = new StringBuilder();
+        config.append("<component name=\"ProjectRunConfigurationManager\">\n");
+        config.append(String.format("  <configuration default=\"false\" name=\"Run " + result.getProductName() + " \" type=\"Application\" factoryName=\"Application\">\n"));
+        config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"17\" />\n");
+        config.append("    <option name=\"ALTERNATIVE_JRE_PATH_ENABLED\" value=\"true\" />\n");
+        config.append("    <option name=\"MAIN_CLASS_NAME\" value=\"org.jkiss.dbeaver.launcher.DBeaverLauncher\" />\n");
+        config.append("    <module name=\"org.jkiss.dbeaver.launcher\" />\n");
+        buildProgramParameters(config, productPath, result);
+        config.append("    <option name=\"VM_PARAMETERS\" value=\"");
+        for (String programARG : result.getArguments().getVmARGS()) {
+            config.append(programARG).append(" ");
+        }
+        if (isMacOS()) {
+            for (String s : result.getArguments().getVmARGSMac()) {
+                config.append(s).append(" ");
+            }
+        }
+        config.append("\"/>\n");
+        config.append("    <option name=\"WORKING_DIRECTORY\" value=").append(result.getProductName().contains("Cloudbeaver") ? "\"../opt/cloudbeaver\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
+        config.append("    <shortenClasspath name=\"ARGS_FILE\" />\n");
+        config.append("    <method v=\"2\" />\n")
+            .append("  </configuration>\n")
+            .append("</component>");
+        return config.toString();
+    }
+
+    private void buildProgramParameters(StringBuilder config, Path productPath, Result result) {
+        config.append("    <option name=\"PROGRAM_PARAMETERS\" value=\"-name ");
+        config.append(result.getProductName()).append(" ");
+        config.append("-product ");
+        config.append(result.getProductId()).append(" ");
+        config.append("-configuration &quot;");
+        config.append(getFormattedRelativePath(productPath, false, true, true)).append("&quot; ");
+        config.append("-dev &quot;");
+        config.append(getFormattedRelativePath(productPath, false, true, true)).append("/dev.properties").append("&quot; ");
+        config.append("-nl en -consoleLog -showsplash ");
+        config.append("-vmargs ");
+        config.append("-Xmx4096M ");
+        for (String programARG : result.getArguments().getProgramARGS()) {
+            config.append(programARG).append(" ");
+        }
+        if (isMacOS()) {
+            for (String s : result.getArguments().getVmARGSMac()) {
+                config.append(s).append(" ");
+            }
+        }
+        config.append("\"/>\n");
+    }
+
+    private Set<Path> generateRootModules(@NotNull List<BundleInfo> modules) throws IOException {
         Set<Path> presentModules = PathsManager.INSTANCE.getModulesRoots().stream()
             .filter((it) -> modules.stream().anyMatch(module -> module.getPath().startsWith(it))).collect(Collectors.toSet());
-        List<Path> rootModules = new ArrayList<>();
+        Set<Path> rootModules = new HashSet<>();
         Path imlModuleRoot = PathsManager.INSTANCE.getImlModulesPath();
         for (Path presentModule : presentModules) {
             String rootModuleConfig = generateRootModule(presentModule);
@@ -65,6 +136,11 @@ public class IMLConfigurationProducer {
         createConfigFile(rootIml, generateImlRepositoryRootModule(imlModuleRoot));
         rootModules.add(rootIml);
         return rootModules;
+    }
+
+    public static boolean isMacOS() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        return osName.contains("mac");
     }
 
     private String generateImlRepositoryRootModule(@NotNull Path imlRoot) {
@@ -111,7 +187,7 @@ public class IMLConfigurationProducer {
         }
     }
 
-    private String generateModulesConfig(@NotNull List<BundleInfo> modules, @NotNull List<Path> rootModules) {
+    private String generateModulesConfig() {
         StringBuilder builder = new StringBuilder();
         builder.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         builder.append("<project version=\"4\">\n");
@@ -180,11 +256,19 @@ public class IMLConfigurationProducer {
             .append("\"/>\n");
     }
 
-    private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean isLibrary) {
-        String type = jar ? "jar://" : "file://";
-        String prefix = type + (isLibrary ? "$PROJECT_DIR$/../../" : "$MODULE_DIR$/../../");
+    private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean useProjectDir, boolean launchConfig) {
+        String type = jar ? "jar:" : "file:";
+        if (!launchConfig) {
+            type += "//";
+        }
+        String prefix = type + (useProjectDir ? "$PROJECT_DIR$/../../" : "$MODULE_DIR$/../../");
         return prefix + getRelativizedPath(pathToFormat).toString().replace("\\", "/") + (jar ? "!/" : "");
     }
+
+    private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean useProjectDir) {
+        return getFormattedRelativePath(pathToFormat, jar, useProjectDir, false);
+    }
+
 
     @NotNull
     private Path getRelativizedPath(@NotNull Path bundlePath) {
@@ -296,7 +380,7 @@ public class IMLConfigurationProducer {
             if (!generatedLibraries.contains(bundleByName.getBundleName())) {
                 String libraryConfig = generateXMLLibraryConfig(bundleByName, result);
                 if (libraryConfig != null) {
-                    createConfigFile(getIMLLibraryConfigPath().resolve(bundleByName.getBundleName() + ".xml"), libraryConfig);
+                    createConfigFile(getLibraryConfigPath().resolve(bundleByName.getBundleName() + ".xml"), libraryConfig);
                 }
                 generatedLibraries.add(bundleByName.getBundleName());
             }
@@ -355,8 +439,12 @@ public class IMLConfigurationProducer {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/modules.xml");
     }
 
-    private Path getIMLLibraryConfigPath() {
+    private Path getLibraryConfigPath() {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/libraries/");
+    }
+
+    private Path getXMLRunConfigurationPath() {
+        return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/runConfigurations/");
     }
 
     private IMLConfigurationProducer() {

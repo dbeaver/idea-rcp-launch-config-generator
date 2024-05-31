@@ -34,6 +34,8 @@ public class Result {
     private String productId;
     private String applicationId;
 
+    private ProductLaunchArguments arguments;
+
     public void addResolvedFeature(@Nonnull String featureName) {
         resolvedFeatures.add(featureName);
     }
@@ -94,10 +96,63 @@ public class Result {
         return applicationId;
     }
 
+
+    public void setArguments(ProductLaunchArguments arguments) {
+        this.arguments = arguments;
+    }
+
+    public ProductLaunchArguments getArguments() {
+        return arguments;
+    }
+
     public void setProductInfo(String productName, String uid, String id, String application) {
         this.productName = productName.replaceAll("\\s+", "");
         this.productUID = uid;
         this.productId = id;
         this.applicationId = application;
+    }
+
+    public static class ProductLaunchArguments {
+        private String[] vmARGS;
+        private String[] vmARGSMac;
+        private String[] programARGS;
+
+        private String[] getProgramARGSMacOS;
+
+        public ProductLaunchArguments() {
+
+        }
+
+        public void setVmARGS(String[] vmARGS) {
+            this.vmARGS = vmARGS;
+        }
+
+        public void setVmARGSMac(String[] vmARGSMac) {
+            this.vmARGSMac = vmARGSMac;
+        }
+
+        public void setProgramARGS(String[] programARGS) {
+            this.programARGS = programARGS;
+        }
+
+        public void setGetProgramARGSMacOS(String[] getProgramARGSMacOS) {
+            this.getProgramARGSMacOS = getProgramARGSMacOS;
+        }
+
+        public String[] getVmARGS() {
+            return vmARGS;
+        }
+
+        public String[] getVmARGSMac() {
+            return vmARGSMac;
+        }
+
+        public String[] getProgramARGS() {
+            return programARGS;
+        }
+
+        public String[] getGetProgramARGSMacOS() {
+            return getProgramARGSMacOS;
+        }
     }
 }

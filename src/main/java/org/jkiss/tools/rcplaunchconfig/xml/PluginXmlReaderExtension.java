@@ -18,13 +18,13 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
-import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.Attribute;
 import javax.xml.stream.events.StartElement;
 
@@ -45,7 +45,7 @@ class PluginXmlReaderExtension extends XmlReaderExtension {
     }
 
     @Override
-    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement) {
+    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader) {
         if (!matchesDeclaredOS(startElement)) {
             return;
         }
