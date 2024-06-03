@@ -34,7 +34,7 @@ public class Result {
     private String productId;
     private String applicationId;
 
-    private ProductLaunchArguments arguments;
+    private ProductLaunchArguments arguments = new ProductLaunchArguments();
 
     public void addResolvedFeature(@Nonnull String featureName) {
         resolvedFeatures.add(featureName);
@@ -97,12 +97,20 @@ public class Result {
     }
 
 
-    public void setArguments(ProductLaunchArguments arguments) {
-        this.arguments = arguments;
+
+    @Nullable
+    public String getWorkDir() {
+        return workDir;
     }
 
     public ProductLaunchArguments getArguments() {
         return arguments;
+    }
+    @Nullable
+    public String workDir;
+
+    public void setWorkDir(@Nullable String workDir) {
+        this.workDir = workDir;
     }
 
     public void setProductInfo(String productName, String uid, String id, String application) {

@@ -81,16 +81,21 @@ public class IMLConfigurationProducer {
         config.append("    <module name=\"org.jkiss.dbeaver.launcher\" />\n");
         buildProgramParameters(config, productPath, result);
         config.append("    <option name=\"VM_PARAMETERS\" value=\"");
-        for (String programARG : result.getArguments().getVmARGS()) {
-            config.append(programARG).append(" ");
+        if (result.getArguments().getVmARGS() != null) {
+            for (String programARG : result.getArguments().getVmARGS()) {
+                config.append(programARG).append(" ");
+            }
         }
         if (isMacOS()) {
-            for (String s : result.getArguments().getVmARGSMac()) {
-                config.append(s).append(" ");
+            if (result.getArguments().getVmARGSMac() != null) {
+                for (String s : result.getArguments().getVmARGSMac()) {
+                    config.append(s).append(" ");
+                }
             }
         }
         config.append("\"/>\n");
-        config.append("    <option name=\"WORKING_DIRECTORY\" value=").append(result.getProductName().contains("Cloudbeaver") ? "\"../opt/cloudbeaver\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
+        config.append("    <option name=\"WORKING_DIRECTORY\" value=").append(result.getWorkDir() != null ? "\""
+            + result.getWorkDir() + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
         config.append("    <shortenClasspath name=\"ARGS_FILE\" />\n");
         config.append("    <method v=\"2\" />\n")
             .append("  </configuration>\n")
@@ -108,16 +113,20 @@ public class IMLConfigurationProducer {
         config.append("-dev &quot;");
         config.append(getFormattedRelativePath(productPath, false, true, true)).append("/dev.properties").append("&quot; ");
         config.append("-nl en -consoleLog -showsplash ");
-        config.append("-vmargs ");
-        config.append("-Xmx4096M ");
-        for (String programARG : result.getArguments().getProgramARGS()) {
-            config.append(programARG).append(" ");
-        }
-        if (isMacOS()) {
-            for (String s : result.getArguments().getVmARGSMac()) {
-                config.append(s).append(" ");
+        if (result.getArguments().getProgramARGS() != null) {
+            for (String programARG : result.getArguments().getProgramARGS()) {
+                config.append(programARG).append(" ");
             }
         }
+        if (isMacOS()) {
+            if (result.getArguments().getGetProgramARGSMacOS() != null) {
+                for (String s : result.getArguments().getVmARGSMac()) {
+                    config.append(s).append(" ");
+                }
+            }
+        }
+        config.append("-vmargs ");
+        config.append("-Xmx4096M ");
         config.append("\"/>\n");
     }
 

@@ -19,30 +19,18 @@ public class LaunchArgumentsXMLReaderExtension extends XmlReaderExtension {
     @Override
     public void resolveStartElement(Result result, StartElement startElement, XMLEventReader reader) throws XMLStreamException {
         if ("vmArgs".equals(startElement.getName().getLocalPart())) {
-            if (result.getArguments() == null) {
-                result.setArguments(new Result.ProductLaunchArguments());
-            }
             String[] strings = extractArgs(reader, startElement.getName().getLocalPart());
             result.getArguments().setVmARGS(strings);
         }
         if ("vmArgsMac".equals(startElement.getName().getLocalPart())) {
-            if (result.getArguments() == null) {
-                result.setArguments(new Result.ProductLaunchArguments());
-            }
             String[] strings = extractArgs(reader, startElement.getName().getLocalPart());
             result.getArguments().setVmARGSMac(strings);
         }
         if ("programArgs".equals(startElement.getName().getLocalPart())) {
-            if (result.getArguments() == null) {
-                result.setArguments(new Result.ProductLaunchArguments());
-            }
             String[] strings = extractArgs(reader, startElement.getName().getLocalPart());
             result.getArguments().setProgramARGS(strings);
         }
         if ("programArgsMac".equals(startElement.getName().getLocalPart())) {
-            if (result.getArguments() == null) {
-                result.setArguments(new Result.ProductLaunchArguments());
-            }
             String[] strings = extractArgs(reader, startElement.getName().getLocalPart());
             result.getArguments().setGetProgramARGSMacOS(strings);
         }

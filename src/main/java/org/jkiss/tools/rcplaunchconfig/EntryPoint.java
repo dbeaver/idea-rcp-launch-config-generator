@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class EntryPoint {
@@ -66,8 +67,8 @@ public class EntryPoint {
             var bundlesPaths = pathsManager.getBundlesLocations().stream()
                 .map(it -> it.toAbsolutePath().toString())
                 .collect(Collectors.joining("\n  "));
-            var productPaths = pathsManager.getProductsPaths().stream()
-                .map(it -> it.toAbsolutePath().toString())
+            var productPaths = pathsManager.getProductsPathsAndWorkDirs().entrySet().stream()
+                .map(it -> it.getKey().toAbsolutePath().toString())
                 .collect(Collectors.joining("\n  "));
             log.debug("Search dependencies for '{}' in Eclipse folder '{}' and projects:\n  {}\n  {}",
                 productPaths,
@@ -76,16 +77,17 @@ public class EntryPoint {
                 bundlesPaths
             );
         }
-        for (Path productPath : pathsManager.getProductsPaths()) {
+        for (Map.Entry<Path, String> productPath : pathsManager.getProductsPathsAndWorkDirs().entrySet()) {
             log.info("Target location: " + productPath);
 
             var result = new Result();
-            XmlReader.INSTANCE.parseXmlFile(result, productPath.toFile());
+            result.setWorkDir(productPath.getValue());
+            XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile());
             new DynamicImportsResolver()
                 .start(result, p2RepositoryManager.getLookupCache());
 
             var resultPath = params.resultFilesPath;
-            resultPath = resultPath.resolve(productPath.getFileName());
+            resultPath = resultPath.resolve(productPath.getKey().getFileName());
             try {
                 Files.createDirectories(resultPath.getParent());
             } catch (Throwable throwable) {
@@ -114,7 +116,7 @@ public class EntryPoint {
                 // debug launch
                 String launchConfig = ConfigIniProducer.generateProductLaunch(params, result);
                 Files.writeString(
-                    productPath.getParent().resolve(result.getProductName() + ".product.launch"),
+                    productPath.getKey().getParent().resolve(result.getProductName() + ".product.launch"),
                     launchConfig);
             }
             {

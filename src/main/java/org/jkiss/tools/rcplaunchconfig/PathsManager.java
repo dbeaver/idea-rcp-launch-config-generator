@@ -32,7 +32,7 @@ public enum PathsManager {
 
     private Collection<Path> featuresPaths;
     private Collection<Path> bundlesPaths;
-    private Collection<Path> productsPaths;
+    private Map<Path, String> productsPathsAndWorkDirs;
     private Collection<String> testBundles;
 
 
@@ -87,8 +87,26 @@ public enum PathsManager {
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
         var productsPathsString = (String) settings.get("productsPaths");
-        productsPaths = Arrays.stream(productsPathsString.split(";")).map(String::trim)
-            .map(projectsFolderPath::resolve).filter(FileUtils::exists).collect(Collectors.toList());
+        Map<Path, String> list = new LinkedHashMap<>();
+        for (String pathString : productsPathsString.split(";")) {
+            String trim = pathString.trim();
+            if (pathString.contains(":")) {
+                String[] pathAndWorkDir = pathString.split(":");
+                if (pathAndWorkDir.length != 2) {
+                    continue;
+                }
+                Path productPath = projectsFolderPath.resolve(pathAndWorkDir[0]);
+                if (FileUtils.exists(productPath)) {
+                    list.put(productPath, pathAndWorkDir[1]);
+                }
+            } else {
+                Path  resolve = projectsFolderPath.resolve(trim);
+                if (FileUtils.exists(resolve)) {
+                    list.put(resolve, null);
+                }
+            }
+        }
+        productsPathsAndWorkDirs = list;
         Set<Path> collect = Stream.concat(Arrays.stream(bundlesPathsString.split(";"))
             .map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of)).collect(Collectors.toSet());
         Set<Path> set = new HashSet<>();
@@ -144,8 +162,8 @@ public enum PathsManager {
         return eclipsePluginsPath;
     }
 
-    public Collection<Path> getProductsPaths() {
-        return productsPaths;
+    public Map<Path, String> getProductsPathsAndWorkDirs() {
+        return productsPathsAndWorkDirs;
     }
 
     public @Nullable List<Path> getAdditionalLibraries() {
