@@ -1,0 +1,27 @@
+setlocal
+
+set "WORKING_DIR="
+
+:: Parse command line arguments
+:parseArgs
+if "%~1"=="" goto :checkDir
+if "%~1"=="-f" (
+    set "WORKING_DIR=%~2"
+    shift
+    shift
+    goto :parseArgs
+)
+shift
+goto :parseArgs
+
+:checkDir
+if "%WORKING_DIR%"=="" (
+    echo No folder containing rcp_gen specified
+    exit /b 1
+)
+
+:: Run the Maven commands with the specified options
+mvn -f "pom.xml" package -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -config %WORKING_DIR%/rcp-gen.properties -projectsFolder %WORKING_DIR%/../ -eclipse %WORKING_DIR%/../dbeaver-workspace/dependencies -output %WORKING_DIR%/../dbeaver-workspace/products/"
+
+:end
+endlocal
