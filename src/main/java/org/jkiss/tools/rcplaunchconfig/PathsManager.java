@@ -17,6 +17,7 @@
 package org.jkiss.tools.rcplaunchconfig;
 
 import jakarta.annotation.Nonnull;
+import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 
@@ -42,6 +43,8 @@ public enum PathsManager {
     private Set<Path> modulesRoots;
     private List<Path> additionalLibraries;
     private Path imlModules;
+    private List<Path> additionalIMlModules;
+    private List<Path> ideaConfigurationFiles;
 
     public void init(
         @Nonnull Properties settings,
@@ -73,7 +76,14 @@ public enum PathsManager {
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
         featuresPaths.add(eclipseFeaturesPath);
-
+        String additionalIMlModulesString = (String) settings.get("additionalIMlModules");
+        if (additionalIMlModulesString != null) {
+            additionalIMlModules = Arrays.stream(additionalIMlModulesString.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve)
+                .filter(FileUtils::exists)
+                .collect(Collectors.toList());
+        }
         var bundlesPathsString = (String) settings.get("bundlesPaths");
         bundlesPaths = Stream.concat(
                 Arrays.stream(bundlesPathsString.split(";"))
@@ -107,8 +117,9 @@ public enum PathsManager {
             }
         }
         productsPathsAndWorkDirs = list;
-        Set<Path> collect = Stream.concat(Arrays.stream(bundlesPathsString.split(";"))
-            .map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of)).collect(Collectors.toSet());
+        Stream<Path> allModules = Stream.concat(Arrays.stream(bundlesPathsString.split(";"))
+            .map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of));
+        Set<Path> collect = allModules.collect(Collectors.toSet());
         Set<Path> set = new HashSet<>();
         for (Path path : collect) {
             Path root = path;
@@ -121,7 +132,13 @@ public enum PathsManager {
             }
         }
         modulesRoots = set;
-
+        String additionalModuleRootsString = (String) settings.get("additionalModuleRoots");
+        if (additionalModuleRootsString != null) {
+            Set<Path> additionalModuleRoots = Arrays.stream(additionalModuleRootsString.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve).collect(Collectors.toSet());
+            modulesRoots.addAll(additionalModuleRoots);
+        }
         var testBundlesPathsString = (String) settings.get("testBundles");
         testBundles =
             Arrays.stream(testBundlesPathsString.split(";"))
@@ -135,7 +152,14 @@ public enum PathsManager {
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());;
         }
-
+        String ideaConfigurationFilesString = (String) settings.get("ideaConfigurationFilesPaths");
+        if (ideaConfigurationFilesString != null) {
+            this.ideaConfigurationFiles = Arrays.stream(ideaConfigurationFilesString.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve)
+                .filter(FileUtils::exists)
+                .collect(Collectors.toList());
+        }
     }
 
     public @Nonnull Collection<Path> getFeaturesLocations() {
@@ -170,12 +194,23 @@ public enum PathsManager {
         return additionalLibraries;
     }
 
+    @Nullable
+    public List<Path> getAdditionalIMlModules() {
+        return additionalIMlModules;
+    }
+
+    @NotNull
     public Path getEclipseFeaturesPath() {
         return eclipseFeaturesPath;
     }
 
+    @NotNull
     public Path getImlModulesPath() {
         return imlModules;
     }
 
+    @Nullable
+    public  List<Path> getIdeaConfigurationFiles() {
+        return ideaConfigurationFiles;
+    }
 }
