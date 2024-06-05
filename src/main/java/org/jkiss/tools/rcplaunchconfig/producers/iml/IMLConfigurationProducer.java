@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 public class IMLConfigurationProducer {
@@ -26,15 +27,15 @@ public class IMLConfigurationProducer {
     private final HashMap<String, Set<BundleInfo>> bundlePackageImports = new LinkedHashMap<>();
 
     private final Set<String> generatedLibraries = new HashSet<>();
-    private Set<Path> rootModules = new HashSet<>();
-    private Set<BundleInfo> modules = new HashSet<>();
+    private final Set<Path> rootModules = new HashSet<>();
+    private final Set<BundleInfo> modules = new HashSet<>();
 
-    private Map<Path, Result> products = new LinkedHashMap<Path, Result>();
+    private final Map<Path, Result> products = new LinkedHashMap<>();
     /**
      * Generates IML configuration from the result
      *
      * @param result      result of dependency resolving
-     * @param productPath
+     * @param productPath path to product file
      * @throws IOException file access error
      */
     public void generateIMLFiles(@NotNull Result result, Path productPath) throws IOException {
@@ -69,7 +70,24 @@ public class IMLConfigurationProducer {
         List<Path> ideaConfigurationFiles = PathsManager.INSTANCE.getIdeaConfigurationFiles();
         if (ideaConfigurationFiles != null) {
             for (Path ideaConfigurationFile : ideaConfigurationFiles) {
-                Files.copy(ideaConfigurationFile, getIdeaConfigsPath().resolve(ideaConfigurationFile.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+                Path file = getIdeaConfigsPath().resolve(ideaConfigurationFile.getFileName());
+                if (ideaConfigurationFile.toFile().isDirectory()) {
+                    if (file.toFile().exists()) {
+                        try (Stream<Path> pathStream = Files.walk(file)) {
+                            pathStream.sorted(Comparator.reverseOrder())
+                                .forEach(path -> {
+                                    try {
+                                        Files.delete(path);
+                                    } catch (IOException e) {
+                                        log.error("Error clearing file", e);
+                                    }
+                                });
+                        }
+                    }
+                    FileUtils.copyFolder(ideaConfigurationFile, getIdeaConfigsPath(), true);
+                } else {
+                    Files.copy(ideaConfigurationFile, file, StandardCopyOption.REPLACE_EXISTING);
+                }
             }
         }
     }
@@ -330,17 +348,24 @@ public class IMLConfigurationProducer {
                 .append("\"/>").append("\n");
         }
         builder.append("  <exclude-output/>").append("\n");
-        builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">").append("\n");
         List<String> sources = properties.get("source..") != null ? List.of(((String) properties.get("source..")).split(",")) : List.of();
-        for (String source : sources) {
-            builder.append("   <sourceFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false))
-                .append("\"/>").append("\n");
+        boolean hasContent = !sources.isEmpty() && !sources.get(0).isEmpty();
+
+        if (hasContent) {
+            builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">")
+                .append("\n");
+            for (String source : sources) {
+                builder.append("   <sourceFolder url=\"")
+                    .append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false))
+                    .append("\"/>").append("\n");
+            }
+            for (String output : outputs) {
+                builder.append("   <excludeFolder url=\"")
+                    .append(getFormattedRelativePath(bundleInfo.getPath().resolve(output), false, false))
+                    .append("\"/>").append("\n");
+            }
+            builder.append("  </content>").append("\n");
         }
-        for (String output : outputs) {
-            builder.append("   <excludeFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(output), false, false))
-                .append("\"/>").append("\n");
-        }
-        builder.append("  </content>").append("\n");
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
         HashSet<String> resolvedBundles = new HashSet<>();

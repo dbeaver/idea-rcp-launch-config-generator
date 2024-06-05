@@ -129,7 +129,7 @@ public class EntryPoint {
             List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
             if (additionalLibraries != null) {
                 for (Path additionalLibrary : additionalLibraries) {
-                    FileUtils.copyFolder(additionalLibrary, PathsManager.INSTANCE.getEclipsePath());
+                    FileUtils.copyFolder(additionalLibrary, PathsManager.INSTANCE.getEclipsePath(), false);
                 }
             }
         }
