@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd "$(dirname "$0")"
+
 while getopts f: flag
 do
     case "${flag}" in

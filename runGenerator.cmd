@@ -1,7 +1,7 @@
 setlocal
 
 set "WORKING_DIR="
-
+cd %~dp0
 :: Parse command line arguments
 :parseArgs
 if "%~1"=="" goto :checkDir
@@ -21,7 +21,7 @@ if "%WORKING_DIR%"=="" (
 )
 
 :: Run the Maven commands with the specified options
-mvn -f "pom.xml" package -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -config %WORKING_DIR%/rcp-gen.properties -projectsFolder %WORKING_DIR%/../ -eclipse %WORKING_DIR%/../dbeaver-workspace/dependencies -output %WORKING_DIR%/../dbeaver-workspace/products/"
+mvn -f "pom.xml" package -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -config %WORKING_DIR%rcp-gen.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace/products/"
 
 :end
 endlocal
