@@ -153,7 +153,7 @@ public class IMLConfigurationProducer {
         }
         if (isMacOS()) {
             if (result.getArguments().getGetProgramARGSMacOS() != null) {
-                for (String s : result.getArguments().getVmARGSMac()) {
+                for (String s : result.getArguments().getGetProgramARGSMacOS()) {
                     config.append(s).append(" ");
                 }
             }
