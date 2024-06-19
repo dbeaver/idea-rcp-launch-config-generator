@@ -12,9 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -70,21 +68,17 @@ public class IMLConfigurationProducer {
         List<Path> ideaConfigurationFiles = PathsManager.INSTANCE.getIdeaConfigurationFiles();
         if (ideaConfigurationFiles != null) {
             for (Path ideaConfigurationFile : ideaConfigurationFiles) {
-                Path file = getIdeaConfigsPath().resolve(ideaConfigurationFile.getFileName());
+
+                Path newLocationRoot = PathsManager.INSTANCE.getImlModulesPath();
+                Path oldLocation = PathsManager.INSTANCE.getProjectsFolderPath().relativize(ideaConfigurationFile);
+                Path oldLocationRoot = oldLocation;
+                while (oldLocationRoot.getParent() != null) {
+                    oldLocationRoot = oldLocationRoot.getParent();
+                }
+                Path file = newLocationRoot.resolve(oldLocationRoot.relativize(oldLocation));
+                System.out.println(file);
                 if (ideaConfigurationFile.toFile().isDirectory()) {
-                    if (file.toFile().exists()) {
-                        try (Stream<Path> pathStream = Files.walk(file)) {
-                            pathStream.sorted(Comparator.reverseOrder())
-                                .forEach(path -> {
-                                    try {
-                                        Files.delete(path);
-                                    } catch (IOException e) {
-                                        log.error("Error clearing file", e);
-                                    }
-                                });
-                        }
-                    }
-                    FileUtils.copyFolder(ideaConfigurationFile, getIdeaConfigsPath(), true);
+                    FileUtils.copyFolder(ideaConfigurationFile, PathsManager.INSTANCE.getImlModulesPath(), true);
                 } else {
                     Files.copy(ideaConfigurationFile, file, StandardCopyOption.REPLACE_EXISTING);
                 }
@@ -258,12 +252,41 @@ public class IMLConfigurationProducer {
         }
         Path imlModulesPath = PathsManager.INSTANCE.getImlModulesPath();
         for (Path additionalIMlModule : additionalIMlModules) {
-            Path fileName = additionalIMlModule.getFileName();
-            Files.copy(additionalIMlModule, imlModulesPath.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
+            processModulePath(builder, additionalIMlModule, imlModulesPath);
+        }
+    }
+
+    private void processModulePath(StringBuilder builder, Path sourceFile, Path imlModulesPath)
+        throws IOException {
+        if (sourceFile.toFile().isDirectory()) {
+            try (Stream<Path> walk = Files.walk(sourceFile)) {
+                for (Path path : walk.toList()) {
+                    Path destination = Paths.get(imlModulesPath.resolve(sourceFile.getFileName()).toString(), path.toString()
+                        .substring(sourceFile.toString().length()));
+                    try {
+                        Files.copy(
+                            path,
+                            destination,
+                            StandardCopyOption.REPLACE_EXISTING
+                        );
+                    } catch (DirectoryNotEmptyException | FileAlreadyExistsException ignore) {
+
+                    } catch (IOException e) {
+                        log.error("Error transferring data", e);
+                    }
+                    if (!path.toFile().isDirectory()) {
+                        builder.append("      <module fileurl=\"file://$PROJECT_DIR$/")
+                            .append(imlModulesPath.relativize(destination).toString().replace("\\", "/")).append("\"")
+                            .append(" filepath=\"$PROJECT_DIR$/").append(imlModulesPath.relativize(destination).toString().replace("\\", "/")).append("\"/>\n");
+                    }
+                }
+            }
+        } else {
+            Path fileName = sourceFile.getFileName();
+            Files.copy(sourceFile, imlModulesPath.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
             builder.append("      <module fileurl=\"file://$PROJECT_DIR$/")
                 .append(fileName).append("\"").append(" filepath=\"$PROJECT_DIR$/")
-                .append(fileName).append("\"/>\n");
-        }
+                .append(fileName).append("\"/>\n");        }
     }
 
     private void appendLibraryInfo(

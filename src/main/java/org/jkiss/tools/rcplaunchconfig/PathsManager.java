@@ -45,6 +45,7 @@ public enum PathsManager {
     private Path imlModules;
     private List<Path> additionalIMlModules;
     private List<Path> ideaConfigurationFiles;
+    private Path projectsFolderPath;
 
     public void init(
         @Nonnull Properties settings,
@@ -160,6 +161,7 @@ public enum PathsManager {
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());
         }
+        this.projectsFolderPath = projectsFolderPath;
     }
 
     public @Nonnull Collection<Path> getFeaturesLocations() {
@@ -212,5 +214,9 @@ public enum PathsManager {
     @Nullable
     public  List<Path> getIdeaConfigurationFiles() {
         return ideaConfigurationFiles;
+    }
+
+    public Path getProjectsFolderPath() {
+        return projectsFolderPath;
     }
 }

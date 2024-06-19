@@ -260,19 +260,19 @@ public class FileUtils {
         try (Stream<Path> fileStream = Files.walk(sourceFolder)) {
             fileStream
                 .forEach(source -> {
-                    Path destination = Paths.get(target.resolve(sourceFolder.getFileName()).toString(), source.toString()
-                        .substring(sourceFolder.toString().length()));
-                    try {
-                        Files.copy(
-                            source,
-                            destination,
-                            replaceExisting ? StandardCopyOption.REPLACE_EXISTING : StandardCopyOption.COPY_ATTRIBUTES
-                        );
-                    } catch (FileAlreadyExistsException ignore) {
+                        Path destination = Paths.get(target.resolve(sourceFolder.getFileName()).toString(), source.toString()
+                            .substring(sourceFolder.toString().length()));
+                        try {
+                            Files.copy(
+                                source,
+                                destination,
+                                replaceExisting ? StandardCopyOption.REPLACE_EXISTING : StandardCopyOption.COPY_ATTRIBUTES
+                            );
+                        } catch (DirectoryNotEmptyException | FileAlreadyExistsException ignore) {
 
-                    } catch (IOException e) {
-                        log.error("Error transferring data", e);
-                    }
+                        } catch (IOException e) {
+                            log.error("Error transferring data", e);
+                        }
                 });
         }
     }
