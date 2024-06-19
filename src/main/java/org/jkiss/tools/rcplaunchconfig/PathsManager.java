@@ -34,7 +34,7 @@ public enum PathsManager {
     private Collection<Path> featuresPaths;
     private Collection<Path> bundlesPaths;
     private Map<Path, String> productsPathsAndWorkDirs;
-    private Collection<String> testBundles;
+    private Collection<Path> testBundlesPaths;
 
 
     private Path eclipsePath;
@@ -140,10 +140,12 @@ public enum PathsManager {
                 .map(projectsFolderPath::resolve).collect(Collectors.toSet());
             modulesRoots.addAll(additionalModuleRoots);
         }
-        var testBundlesPathsString = (String) settings.get("testBundles");
-        testBundles =
+        var testBundlesPathsString = (String) settings.get("testBundlePaths");
+        testBundlesPaths =
             Arrays.stream(testBundlesPathsString.split(";"))
                 .map(String::trim)
+                .map(projectsFolderPath::resolve)
+                .filter(FileUtils::exists)
                 .collect(Collectors.toList());
         var additionalLibrariesString = (String) settings.get("additionalLibrariesPaths");
         if (additionalLibrariesString != null) {
@@ -176,8 +178,8 @@ public enum PathsManager {
         return bundlesPaths;
     }
 
-    public @Nonnull Collection<String> getTestBundles() {
-        return testBundles;
+    public @Nonnull Collection<Path> getTestBundlesPaths() {
+        return testBundlesPaths;
     }
 
     public @Nonnull Path getEclipsePath() {
