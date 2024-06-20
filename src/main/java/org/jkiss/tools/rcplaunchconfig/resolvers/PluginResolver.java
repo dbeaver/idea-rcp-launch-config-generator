@@ -169,7 +169,6 @@ public class PluginResolver {
                                 if (bundleInfo != null) {
                                     result.addBundle(bundleInfo);
                                     bundlesToResolve.add(bundleInfo);
-                                    System.out.println("test bundle added " + bundleInfo + " fragment " + bundleInfo.getFragmentHost());
                                 }
                             }
                         }

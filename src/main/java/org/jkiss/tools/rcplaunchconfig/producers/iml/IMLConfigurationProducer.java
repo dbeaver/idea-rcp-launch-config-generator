@@ -76,7 +76,6 @@ public class IMLConfigurationProducer {
                     oldLocationRoot = oldLocationRoot.getParent();
                 }
                 Path file = newLocationRoot.resolve(oldLocationRoot.relativize(oldLocation));
-                System.out.println(file);
                 if (ideaConfigurationFile.toFile().isDirectory()) {
                     FileUtils.copyFolder(ideaConfigurationFile, PathsManager.INSTANCE.getImlModulesPath(), true);
                 } else {
