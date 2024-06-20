@@ -46,6 +46,7 @@ public enum PathsManager {
     private List<Path> additionalIMlModules;
     private List<Path> ideaConfigurationFiles;
     private Path projectsFolderPath;
+    private String workspaceName;
 
     public void init(
         @Nonnull Properties settings,
@@ -61,7 +62,9 @@ public enum PathsManager {
         if (!eclipsePluginsPath.toFile().exists()) {
             Files.createDirectories(eclipsePluginsPath);
         }
-        imlModules = eclipsePath.getParent().resolve("idea-configuration");
+        this.workspaceName = (String) settings.get("workspaceName");
+
+        imlModules = eclipsePath.getParent().resolve(workspaceName);
         if (!imlModules.toFile().exists()) {
             Files.createDirectories(imlModules);
         }
