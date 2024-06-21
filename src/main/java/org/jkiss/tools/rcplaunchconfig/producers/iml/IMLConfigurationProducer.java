@@ -381,6 +381,10 @@ public class IMLConfigurationProducer {
                     .append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false))
                     .append("\"/>").append("\n");
             }
+            builder.append("   <excludeFolder url=\"")
+                .append(getFormattedRelativePath(bundleInfo.getPath().resolve("target"), false, false))
+                .append("\"/>").append("\n");
+
             for (String output : outputs) {
                 builder.append("   <excludeFolder url=\"")
                     .append(getFormattedRelativePath(bundleInfo.getPath().resolve(output), false, false))
