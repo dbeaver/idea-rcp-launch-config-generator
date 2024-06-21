@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.xml.namespace.QName;
+import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.StartElement;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,7 +35,7 @@ class ProjectXmlReaderExtension extends XmlReaderExtension {
     private static final QName LOCATION_NAME = new QName("", "location");
 
     @Override
-    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement) {
+    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader) {
         if (!matchesDeclaredOS(startElement)) {
             return;
         }

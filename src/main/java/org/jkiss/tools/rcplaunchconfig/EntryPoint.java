@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class EntryPoint {
@@ -51,12 +52,8 @@ public class EntryPoint {
         var params = new Params();
         log.info("Process started with the following arguments: " + Arrays.toString(args));
         params.init(args);
-        if (!params.productFilePath.toFile().exists()) {
-            log.error("'{}' is not exists", params.productFilePath);
-            return;
-        }
         log.info("Dependency folder location: " + params.eclipsePath);
-        log.info("Target location: " + params.productFilePath);
+
         var settings = ConfigFileManager.readSettingsFile(params.configFilePath);
 
         var pathsManager = PathsManager.INSTANCE;
@@ -70,63 +67,72 @@ public class EntryPoint {
             var bundlesPaths = pathsManager.getBundlesLocations().stream()
                 .map(it -> it.toAbsolutePath().toString())
                 .collect(Collectors.joining("\n  "));
+            var productPaths = pathsManager.getProductsPathsAndWorkDirs().entrySet().stream()
+                .map(it -> it.getKey().toAbsolutePath().toString())
+                .collect(Collectors.joining("\n  "));
             log.debug("Search dependencies for '{}' in Eclipse folder '{}' and projects:\n  {}\n  {}",
-                params.productFilePath,
+                productPaths,
                 pathsManager.getEclipsePluginsPath(),
                 featuresPaths,
                 bundlesPaths
             );
         }
+        for (Map.Entry<Path, String> productPath : pathsManager.getProductsPathsAndWorkDirs().entrySet()) {
+            log.info("Target location: " + productPath);
 
-        var result = new Result();
-        XmlReader.INSTANCE.parseXmlFile(result, params.productFilePath.toFile());
-        new DynamicImportsResolver()
-            .start(result, p2RepositoryManager.getLookupCache());
+            var result = new Result();
+            result.setWorkDir(productPath.getValue());
+            XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile());
+            new DynamicImportsResolver()
+                .start(result, p2RepositoryManager.getLookupCache());
 
-        var resultPath = params.resultFilesPath;
-        try {
-            Files.createDirectories(resultPath.getParent());
-        } catch (Throwable throwable) {
-            log.debug("Error creating target parent directories");
-        }
-        try {
-            FileUtils.removeAllFromDir(resultPath);
-        } catch (Throwable e) {
-            log.debug("Error deleting target folder", e);
-        }
+            var resultPath = params.resultFilesPath;
+            resultPath = resultPath.resolve(productPath.getKey().getFileName());
+            try {
+                Files.createDirectories(resultPath.getParent());
+            } catch (Throwable throwable) {
+                log.debug("Error creating target parent directories");
+            }
+            try {
+                FileUtils.removeAllFromDir(resultPath);
+            } catch (Throwable e) {
+                log.debug("Error deleting target folder", e);
+            }
 
-        {
-            // dev props
-            var devProperties = DevPropertiesProducer.generateDevProperties(result.getBundlesByNames().values());
-            FileUtils.writePropertiesFile(resultPath.resolve("dev.properties"), devProperties);
-        }
-        {
-            // config ini
-            var configIni = ConfigIniProducer.generateConfigIni(
-                result.getOsgiSplashPath(),
-                result.getBundlesByNames().values()
-            );
-            FileUtils.writePropertiesFile(resultPath.resolve("config.ini"), configIni);
-        }
-        {
-            // debug launch
-            String launchConfig = ConfigIniProducer.generateProductLaunch(params, result);
-            Files.writeString(
-                params.productFilePath.getParent().resolve(result.getProductName() + ".product.launch"),
-                launchConfig);
-        }
-        {
-            log.info("Loading test bundles");
-            PluginResolver.resolveTestBundles(result);
-        }
-        {
-            IMLConfigurationProducer.INSTANCE.generateIMLFiles(result);
-        }
-        List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
-        if (additionalLibraries != null) {
-            for (Path additionalLibrary : additionalLibraries) {
-                FileUtils.copyFolder(additionalLibrary, PathsManager.INSTANCE.getEclipsePath());
+            {
+                // dev props
+                var devProperties = DevPropertiesProducer.generateDevProperties(result.getBundlesByNames().values());
+                FileUtils.writePropertiesFile(resultPath.resolve("dev.properties"), devProperties);
+            }
+            {
+                // config ini
+                var configIni = ConfigIniProducer.generateConfigIni(
+                    result.getOsgiSplashPath(),
+                    result.getBundlesByNames().values()
+                );
+                FileUtils.writePropertiesFile(resultPath.resolve("config.ini"), configIni);
+            }
+            {
+                // debug launch
+                String launchConfig = ConfigIniProducer.generateProductLaunch(params, result);
+                Files.writeString(
+                    productPath.getKey().getParent().resolve(result.getProductName() + ".product.launch"),
+                    launchConfig);
+            }
+            {
+                log.info("Loading test bundles");
+                PluginResolver.resolveTestBundles(result);
+            }
+            {
+                IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, resultPath);
+            }
+            List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
+            if (additionalLibraries != null) {
+                for (Path additionalLibrary : additionalLibraries) {
+                    FileUtils.copyFolder(additionalLibrary, PathsManager.INSTANCE.getEclipsePath(), false);
+                }
             }
         }
+        IMLConfigurationProducer.INSTANCE.generateImplConfiguration();
     }
 }

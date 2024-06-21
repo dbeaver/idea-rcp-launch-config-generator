@@ -34,7 +34,8 @@ public enum XmlReader {
     private final XmlReaderExtension[] EXTENSIONS = new XmlReaderExtension[]{
         new ProjectXmlReaderExtension(),
         new FeatureXmlReaderExtension(),
-        new PluginXmlReaderExtension()
+        new PluginXmlReaderExtension(),
+        new LaunchArgumentsXMLReaderExtension()
     };
 
     public void parseXmlFile(@Nonnull Result result, @Nonnull File xmlFile) throws IOException, XMLStreamException {
@@ -47,7 +48,7 @@ public enum XmlReader {
                 if (nextEvent.isStartElement()) {
                     var startElement = nextEvent.asStartElement();
                     for (var extension : EXTENSIONS) {
-                        extension.resolveStartElement(result, startElement);
+                        extension.resolveStartElement(result, startElement, reader);
                     }
                 }
             }

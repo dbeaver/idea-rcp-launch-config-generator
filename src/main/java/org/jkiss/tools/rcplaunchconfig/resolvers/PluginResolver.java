@@ -18,6 +18,7 @@ package org.jkiss.tools.rcplaunchconfig.resolvers;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
+import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
@@ -32,12 +33,14 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class PluginResolver {
     private static final Logger log = LoggerFactory.getLogger(PluginResolver.class);
@@ -140,6 +143,9 @@ public class PluginResolver {
                 try (var jarFile = new JarFile(pluginJarOrFolder)) {
                     var manifest = jarFile.getManifest();
                     return ManifestParser.parseManifest(pluginJarOrFolder.toPath(), startLevel, manifest);
+                } catch (Exception e) {
+                    log.error("Error during opening jar file for " + pluginJarOrFolder);
+                    throw e;
                 }
             }
         } catch (IOException e) {
@@ -149,8 +155,37 @@ public class PluginResolver {
 
     public static void resolveTestBundles(Result result) throws IOException {
         P2BundleLookupCache lookupCache = P2RepositoryManager.INSTANCE.getLookupCache();
-        for (String testBundle : PathsManager.INSTANCE.getTestBundles()) {
-            PluginResolver.resolvePluginDependencies(result, testBundle, null, lookupCache);
+        Collection<Path> testBundlesPaths = PathsManager.INSTANCE.getTestBundlesPaths();
+        for (Path testBundlesPath : testBundlesPaths) {
+            if (testBundlesPath.toFile().exists() && testBundlesPath.toFile().isDirectory()) {
+                List<BundleInfo> bundlesToResolve = new ArrayList<>();
+                for (File file : testBundlesPath.toFile().listFiles()) {
+                    if (file.getName().startsWith("org.jkiss") || file.getName().startsWith("com.dbeaver") || file.getName().startsWith("io.cloudbeaver")) {
+                        if (file.isDirectory()) {
+                            var manifestFile = file.toPath().resolve(MANIFEST_PATH).toFile();
+                            if (!manifestFile.exists()) {
+                                continue;
+                            }
+                            try (var inputStream = new FileInputStream(manifestFile)) {
+                                var manifest = new Manifest(inputStream);
+                                BundleInfo bundleInfo = ManifestParser.parseManifest(file.toPath(), null, manifest);
+                                if (bundleInfo != null) {
+                                    result.addBundle(bundleInfo);
+                                    bundlesToResolve.add(bundleInfo);
+                                }
+                            }
+                        }
+                    }
+                }
+                for (BundleInfo bundleInfo : bundlesToResolve) {
+                    for (String requireBundle : bundleInfo.getRequireBundles()) {
+                        resolvePluginDependencies(result, requireBundle, null, lookupCache);
+                    }
+                    if (bundleInfo.getFragmentHost() != null) {
+                        resolvePluginDependencies(result, bundleInfo.getFragmentHost(), null, lookupCache);
+                    }
+                }
+            }
         }
     }
 
@@ -161,13 +196,7 @@ public class PluginResolver {
     ) throws IOException {
         result.addBundle(bundleInfo);
         if (bundleInfo.getFragmentHost() != null) {
-            BundleInfo hostBundle = result.getBundleByName(bundleInfo.getFragmentHost());
-            if (hostBundle == null) {
-                Collection<RemoteP2BundleInfo> remoteBundlesByName = cache.getRemoteBundlesByName(bundleInfo.getFragmentHost());
-                if (!remoteBundlesByName.isEmpty()) {
-                    hostBundle = remoteBundlesByName.stream().findFirst().orElse(null);
-                }
-            }
+            BundleInfo hostBundle = getHostBundle(result, bundleInfo, cache);
             if (hostBundle != null) {
                 hostBundle.addFragmentBundle(bundleInfo);
             } else {
@@ -177,5 +206,19 @@ public class PluginResolver {
         for (var requireBundle : bundleInfo.getRequireBundles()) {
             PluginResolver.resolvePluginDependencies(result, requireBundle, null, cache);
         }
+    }
+
+    @org.jkiss.code.Nullable
+    private static BundleInfo getHostBundle(@NotNull Result result,
+                                            @NotNull BundleInfo bundleInfo,
+                                            P2BundleLookupCache cache) {
+        BundleInfo hostBundle = result.getBundleByName(bundleInfo.getFragmentHost());
+        if (hostBundle == null) {
+            Collection<RemoteP2BundleInfo> remoteBundlesByName = cache.getRemoteBundlesByName(bundleInfo.getFragmentHost());
+            if (!remoteBundlesByName.isEmpty()) {
+                hostBundle = remoteBundlesByName.stream().findFirst().orElse(null);
+            }
+        }
+        return hostBundle;
     }
 }

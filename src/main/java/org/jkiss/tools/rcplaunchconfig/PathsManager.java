@@ -17,6 +17,7 @@
 package org.jkiss.tools.rcplaunchconfig;
 
 import jakarta.annotation.Nonnull;
+import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 
@@ -32,7 +33,9 @@ public enum PathsManager {
 
     private Collection<Path> featuresPaths;
     private Collection<Path> bundlesPaths;
-    private Collection<String> testBundles;
+    private Map<Path, String> productsPathsAndWorkDirs;
+    private Collection<Path> testBundlesPaths;
+
 
     private Path eclipsePath;
     private Path eclipsePluginsPath;
@@ -40,6 +43,10 @@ public enum PathsManager {
     private Set<Path> modulesRoots;
     private List<Path> additionalLibraries;
     private Path imlModules;
+    private List<Path> additionalIMlModules;
+    private List<Path> ideaConfigurationFiles;
+    private Path projectsFolderPath;
+    private String workspaceName;
 
     public void init(
         @Nonnull Properties settings,
@@ -55,7 +62,9 @@ public enum PathsManager {
         if (!eclipsePluginsPath.toFile().exists()) {
             Files.createDirectories(eclipsePluginsPath);
         }
-        imlModules = eclipsePath.getParent().resolve("idea-configuration");
+        this.workspaceName = (String) settings.get("workspaceName");
+
+        imlModules = eclipsePath.getParent().resolve(workspaceName);
         if (!imlModules.toFile().exists()) {
             Files.createDirectories(imlModules);
         }
@@ -71,7 +80,14 @@ public enum PathsManager {
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
         featuresPaths.add(eclipseFeaturesPath);
-
+        String additionalIMlModulesString = (String) settings.get("additionalIMlModules");
+        if (additionalIMlModulesString != null) {
+            additionalIMlModules = Arrays.stream(additionalIMlModulesString.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve)
+                .filter(FileUtils::exists)
+                .collect(Collectors.toList());
+        }
         var bundlesPathsString = (String) settings.get("bundlesPaths");
         bundlesPaths = Stream.concat(
                 Arrays.stream(bundlesPathsString.split(";"))
@@ -84,7 +100,30 @@ public enum PathsManager {
             )
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
-        Set<Path> collect = Stream.concat(Arrays.stream(bundlesPathsString.split(";")).map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of)).collect(Collectors.toSet());
+        var productsPathsString = (String) settings.get("productsPaths");
+        Map<Path, String> list = new LinkedHashMap<>();
+        for (String pathString : productsPathsString.split(";")) {
+            String trim = pathString.trim();
+            if (pathString.contains(":")) {
+                String[] pathAndWorkDir = pathString.split(":");
+                if (pathAndWorkDir.length != 2) {
+                    continue;
+                }
+                Path productPath = projectsFolderPath.resolve(pathAndWorkDir[0]);
+                if (FileUtils.exists(productPath)) {
+                    list.put(productPath, pathAndWorkDir[1]);
+                }
+            } else {
+                Path  resolve = projectsFolderPath.resolve(trim);
+                if (FileUtils.exists(resolve)) {
+                    list.put(resolve, null);
+                }
+            }
+        }
+        productsPathsAndWorkDirs = list;
+        Stream<Path> allModules = Stream.concat(Arrays.stream(bundlesPathsString.split(";"))
+            .map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of));
+        Set<Path> collect = allModules.collect(Collectors.toSet());
         Set<Path> set = new HashSet<>();
         for (Path path : collect) {
             Path root = path;
@@ -97,11 +136,19 @@ public enum PathsManager {
             }
         }
         modulesRoots = set;
-
-        var testBundlesPathsString = (String) settings.get("testBundles");
-        testBundles =
+        String additionalModuleRootsString = (String) settings.get("additionalModuleRoots");
+        if (additionalModuleRootsString != null) {
+            Set<Path> additionalModuleRoots = Arrays.stream(additionalModuleRootsString.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve).collect(Collectors.toSet());
+            modulesRoots.addAll(additionalModuleRoots);
+        }
+        var testBundlesPathsString = (String) settings.get("testBundlePaths");
+        testBundlesPaths =
             Arrays.stream(testBundlesPathsString.split(";"))
                 .map(String::trim)
+                .map(projectsFolderPath::resolve)
+                .filter(FileUtils::exists)
                 .collect(Collectors.toList());
         var additionalLibrariesString = (String) settings.get("additionalLibrariesPaths");
         if (additionalLibrariesString != null) {
@@ -109,9 +156,17 @@ public enum PathsManager {
                 .map(String::trim)
                 .map(projectsFolderPath::resolve)
                 .filter(FileUtils::exists)
+                .collect(Collectors.toList());;
+        }
+        String ideaConfigurationFilesString = (String) settings.get("ideaConfigurationFilesPaths");
+        if (ideaConfigurationFilesString != null) {
+            this.ideaConfigurationFiles = Arrays.stream(ideaConfigurationFilesString.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve)
+                .filter(FileUtils::exists)
                 .collect(Collectors.toList());
         }
-
+        this.projectsFolderPath = projectsFolderPath;
     }
 
     public @Nonnull Collection<Path> getFeaturesLocations() {
@@ -126,8 +181,8 @@ public enum PathsManager {
         return bundlesPaths;
     }
 
-    public @Nonnull Collection<String> getTestBundles() {
-        return testBundles;
+    public @Nonnull Collection<Path> getTestBundlesPaths() {
+        return testBundlesPaths;
     }
 
     public @Nonnull Path getEclipsePath() {
@@ -138,16 +193,35 @@ public enum PathsManager {
         return eclipsePluginsPath;
     }
 
+    public Map<Path, String> getProductsPathsAndWorkDirs() {
+        return productsPathsAndWorkDirs;
+    }
+
     public @Nullable List<Path> getAdditionalLibraries() {
         return additionalLibraries;
     }
 
+    @Nullable
+    public List<Path> getAdditionalIMlModules() {
+        return additionalIMlModules;
+    }
+
+    @NotNull
     public Path getEclipseFeaturesPath() {
         return eclipseFeaturesPath;
     }
 
+    @NotNull
     public Path getImlModulesPath() {
         return imlModules;
     }
 
+    @Nullable
+    public  List<Path> getIdeaConfigurationFiles() {
+        return ideaConfigurationFiles;
+    }
+
+    public Path getProjectsFolderPath() {
+        return projectsFolderPath;
+    }
 }

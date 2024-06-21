@@ -31,9 +31,6 @@ public class Params {
     @Option(names = "-eclipse.version", description = "Eclipse version", required = true)
     public String eclipseVersion;
 
-    @Option(names = "-productFile", description = "Path to .product file", required = true)
-    public Path productFilePath;
-
     @Option(names = "-projectsFolder", description = "Path to projects folder", required = true)
     public Path projectsFolderPath;
 

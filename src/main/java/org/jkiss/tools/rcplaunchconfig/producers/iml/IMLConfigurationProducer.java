@@ -12,10 +12,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 public class IMLConfigurationProducer {
@@ -25,18 +25,24 @@ public class IMLConfigurationProducer {
     private final HashMap<String, Set<BundleInfo>> bundlePackageImports = new LinkedHashMap<>();
 
     private final Set<String> generatedLibraries = new HashSet<>();
+    private final Set<Path> rootModules = new HashSet<>();
+    private final Set<BundleInfo> modules = new HashSet<>();
 
+    private final Map<Path, Result> products = new LinkedHashMap<>();
     /**
      * Generates IML configuration from the result
      *
-     * @param result result of dependency resolving
+     * @param result      result of dependency resolving
+     * @param productPath path to product file
      * @throws IOException file access error
      */
-    public void generateIMLFiles(@NotNull Result result) throws IOException {
+    public void generateIMLFiles(@NotNull Result result, Path productPath) throws IOException {
         log.info("Generating IML configuration in " + PathsManager.INSTANCE.getImlModulesPath());
         List<BundleInfo> modules = new ArrayList<>();
         for (BundleInfo bundleInfo : result.getBundlesByNames().values()) {
-
+            if (this.modules.contains(bundleInfo)) {
+                continue;
+            }
             if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
                 String moduleConfig = generateIMLBundleConfig(bundleInfo, result);
                 modules.add(bundleInfo);
@@ -44,16 +50,115 @@ public class IMLConfigurationProducer {
                 createConfigFile(imlFilePath, moduleConfig);
             }
         }
+
+        products.put(productPath, result);
         log.info(modules.size() + " module IML config generated");
-        List<Path> rootModules = generateRootModules(modules);
-        String modulesConfig = generateModulesConfig(modules, rootModules);
-        createConfigFile(getImplModuleConfigPath(), modulesConfig);
+        this.modules.addAll(modules);
+        rootModules.addAll(generateRootModules());
     }
 
-    private List<Path> generateRootModules(@NotNull List<BundleInfo> modules) throws IOException {
-        Set<Path> presentModules = PathsManager.INSTANCE.getModulesRoots().stream()
-            .filter((it) -> modules.stream().anyMatch(module -> module.getPath().startsWith(it))).collect(Collectors.toSet());
-        List<Path> rootModules = new ArrayList<>();
+    public void generateImplConfiguration() throws IOException {
+        String modulesConfig = generateModulesConfig();
+        createConfigFile(getImplModuleConfigPath(), modulesConfig);
+        createRunConfiguration();
+        processAdditionalConfigFiles();
+    }
+
+    private void processAdditionalConfigFiles() throws IOException {
+        List<Path> ideaConfigurationFiles = PathsManager.INSTANCE.getIdeaConfigurationFiles();
+        if (ideaConfigurationFiles != null) {
+            for (Path ideaConfigurationFile : ideaConfigurationFiles) {
+
+                Path newLocationRoot = PathsManager.INSTANCE.getImlModulesPath();
+                Path oldLocation = PathsManager.INSTANCE.getProjectsFolderPath().relativize(ideaConfigurationFile);
+                Path oldLocationRoot = oldLocation;
+                while (oldLocationRoot.getParent() != null) {
+                    oldLocationRoot = oldLocationRoot.getParent();
+                }
+                Path file = newLocationRoot.resolve(oldLocationRoot.relativize(oldLocation));
+                if (ideaConfigurationFile.toFile().isDirectory()) {
+                    FileUtils.copyFolder(ideaConfigurationFile, PathsManager.INSTANCE.getImlModulesPath(), true);
+                } else {
+                    Files.copy(ideaConfigurationFile, file, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
+    }
+
+    private void createRunConfiguration() throws IOException {
+        for (Map.Entry<Path, Result> pathPairEntry : products.entrySet()) {
+            String config =
+                generateLaunchConfig(
+                    pathPairEntry.getKey(),
+                    pathPairEntry.getValue()
+                );
+            createConfigFile(getXMLRunConfigurationPath()
+                .resolve("RUN_" + pathPairEntry.getValue().getProductName().replace(" ", "_") + ".xml"), config);
+        }
+    }
+
+    private String generateLaunchConfig(Path productPath, Result result) {
+        StringBuilder config = new StringBuilder();
+        config.append("<component name=\"ProjectRunConfigurationManager\">\n");
+        config.append(String.format("  <configuration default=\"false\" name=\"Run " + result.getProductName() + " \" type=\"Application\" factoryName=\"Application\">\n"));
+        config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"17\" />\n");
+        config.append("    <option name=\"ALTERNATIVE_JRE_PATH_ENABLED\" value=\"true\" />\n");
+        config.append("    <option name=\"MAIN_CLASS_NAME\" value=\"org.jkiss.dbeaver.launcher.DBeaverLauncher\" />\n");
+        config.append("    <module name=\"org.jkiss.dbeaver.launcher\" />\n");
+        buildProgramParameters(config, productPath, result);
+        config.append("    <option name=\"VM_PARAMETERS\" value=\"");
+        if (result.getArguments().getVmARGS() != null) {
+            for (String programARG : result.getArguments().getVmARGS()) {
+                config.append(programARG).append(" ");
+            }
+        }
+        if (isMacOS()) {
+            if (result.getArguments().getVmARGSMac() != null) {
+                for (String s : result.getArguments().getVmARGSMac()) {
+                    config.append(s).append(" ");
+                }
+            }
+        }
+        config.append("\"/>\n");
+        config.append("    <option name=\"WORKING_DIRECTORY\" value=").append(result.getWorkDir() != null ? "\""
+            + result.getWorkDir() + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
+        config.append("    <shortenClasspath name=\"ARGS_FILE\" />\n");
+        config.append("    <method v=\"2\" />\n")
+            .append("  </configuration>\n")
+            .append("</component>");
+        return config.toString();
+    }
+
+    private void buildProgramParameters(StringBuilder config, Path productPath, Result result) {
+        config.append("    <option name=\"PROGRAM_PARAMETERS\" value=\"-name ");
+        config.append(result.getProductName()).append(" ");
+        config.append("-product ");
+        config.append(result.getProductId()).append(" ");
+        config.append("-configuration &quot;");
+        config.append(getFormattedRelativePath(productPath, false, true, true)).append("&quot; ");
+        config.append("-dev &quot;");
+        config.append(getFormattedRelativePath(productPath, false, true, true)).append("/dev.properties").append("&quot; ");
+        config.append("-nl en -consoleLog -showsplash ");
+        if (result.getArguments().getProgramARGS() != null) {
+            for (String programARG : result.getArguments().getProgramARGS()) {
+                config.append(programARG).append(" ");
+            }
+        }
+        if (isMacOS()) {
+            if (result.getArguments().getGetProgramARGSMacOS() != null) {
+                for (String s : result.getArguments().getGetProgramARGSMacOS()) {
+                    config.append(s).append(" ");
+                }
+            }
+        }
+        config.append("-vmargs ");
+        config.append("-Xmx4096M ");
+        config.append("\"/>\n");
+    }
+
+    private Set<Path> generateRootModules() throws IOException {
+        Set<Path> presentModules = PathsManager.INSTANCE.getModulesRoots().stream().filter(it -> it.toFile().exists()).collect(Collectors.toSet());
+        Set<Path> rootModules = new HashSet<>();
         Path imlModuleRoot = PathsManager.INSTANCE.getImlModulesPath();
         for (Path presentModule : presentModules) {
             String rootModuleConfig = generateRootModule(presentModule);
@@ -65,6 +170,11 @@ public class IMLConfigurationProducer {
         createConfigFile(rootIml, generateImlRepositoryRootModule(imlModuleRoot));
         rootModules.add(rootIml);
         return rootModules;
+    }
+
+    public static boolean isMacOS() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        return osName.contains("mac");
     }
 
     private String generateImlRepositoryRootModule(@NotNull Path imlRoot) {
@@ -111,7 +221,7 @@ public class IMLConfigurationProducer {
         }
     }
 
-    private String generateModulesConfig(@NotNull List<BundleInfo> modules, @NotNull List<Path> rootModules) {
+    private String generateModulesConfig() throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         builder.append("<project version=\"4\">\n");
@@ -127,10 +237,55 @@ public class IMLConfigurationProducer {
                 .append(module.getBundleName()).append(".iml\"").append(" filepath=\"$PROJECT_DIR$/")
                 .append(module.getBundleName()).append(".iml").append("\"/>\n");
         }
+        processAdditionalIMLModules(builder);
         builder.append("    </modules>\n");
         builder.append("  </component>\n");
         builder.append("</project>");
         return builder.toString();
+    }
+
+    private void processAdditionalIMLModules(StringBuilder builder) throws IOException {
+        List<Path> additionalIMlModules = PathsManager.INSTANCE.getAdditionalIMlModules();
+        if (additionalIMlModules == null) {
+            return;
+        }
+        Path imlModulesPath = PathsManager.INSTANCE.getImlModulesPath();
+        for (Path additionalIMlModule : additionalIMlModules) {
+            processModulePath(builder, additionalIMlModule, imlModulesPath);
+        }
+    }
+
+    private void processModulePath(StringBuilder builder, Path sourceFile, Path imlModulesPath)
+        throws IOException {
+        if (sourceFile.toFile().isDirectory()) {
+            try (Stream<Path> walk = Files.walk(sourceFile)) {
+                for (Path path : walk.toList()) {
+                    Path destination = Paths.get(imlModulesPath.resolve(sourceFile.getFileName()).toString(), path.toString()
+                        .substring(sourceFile.toString().length()));
+                    try {
+                        Files.copy(
+                            path,
+                            destination,
+                            StandardCopyOption.REPLACE_EXISTING
+                        );
+                    } catch (DirectoryNotEmptyException | FileAlreadyExistsException ignore) {
+
+                    } catch (IOException e) {
+                        log.error("Error transferring data", e);
+                    }
+                    if (!path.toFile().isDirectory()) {
+                        builder.append("      <module fileurl=\"file://$PROJECT_DIR$/")
+                            .append(imlModulesPath.relativize(destination).toString().replace("\\", "/")).append("\"")
+                            .append(" filepath=\"$PROJECT_DIR$/").append(imlModulesPath.relativize(destination).toString().replace("\\", "/")).append("\"/>\n");
+                    }
+                }
+            }
+        } else {
+            Path fileName = sourceFile.getFileName();
+            Files.copy(sourceFile, imlModulesPath.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
+            builder.append("      <module fileurl=\"file://$PROJECT_DIR$/")
+                .append(fileName).append("\"").append(" filepath=\"$PROJECT_DIR$/")
+                .append(fileName).append("\"/>\n");        }
     }
 
     private void appendLibraryInfo(
@@ -180,11 +335,19 @@ public class IMLConfigurationProducer {
             .append("\"/>\n");
     }
 
-    private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean isLibrary) {
-        String type = jar ? "jar://" : "file://";
-        String prefix = type + (isLibrary ? "$PROJECT_DIR$/../../" : "$MODULE_DIR$/../../");
+    private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean useProjectDir, boolean launchConfig) {
+        String type = jar ? "jar:" : "file:";
+        if (!launchConfig) {
+            type += "//";
+        }
+        String prefix = type + (useProjectDir ? "$PROJECT_DIR$/../../" : "$MODULE_DIR$/../../");
         return prefix + getRelativizedPath(pathToFormat).toString().replace("\\", "/") + (jar ? "!/" : "");
     }
+
+    private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean useProjectDir) {
+        return getFormattedRelativePath(pathToFormat, jar, useProjectDir, false);
+    }
+
 
     @NotNull
     private Path getRelativizedPath(@NotNull Path bundlePath) {
@@ -207,17 +370,24 @@ public class IMLConfigurationProducer {
                 .append("\"/>").append("\n");
         }
         builder.append("  <exclude-output/>").append("\n");
-        builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">").append("\n");
         List<String> sources = properties.get("source..") != null ? List.of(((String) properties.get("source..")).split(",")) : List.of();
-        for (String source : sources) {
-            builder.append("   <sourceFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false))
-                .append("\"/>").append("\n");
+        boolean hasContent = !sources.isEmpty() && !sources.get(0).isEmpty();
+
+        if (hasContent) {
+            builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">")
+                .append("\n");
+            for (String source : sources) {
+                builder.append("   <sourceFolder url=\"")
+                    .append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false))
+                    .append("\"/>").append("\n");
+            }
+            for (String output : outputs) {
+                builder.append("   <excludeFolder url=\"")
+                    .append(getFormattedRelativePath(bundleInfo.getPath().resolve(output), false, false))
+                    .append("\"/>").append("\n");
+            }
+            builder.append("  </content>").append("\n");
         }
-        for (String output : outputs) {
-            builder.append("   <excludeFolder url=\"").append(getFormattedRelativePath(bundleInfo.getPath().resolve(output), false, false))
-                .append("\"/>").append("\n");
-        }
-        builder.append("  </content>").append("\n");
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
         HashSet<String> resolvedBundles = new HashSet<>();
@@ -296,7 +466,7 @@ public class IMLConfigurationProducer {
             if (!generatedLibraries.contains(bundleByName.getBundleName())) {
                 String libraryConfig = generateXMLLibraryConfig(bundleByName, result);
                 if (libraryConfig != null) {
-                    createConfigFile(getIMLLibraryConfigPath().resolve(bundleByName.getBundleName() + ".xml"), libraryConfig);
+                    createConfigFile(getLibraryConfigPath().resolve(bundleByName.getBundleName() + ".xml"), libraryConfig);
                 }
                 generatedLibraries.add(bundleByName.getBundleName());
             }
@@ -352,11 +522,18 @@ public class IMLConfigurationProducer {
     }
 
     private Path getImplModuleConfigPath() {
-        return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/modules.xml");
+        return getIdeaConfigsPath().resolve("modules.xml");
     }
 
-    private Path getIMLLibraryConfigPath() {
-        return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/libraries/");
+    private Path getIdeaConfigsPath() {
+        return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/");
+    }
+    private Path getLibraryConfigPath() {
+        return getIdeaConfigsPath().resolve("libraries/");
+    }
+
+    private Path getXMLRunConfigurationPath() {
+        return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/runConfigurations/");
     }
 
     private IMLConfigurationProducer() {

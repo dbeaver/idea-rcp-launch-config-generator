@@ -221,6 +221,9 @@ public class FileUtils {
                     }
                 }
             }
+        } catch (Exception e) {
+            log.error("Error during opening jar file for " + jarPath);
+            throw e;
         }
         return true;
     }
@@ -256,19 +259,23 @@ public class FileUtils {
     }
 
 
-    public static void copyFolder(Path sourceFolder, Path target) throws IOException {
+    public static void copyFolder(Path sourceFolder, Path target, boolean replaceExisting) throws IOException {
         try (Stream<Path> fileStream = Files.walk(sourceFolder)) {
             fileStream
                 .forEach(source -> {
-                    Path destination = Paths.get(target.resolve(sourceFolder.getFileName()).toString(), source.toString()
-                        .substring(sourceFolder.toString().length()));
-                    try {
-                        Files.copy(source, destination, StandardCopyOption.COPY_ATTRIBUTES);
-                    } catch (FileAlreadyExistsException ignore) {
+                        Path destination = Paths.get(target.resolve(sourceFolder.getFileName()).toString(), source.toString()
+                            .substring(sourceFolder.toString().length()));
+                        try {
+                            Files.copy(
+                                source,
+                                destination,
+                                replaceExisting ? StandardCopyOption.REPLACE_EXISTING : StandardCopyOption.COPY_ATTRIBUTES
+                            );
+                        } catch (DirectoryNotEmptyException | FileAlreadyExistsException ignore) {
 
-                    } catch (IOException e) {
-                        log.error("Error transferring data");
-                    }
+                        } catch (IOException e) {
+                            log.error("Error transferring data", e);
+                        }
                 });
         }
     }

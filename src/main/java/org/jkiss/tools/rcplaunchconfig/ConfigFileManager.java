@@ -33,7 +33,7 @@ public class ConfigFileManager {
 
     public static @Nonnull Properties readSettingsFile(Path configFilePath) throws IOException {
         if (!Files.exists(configFilePath)) {
-            throw new IOException("Config file '" + configFilePath + "' not found");
+            throw new IOException("Config file '" + configFilePath.toAbsolutePath() + "' not found");
         }
         try (var reader = Files.newBufferedReader(configFilePath)) {
             var result = new Properties();

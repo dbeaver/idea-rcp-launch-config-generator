@@ -106,6 +106,9 @@ public class BundlesInfosStorage {
                 if (bundleInfo != null) {
                     storeBundleInfo(bundleInfo);
                 }
+            } catch (Exception e) {
+                log.error("Error during opening jar file for " + fileObj);
+                throw e;
             }
             return FileVisitResult.CONTINUE;
         }
