@@ -221,6 +221,9 @@ public class FileUtils {
                     }
                 }
             }
+        } catch (Exception e) {
+            log.error("Error during opening jar file for " + jarPath);
+            throw e;
         }
         return true;
     }

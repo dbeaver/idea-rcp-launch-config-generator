@@ -195,6 +195,9 @@ public class DynamicImportsResolver {
                 try (var jarFile = new JarFile(folderOrJar)) {
                     var manifest = jarFile.getManifest();
                     bundleInfo = ManifestParser.parseManifest(folderOrJar.toPath(), null, manifest);
+                } catch (Exception e) {
+                    log.error("Error during opening jar file for " + folderOrJar);
+                    throw e;
                 }
             }
             if (bundleInfo != null) {

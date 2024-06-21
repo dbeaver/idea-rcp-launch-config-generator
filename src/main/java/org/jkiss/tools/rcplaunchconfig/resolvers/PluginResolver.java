@@ -143,6 +143,9 @@ public class PluginResolver {
                 try (var jarFile = new JarFile(pluginJarOrFolder)) {
                     var manifest = jarFile.getManifest();
                     return ManifestParser.parseManifest(pluginJarOrFolder.toPath(), startLevel, manifest);
+                } catch (Exception e) {
+                    log.error("Error during opening jar file for " + pluginJarOrFolder);
+                    throw e;
                 }
             }
         } catch (IOException e) {
