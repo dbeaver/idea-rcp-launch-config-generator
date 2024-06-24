@@ -110,7 +110,6 @@ public class RemoteP2BundleInfo extends BundleInfo {
         if (!zipped) {
             fileName += ".jar";
         }
-        System.out.println(fileName);
         Path eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
         return eclipsePluginsPath.resolve(fileName);
     }
