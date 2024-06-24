@@ -97,7 +97,7 @@ public class ContentFileHandler extends DefaultHandler {
             currentState.equals(ParserState.PLUGIN_VALID) && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qualifiedName)
         ) {
             if (ContentFileConstants.MAVEN_TYPE_FIELD.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))) {
-                switch (attributes.getValue(ContentFileConstants.FIELD_VALUE)) {
+                switch (attributes.getValue(ContentFileConstants.FIELD_VALUE).toLowerCase()) {
                     case "eclipse-feature" ->
                         currentState = ParserState.FEATURE_VALID;
                     case "jar", "eclipse-plugin" -> {
