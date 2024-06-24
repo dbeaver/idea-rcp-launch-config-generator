@@ -97,21 +97,20 @@ public class ContentFileHandler extends DefaultHandler {
             currentState.equals(ParserState.PLUGIN_VALID) && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qualifiedName)
         ) {
             if (ContentFileConstants.MAVEN_TYPE_FIELD.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))) {
-                if ("eclipse-feature".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-                ) {
-                    currentState = ParserState.FEATURE_VALID;
-                } else if ("jar".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-                    || "eclipse-plugin".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-                    || "java-source".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-                ) {
-                    if ("java-source".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {
-                        currentState = ParserState.SOURCES_VALID;
-                        initBundle(true);
-                    } else {
+                switch (attributes.getValue(ContentFileConstants.FIELD_VALUE)) {
+                    case "eclipse-feature" ->
+                        currentState = ParserState.FEATURE_VALID;
+                    case "jar", "eclipse-plugin" -> {
                         currentState = ParserState.PLUGIN_VALID;
                         initBundle(false);
                     }
-
+                    case "java-source" -> {
+                        currentState = ParserState.SOURCES_VALID;
+                        initBundle(true);
+                    }
+                    default -> {
+                        // do nothing
+                    }
                 }
             } else if (ContentFileConstants.MAVEN_P2TYPE_CATEGORY.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))) {
                 if ("true".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {

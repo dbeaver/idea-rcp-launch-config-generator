@@ -416,7 +416,7 @@ public class IMLConfigurationProducer {
             for (String classpathLib : bundleInfo.getClasspathLibs()) {
                 appendClasspathLib(builder, bundleInfo, classpathLib, false);
             }
-            endLibraryEntry(builder, bundleInfo.getBundleName(), result, Set.of());
+            endLibraryEntry(builder, result, Set.of());
         }
         builder.append(" </component>").append("\n");
         builder.append("</module>");
@@ -468,7 +468,7 @@ public class IMLConfigurationProducer {
         addLibraryEntry(bundleByName, builder, isExported, directoryBundle);
         if (!directoryBundle) {
             appendLibraryInfo(builder, bundleByName, result, resolvedBundles, false);
-            endLibraryEntry(builder, bundleByName.getBundleName(), result, resolvedBundles);
+            endLibraryEntry(builder, result, resolvedBundles);
         } else {
             if (!generatedLibraries.contains(bundleByName.getBundleName())) {
                 String libraryConfig = generateXMLLibraryConfig(bundleByName, result);
@@ -507,7 +507,7 @@ public class IMLConfigurationProducer {
         return builder.toString();
     }
 
-    private void endLibraryEntry(@NotNull StringBuilder builder, String bundleName, Result result, Set<String> resolvedBundles) {
+    private void endLibraryEntry(@NotNull StringBuilder builder, Result result, Set<String> resolvedBundles) {
         builder.append("     </CLASSES>\n");
         builder.append("     <JAVADOC />\n");
         builder.append("     <SOURCES>\n");
