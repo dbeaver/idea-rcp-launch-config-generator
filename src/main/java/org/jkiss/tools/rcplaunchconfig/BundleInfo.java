@@ -19,6 +19,7 @@ package org.jkiss.tools.rcplaunchconfig;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.commons.collections4.Bag;
+import org.jkiss.code.NotNull;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -58,7 +59,7 @@ public class BundleInfo {
 
     protected Set<String> reexportedBundles;
     protected String fragmentHost;
-
+    @NotNull
     protected Path path;
     private final String bundleName;
     private final String bundleVersion;

@@ -5,7 +5,10 @@ import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
+import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -413,7 +416,7 @@ public class IMLConfigurationProducer {
             for (String classpathLib : bundleInfo.getClasspathLibs()) {
                 appendClasspathLib(builder, bundleInfo, classpathLib, false);
             }
-            endLibraryEntry(builder);
+            endLibraryEntry(builder, bundleInfo.getBundleName(), result, Set.of());
         }
         builder.append(" </component>").append("\n");
         builder.append("</module>");
@@ -465,7 +468,7 @@ public class IMLConfigurationProducer {
         addLibraryEntry(bundleByName, builder, isExported, directoryBundle);
         if (!directoryBundle) {
             appendLibraryInfo(builder, bundleByName, result, resolvedBundles, false);
-            endLibraryEntry(builder);
+            endLibraryEntry(builder, bundleByName.getBundleName(), result, resolvedBundles);
         } else {
             if (!generatedLibraries.contains(bundleByName.getBundleName())) {
                 String libraryConfig = generateXMLLibraryConfig(bundleByName, result);
@@ -490,7 +493,11 @@ public class IMLConfigurationProducer {
         HashSet<String> libraryObjects = new HashSet<>();
         appendLibraryInfo(builder, bundleInfo, result, libraryObjects, true);
         builder.append("  </CLASSES>").append("\n");
+        BundleInfo sources = result.getBundleByName(bundleInfo.getBundleName() + ".source");
         builder.append("   <SOURCES>").append("\n");
+        if (sources != null) {
+            appendLibraryInfo(builder, sources, result, libraryObjects, true);
+        }
         builder.append("   </SOURCES>").append("\n");
         builder.append("   <jarDirectory url=\"")
                 .append(getFormattedRelativePath(bundleInfo.getPath().resolve("lib"), true, true))
@@ -500,11 +507,18 @@ public class IMLConfigurationProducer {
         return builder.toString();
     }
 
-    private static void endLibraryEntry(@NotNull StringBuilder builder) {
+    private void endLibraryEntry(@NotNull StringBuilder builder, String bundleName, Result result, Set<String> resolvedBundles) {
         builder.append("     </CLASSES>\n");
         builder.append("     <JAVADOC />\n");
-        //TODO add SOURCES link
-        builder.append("     <SOURCES />\n");
+        builder.append("     <SOURCES>\n");
+        for (String resolvedBundle : resolvedBundles) {
+            Optional<RemoteP2BundleInfo> source = BundleUtils.getMaxVersionRemoteBundle(resolvedBundle + ".source", P2RepositoryManager.INSTANCE.getLookupCache());
+            if (source.isPresent()) {
+                source.get().resolveBundle();
+                appendLibraryInfo(builder, source.get(), result, new HashSet<>(), false);
+            }
+        }
+        builder.append("     </SOURCES>\n");
         builder.append("   </library>\n");
         builder.append("  </orderEntry>\n");
     }

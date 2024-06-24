@@ -39,5 +39,7 @@ public class ContentFileConstants {
     public static final String MATCH_FIELD = "match";
     public static final String KEY_FIELD = "key";
     public static final String MAVEN_TYPE_FIELD = "maven-type";
+
+    public static final String MAVEN_P2TYPE_CATEGORY = "org.eclipse.equinox.p2.type.category";
     public static final String PROPERTY_KEYWORD = "property";
 }

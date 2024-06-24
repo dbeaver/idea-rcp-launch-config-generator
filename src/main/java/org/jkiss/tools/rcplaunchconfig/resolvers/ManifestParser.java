@@ -67,9 +67,7 @@ public class ManifestParser {
         var exportPackageArg = splitPackagesList(attributes.getValue("Export-Package"));
         var importPackageArg = splitPackagesList(attributes.getValue("Import-Package"));
         String fragmentHost = parseFragmentHost(attributes);
-        if (bundleName.contains("redis")) {
 
-        }
         return new BundleInfo(
             pathToContainingFolderOrJar,
             bundleName,
