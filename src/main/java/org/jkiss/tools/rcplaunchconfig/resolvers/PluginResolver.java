@@ -33,14 +33,12 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class PluginResolver {
     private static final Logger log = LoggerFactory.getLogger(PluginResolver.class);
@@ -72,6 +70,7 @@ public class PluginResolver {
                     previousParsedBundle.getReexportedBundles(),
                     previousParsedBundle.getExportPackages(),
                     previousParsedBundle.getImportPackages(),
+                    previousParsedBundle.getRequireFragments(),
                     previousParsedBundle.getFragmentHost(),
                     startLevel
                 );

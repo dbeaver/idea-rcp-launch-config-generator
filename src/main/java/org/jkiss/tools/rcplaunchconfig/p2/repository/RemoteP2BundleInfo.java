@@ -20,6 +20,7 @@ package org.jkiss.tools.rcplaunchconfig.p2.repository;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.ManifestParser;
@@ -52,13 +53,26 @@ public class RemoteP2BundleInfo extends BundleInfo {
         @Nullable Integer startLevel,
         boolean zipped
     ) {
-        super(null, bundleName, bundleVersion, classpathLibs, requireBundles, reexportedBundles, exportPackages, importPackages, null, startLevel);
+        super(
+            null,
+            bundleName,
+            bundleVersion,
+            classpathLibs,
+            requireBundles,
+            reexportedBundles,
+            exportPackages,
+            importPackages,
+            List.of(),
+            null,
+            startLevel
+        );
         this.repository = repositoryURL;
         this.zipped = zipped;
+        this.path = getPluginPath();
     }
 
     public boolean resolveBundle() {
-        if (path != null) {
+        if (path.toFile().exists()) {
             return true;
         }
         log.info("Downloading " + getBundleName() + "_" + getBundleVersion() + " from " + getRepository().getName() + "... ");
@@ -66,7 +80,6 @@ public class RemoteP2BundleInfo extends BundleInfo {
         if (filePath == null) {
             return false;
         }
-        this.path = filePath;
         if (path.toFile().isDirectory()) {
             File manifestFile = path.resolve(DynamicImportsResolver.MANIFEST_PATH).toFile();
             if (!manifestFile.exists()) {
@@ -102,6 +115,15 @@ public class RemoteP2BundleInfo extends BundleInfo {
             }
         }
         return true;
+    }
+
+    private Path getPluginPath() {
+        String fileName = getBundleName() + "_" + getBundleVersion();
+        if (!zipped) {
+            fileName += ".jar";
+        }
+        Path eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
+        return eclipsePluginsPath.resolve(fileName);
     }
 
     boolean isZipped() {

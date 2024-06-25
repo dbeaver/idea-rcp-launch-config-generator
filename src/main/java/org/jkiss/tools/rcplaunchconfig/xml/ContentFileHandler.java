@@ -95,23 +95,27 @@ public class ContentFileHandler extends DefaultHandler {
         }
         if (
             currentState.equals(ParserState.PLUGIN_VALID) && ContentFileConstants.PROPERTY_KEYWORD.equalsIgnoreCase(qualifiedName)
-                && ContentFileConstants.MAVEN_TYPE_FIELD.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))
         ) {
-            if ("eclipse-feature".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-            ) {
-                currentState = ParserState.FEATURE_VALID;
-            } else if ("jar".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-                || "eclipse-plugin".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-                || "java-source".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))
-            ) {
-                if ("java-source".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {
-                    currentState = ParserState.SOURCES_VALID;
-                    initBundle(true);
-                } else {
-                    currentState = ParserState.PLUGIN_VALID;
-                    initBundle(false);
+            if (ContentFileConstants.MAVEN_TYPE_FIELD.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))) {
+                switch (attributes.getValue(ContentFileConstants.FIELD_VALUE).toLowerCase()) {
+                    case "eclipse-feature" ->
+                        currentState = ParserState.FEATURE_VALID;
+                    case "jar", "eclipse-plugin" -> {
+                        currentState = ParserState.PLUGIN_VALID;
+                        initBundle(false);
+                    }
+                    case "java-source" -> {
+                        currentState = ParserState.SOURCES_VALID;
+                        initBundle(true);
+                    }
+                    default -> {
+                        // do nothing
+                    }
                 }
-
+            } else if (ContentFileConstants.MAVEN_P2TYPE_CATEGORY.equalsIgnoreCase(attributes.getValue(ContentFileConstants.NAME_FIELD))) {
+                if ("true".equalsIgnoreCase(attributes.getValue(ContentFileConstants.FIELD_VALUE))) {
+                    currentState = ParserState.UNIT_INVALID;
+                }
             }
         }
         if (
