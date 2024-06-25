@@ -18,7 +18,6 @@ package org.jkiss.tools.rcplaunchconfig;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
-import org.apache.commons.collections4.Bag;
 import org.jkiss.code.NotNull;
 
 import java.nio.file.Path;
@@ -57,6 +56,8 @@ public class BundleInfo {
         }
     }
 
+    private final List<String> requireFragments;
+
     protected Set<String> reexportedBundles;
     protected String fragmentHost;
     @NotNull
@@ -83,6 +84,7 @@ public class BundleInfo {
         @Nonnull Set<String> reexportedBundles,
         @Nonnull Set<String> exportPackages,
         @Nonnull Set<String> importPackages,
+        @Nonnull List<String> requiredFragments,
         @Nullable String fragmentHost,
         @Nullable Integer startLevel) {
         this.path = path;
@@ -95,6 +97,7 @@ public class BundleInfo {
         this.importPackages = importPackages;
         this.startLevel = startLevel;
         this.fragmentHost = fragmentHost;
+        this.requireFragments = requiredFragments;
     }
 
     public @Nullable Path getPath() {
@@ -135,6 +138,10 @@ public class BundleInfo {
 
     public Set<BundleInfo> getFragments() {
         return fragments;
+    }
+
+    public List<String> getRequireFragments() {
+        return requireFragments;
     }
 
     public @Nullable Integer getStartLevel() {

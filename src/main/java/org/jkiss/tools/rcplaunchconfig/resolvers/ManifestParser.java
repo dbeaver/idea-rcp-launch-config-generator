@@ -56,18 +56,25 @@ public class ManifestParser {
         var classPath = parseBundleClasspath(attributes);
 
         var requireBundlesArg = attributes.getValue("Require-Bundle");
-        Stream<String> requiredBundlesStream = getRequiredBundlesStream(requireBundlesArg);
+        Stream<String> requiredBundlesStream = getBundlesStream(requireBundlesArg);
         List<String> requireBundles = requiredBundlesStream == null
             ? List.of()
             : requiredBundlesStream
             .map(ManifestParser::trimBundleName)
             .collect(Collectors.toList());
 
+        String requiredFragmentsArg = attributes.getValue("X-Require-Fragment");
+        Stream<String> bundlesStream = getBundlesStream(requiredFragmentsArg);
+        List<String> requiredFragments = bundlesStream == null
+            ? List.of()
+            : bundlesStream
+            .map(ManifestParser::trimBundleName)
+            .toList();
+
         Set<String> reexportedBundles = parseReexportedBundles(attributes);
         var exportPackageArg = splitPackagesList(attributes.getValue("Export-Package"));
         var importPackageArg = splitPackagesList(attributes.getValue("Import-Package"));
         String fragmentHost = parseFragmentHost(attributes);
-
         return new BundleInfo(
             pathToContainingFolderOrJar,
             bundleName,
@@ -77,7 +84,9 @@ public class ManifestParser {
             reexportedBundles,
             exportPackageArg,
             importPackageArg,
-            fragmentHost, startLevel
+            requiredFragments,
+            fragmentHost,
+            startLevel
         );
     }
 
@@ -90,7 +99,7 @@ public class ManifestParser {
     public static Set<String> parseReexportedBundles(@Nonnull Attributes attrs) {
         var requireBundlesArg = attrs.getValue("Require-Bundle");
         Stream<String> requiredBundlesStream;
-        requiredBundlesStream = getRequiredBundlesStream(requireBundlesArg);
+        requiredBundlesStream = getBundlesStream(requireBundlesArg);
         Set<String> reexportedBundles = requiredBundlesStream == null ? Set.of() :
             requiredBundlesStream.filter(it -> it.contains("visibility:=reexport"))
                 .map(ManifestParser::trimBundleName).collect(Collectors.toSet());
@@ -98,7 +107,7 @@ public class ManifestParser {
     }
 
     @org.jkiss.code.Nullable
-    private static Stream<String> getRequiredBundlesStream(String requireBundlesArg) {
+    private static Stream<String> getBundlesStream(String requireBundlesArg) {
         Stream<String> requiredBundlesStream = requireBundlesArg == null ? null : Arrays.stream(
                 removeAllBetweenQuotes(requireBundlesArg)
                     .split(",")

@@ -53,7 +53,19 @@ public class RemoteP2BundleInfo extends BundleInfo {
         @Nullable Integer startLevel,
         boolean zipped
     ) {
-        super(null, bundleName, bundleVersion, classpathLibs, requireBundles, reexportedBundles, exportPackages, importPackages, null, startLevel);
+        super(
+            null,
+            bundleName,
+            bundleVersion,
+            classpathLibs,
+            requireBundles,
+            reexportedBundles,
+            exportPackages,
+            importPackages,
+            List.of(),
+            null,
+            startLevel
+        );
         this.repository = repositoryURL;
         this.zipped = zipped;
         this.path = getPluginPath();

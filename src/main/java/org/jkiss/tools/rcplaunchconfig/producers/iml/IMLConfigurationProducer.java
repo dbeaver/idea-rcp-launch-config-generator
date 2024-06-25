@@ -411,6 +411,10 @@ public class IMLConfigurationProducer {
                 }
             }
         }
+        for (String requireFragment : bundleInfo.getRequireFragments()) {
+            builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireFragment)
+                .append("\"/>").append("\n");
+        }
         if (!bundleInfo.getClasspathLibs().isEmpty()) {
             addLibraryEntry(bundleInfo, builder, true, false);
             for (String classpathLib : bundleInfo.getClasspathLibs()) {
