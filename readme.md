@@ -14,7 +14,7 @@ Before proceeding with building DBeaver, ensure that your system meets the follo
   - https://github.com/dbeaver/cloudbeaver (only if you need to make changes in Cloudbeaver)
   - https://github.com/dbeaver/idea-rcp-launch-config-generator
 - Execute the `generate_workspace` script in either the dbeaver or cloudbeaver repo, depending on the workspace you need.
-Once dependencies are downloaded and IDEA configs created, the folder `dbeaver-workspace` will appear. The IDEA configuration, by default, will be generated in `dbeaver-workspace/idea-configuration`, which can be opened in IntelliJ IDEA.
+Once dependencies are downloaded and IDEA configs created, the folder `dbeaver-workspace` will appear. The IDEA configuration, by default, will be generated in `dbeaver-workspace/dbeaver-ce` or `dbeaver-workspace/dbeaver/cloudbeaver-ce`, which can be opened in IntelliJ IDEA.
 - Launch IDEA and open the configuration. It should contain all launch configurations
 
 Now, you can debug code in IDEA, modify Java classes on the fly, etc.
