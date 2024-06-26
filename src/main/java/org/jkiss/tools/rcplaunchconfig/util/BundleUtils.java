@@ -58,19 +58,11 @@ public class BundleUtils {
 
     public static boolean isRemoteBundleVersionGreater(RemoteP2BundleInfo maxVersionRemoteBundle, BundleInfo bundleInfo) {
         int i = new BundleVersion(maxVersionRemoteBundle.getBundleVersion()).compareTo(new BundleVersion(bundleInfo.getBundleVersion()));
-        if (i > 0) {
-            return true;
-        } else {
-            return false;
-        }
+        return i > 0;
     }
 
     public static boolean isRemoteFeatureVersionGreater(RemoteP2Feature maxVersionRemoteBundle, BundleVersion featureVersion) {
         int i = new BundleVersion(maxVersionRemoteBundle.getVersion()).compareTo(featureVersion);
-        if (i > 0) {
-            return true;
-        } else {
-            return false;
-        }
+        return i > 0;
     }
 }

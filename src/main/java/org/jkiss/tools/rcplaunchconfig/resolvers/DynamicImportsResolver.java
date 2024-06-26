@@ -177,11 +177,11 @@ public class DynamicImportsResolver {
         var result = new ArrayListValuedHashMap<String, BundleInfo>();
 
         for (var folderOrJar : children) {
+            if (".DS_Store".equals(folderOrJar.getName())) {
+                continue;
+            }
             BundleInfo bundleInfo;
             if (folderOrJar.isDirectory()) {
-                if (folderOrJar.getName().equals(".DS_Store")) {
-                    continue;
-                }
                 var manifestFile = folderOrJar.toPath().resolve(MANIFEST_PATH).toFile();
                 if (!manifestFile.exists()) {
                     log.error("Cannot find '{}'", manifestFile.getPath());
