@@ -1,3 +1,5 @@
+@echo off
+
 setlocal
 
 set "WORKING_DIR="
@@ -20,10 +22,13 @@ if "%WORKING_DIR%"=="" (
     exit /b 1
 )
 
-call mvn install -q
+echo Build generator
 
+call mvn package -q
+
+echo Run generator
 :: Run the Maven commands with the specified options
-mvn -f "pom.xml" package -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -config %WORKING_DIR%osgi-app.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace/products/"
+call mvn -f "pom.xml" package -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -config %WORKING_DIR%osgi-app.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace/products/"
 
 :end
 endlocal
