@@ -194,12 +194,23 @@ public class IMLConfigurationProducer {
     }
 
     private String generateRootModule(@NotNull Path presentModule) {
+        StringBuilder productExcludes = new StringBuilder();
+        Map<Path, String> productsPathsAndWorkDirs = PathsManager.INSTANCE.getProductsPathsAndWorkDirs();
+        for (Path productConfigPath : productsPathsAndWorkDirs.keySet()) {
+            if (productConfigPath.startsWith(presentModule)) {
+                productExcludes.append("        <excludeFolder url=\"")
+                    .append(getFormattedRelativePath(presentModule, false, false))
+                    .append("/").append(presentModule.relativize(productConfigPath.getParent()).toString().replace("\\", "/"))
+                    .append("/target\"/>\n");
+            }
+        }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
             "<module type=\"JAVA_MODULE\" version=\"4\">\n" +
             "  <component name=\"NewModuleRootManager\">\n" +
             "    <output url=\"file://$MODULE_DIR$/target/classes\" />\n" +
             "    <output-test url=\"file://$MODULE_DIR$/target/classes\" />\n" +
             "    <content url =\"" + getFormattedRelativePath(presentModule, false, false) + "\">\n" +
+               productExcludes +
             "    </content>\n" +
             "    <orderEntry type=\"inheritedJdk\" />\n" +
             "    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n" +

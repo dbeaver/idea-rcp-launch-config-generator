@@ -85,11 +85,15 @@ public enum PathsManager {
         featuresPaths.add(eclipseFeaturesPath);
 
         var additionalRepositoriesPathsStrings = (String) settings.get(ConfigurationConstants.OPTIONAL_FEATURE_REPOSITORIES_PARAM);
-        additionalRepositoriesPaths = Arrays.stream(additionalRepositoriesPathsStrings.split(";"))
-            .map(String::trim)
-            .map(projectsFolderPath::resolve)
-            .filter(FileUtils::exists)
-            .collect(Collectors.toList());
+        if (additionalRepositoriesPathsStrings != null) {
+            additionalRepositoriesPaths = Arrays.stream(additionalRepositoriesPathsStrings.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve)
+                .filter(FileUtils::exists)
+                .collect(Collectors.toList());
+        } else {
+            additionalRepositoriesPaths = List.of();
+        }
 
         String additionalIMlModulesString = (String) settings.get(ConfigurationConstants.ADDITIONAL_IML_MODULES_PARAM);
         if (additionalIMlModulesString != null) {
