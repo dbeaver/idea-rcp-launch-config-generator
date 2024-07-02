@@ -47,6 +47,7 @@ public enum PathsManager {
     private List<Path> ideaConfigurationFiles;
     private Path projectsFolderPath;
     private String workspaceName;
+    private List<Path> additionalRepositoriesPaths;
 
     public void init(
         @Nonnull Properties settings,
@@ -80,6 +81,14 @@ public enum PathsManager {
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
         featuresPaths.add(eclipseFeaturesPath);
+
+        var additionalRepositoriesPathsStrings = (String) settings.get("optionalFeatureRepositories");
+        additionalRepositoriesPaths = Arrays.stream(additionalRepositoriesPathsStrings.split(";"))
+            .map(String::trim)
+            .map(projectsFolderPath::resolve)
+            .filter(FileUtils::exists)
+            .collect(Collectors.toList());
+
         String additionalIMlModulesString = (String) settings.get("additionalIMlModules");
         if (additionalIMlModulesString != null) {
             additionalIMlModules = Arrays.stream(additionalIMlModulesString.split(";"))
@@ -219,6 +228,10 @@ public enum PathsManager {
     @Nullable
     public  List<Path> getIdeaConfigurationFiles() {
         return ideaConfigurationFiles;
+    }
+
+    public List<Path> getAdditionalRepositoriesPaths() {
+        return additionalRepositoriesPaths;
     }
 
     public Path getProjectsFolderPath() {
