@@ -31,7 +31,6 @@ import java.util.stream.Stream;
 public enum PathsManager {
     INSTANCE();
 
-
     private Collection<Path> featuresPaths;
     private Collection<Path> bundlesPaths;
     private Map<Path, String> productsPathsAndWorkDirs;
@@ -57,10 +56,12 @@ public enum PathsManager {
         @Nonnull Path... additionalBundlesPaths
     ) throws IOException {
         if (eclipsePath == null) {
-            eclipsePath = projectsFolderPath.resolve("dbeaver-workspace/dependencies/");
+            eclipsePath = projectsFolderPath.resolve(ConfigurationConstants.DEFAULT_WORKSPACE_LOCATION);
         }
         this.eclipsePath = eclipsePath;
-        eclipsePluginsPath = eclipsePath.resolve("plugins");
+        eclipsePluginsPath = eclipsePath.resolve(ConfigurationConstants.PLUGINS_FOLDER);
+
+
         if (!eclipsePluginsPath.toFile().exists()) {
             Files.createDirectories(eclipsePluginsPath);
         }
@@ -71,7 +72,7 @@ public enum PathsManager {
             Files.createDirectories(imlModules);
         }
 
-        eclipseFeaturesPath = eclipsePath.resolve("features");
+        eclipseFeaturesPath = eclipsePath.resolve(ConfigurationConstants.FEATURES_FOLDER);
         if (!eclipseFeaturesPath.toFile().exists()) {
             Files.createDirectories(eclipseFeaturesPath);
         }
