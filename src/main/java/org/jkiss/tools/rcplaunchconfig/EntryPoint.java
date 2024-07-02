@@ -145,14 +145,14 @@ public class EntryPoint {
                         .filter(path -> path.getFileName().toString().equals("category.xml"))
                         .toList();
                     for (Path categoryXML : categoryXMLS) {
-                        log.info("Generating config for " + categoryXML);
+                        log.debug("Generating config for " + categoryXML);
                         CategoryXMLFileParser.parseCategoryXML(result, categoryXML);
                     }
                 } catch (IOException e) {
                     log.error("Error reading the repository " + e);
                 }
             }
-            log.info(result.getBundlesByNames().size() + " additional bundles to resolve found");
+            log.debug(result.getBundlesByNames().size() + " additional bundles to resolve found");
             IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, null);
 
         }
