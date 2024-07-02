@@ -47,6 +47,7 @@ public enum PathsManager {
     private List<Path> ideaConfigurationFiles;
     private Path projectsFolderPath;
     private String workspaceName;
+    private List<Path> additionalRepositoriesPaths;
 
     public void init(
         @Nonnull Properties settings,
@@ -55,32 +56,42 @@ public enum PathsManager {
         @Nonnull Path... additionalBundlesPaths
     ) throws IOException {
         if (eclipsePath == null) {
-            eclipsePath = projectsFolderPath.resolve("dbeaver-workspace/dependencies/");
+            eclipsePath = projectsFolderPath.resolve(ConfigurationConstants.DEFAULT_WORKSPACE_LOCATION);
         }
         this.eclipsePath = eclipsePath;
-        eclipsePluginsPath = eclipsePath.resolve("plugins");
+        eclipsePluginsPath = eclipsePath.resolve(ConfigurationConstants.PLUGINS_FOLDER);
+
+
         if (!eclipsePluginsPath.toFile().exists()) {
             Files.createDirectories(eclipsePluginsPath);
         }
-        this.workspaceName = (String) settings.get("workspaceName");
+        this.workspaceName = (String) settings.get(ConfigurationConstants.WORKSPACE_NAME_PARAM);
 
         imlModules = eclipsePath.getParent().resolve(workspaceName);
         if (!imlModules.toFile().exists()) {
             Files.createDirectories(imlModules);
         }
 
-        eclipseFeaturesPath = eclipsePath.resolve("features");
+        eclipseFeaturesPath = eclipsePath.resolve(ConfigurationConstants.FEATURES_FOLDER);
         if (!eclipseFeaturesPath.toFile().exists()) {
             Files.createDirectories(eclipseFeaturesPath);
         }
-        var featuresPathsString = (String) settings.get("featuresPaths");
+        var featuresPathsString = (String) settings.get(ConfigurationConstants.FEATURES_PATHS_PARAM);
         featuresPaths = Arrays.stream(featuresPathsString.split(";"))
             .map(String::trim)
             .map(projectsFolderPath::resolve)
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
         featuresPaths.add(eclipseFeaturesPath);
-        String additionalIMlModulesString = (String) settings.get("additionalIMlModules");
+
+        var additionalRepositoriesPathsStrings = (String) settings.get(ConfigurationConstants.OPTIONAL_FEATURE_REPOSITORIES_PARAM);
+        additionalRepositoriesPaths = Arrays.stream(additionalRepositoriesPathsStrings.split(";"))
+            .map(String::trim)
+            .map(projectsFolderPath::resolve)
+            .filter(FileUtils::exists)
+            .collect(Collectors.toList());
+
+        String additionalIMlModulesString = (String) settings.get(ConfigurationConstants.ADDITIONAL_IML_MODULES_PARAM);
         if (additionalIMlModulesString != null) {
             additionalIMlModules = Arrays.stream(additionalIMlModulesString.split(";"))
                 .map(String::trim)
@@ -88,7 +99,7 @@ public enum PathsManager {
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());
         }
-        var bundlesPathsString = (String) settings.get("bundlesPaths");
+        var bundlesPathsString = (String) settings.get(ConfigurationConstants.BUNDLES_PATHS_PARAM);
         bundlesPaths = Stream.concat(
                 Arrays.stream(bundlesPathsString.split(";"))
                     .map(String::trim)
@@ -100,7 +111,7 @@ public enum PathsManager {
             )
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
-        var productsPathsString = (String) settings.get("productsPaths");
+        var productsPathsString = (String) settings.get(ConfigurationConstants.PRODUCTS_PATHS_PARAM);
         Map<Path, String> list = new LinkedHashMap<>();
         for (String pathString : productsPathsString.split(";")) {
             String trim = pathString.trim();
@@ -136,21 +147,21 @@ public enum PathsManager {
             }
         }
         modulesRoots = set;
-        String additionalModuleRootsString = (String) settings.get("additionalModuleRoots");
+        String additionalModuleRootsString = (String) settings.get(ConfigurationConstants.ADDITIONAL_MODULE_ROOTS_PARAM);
         if (additionalModuleRootsString != null) {
             Set<Path> additionalModuleRoots = Arrays.stream(additionalModuleRootsString.split(";"))
                 .map(String::trim)
                 .map(projectsFolderPath::resolve).collect(Collectors.toSet());
             modulesRoots.addAll(additionalModuleRoots);
         }
-        var testBundlesPathsString = (String) settings.get("testBundlePaths");
+        var testBundlesPathsString = (String) settings.get(ConfigurationConstants.TEST_BUNDLE_PATHS_PARAM);
         testBundlesPaths =
             Arrays.stream(testBundlesPathsString.split(";"))
                 .map(String::trim)
                 .map(projectsFolderPath::resolve)
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());
-        var additionalLibrariesString = (String) settings.get("additionalLibrariesPaths");
+        var additionalLibrariesString = (String) settings.get(ConfigurationConstants.ADDITIONAL_LIBRARIES_PATHS_PARAM);
         if (additionalLibrariesString != null) {
             this.additionalLibraries = Arrays.stream(additionalLibrariesString.split(";"))
                 .map(String::trim)
@@ -158,7 +169,7 @@ public enum PathsManager {
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());;
         }
-        String ideaConfigurationFilesString = (String) settings.get("ideaConfigurationFilesPaths");
+        String ideaConfigurationFilesString = (String) settings.get(ConfigurationConstants.IDEA_CONFIGURATION_FILES_PATHS_PARAM);
         if (ideaConfigurationFilesString != null) {
             this.ideaConfigurationFiles = Arrays.stream(ideaConfigurationFilesString.split(";"))
                 .map(String::trim)
@@ -219,6 +230,10 @@ public enum PathsManager {
     @Nullable
     public  List<Path> getIdeaConfigurationFiles() {
         return ideaConfigurationFiles;
+    }
+
+    public List<Path> getAdditionalRepositoriesPaths() {
+        return additionalRepositoriesPaths;
     }
 
     public Path getProjectsFolderPath() {

@@ -39,7 +39,7 @@ public class IMLConfigurationProducer {
      * @param productPath path to product file
      * @throws IOException file access error
      */
-    public void generateIMLFiles(@NotNull Result result, Path productPath) throws IOException {
+    public void generateIMLFiles(@NotNull Result result, @Nullable Path productPath) throws IOException {
         log.info("Generating IML configuration in " + PathsManager.INSTANCE.getImlModulesPath());
         List<BundleInfo> modules = new ArrayList<>();
         for (BundleInfo bundleInfo : result.getBundlesByNames().values()) {
@@ -53,8 +53,9 @@ public class IMLConfigurationProducer {
                 createConfigFile(imlFilePath, moduleConfig);
             }
         }
-
-        products.put(productPath, result);
+        if (productPath != null) {
+            products.put(productPath, result);
+        }
         log.info(modules.size() + " module IML config generated");
         this.modules.addAll(modules);
         rootModules.addAll(generateRootModules());
