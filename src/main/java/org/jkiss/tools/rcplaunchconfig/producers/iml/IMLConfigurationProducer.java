@@ -2,9 +2,7 @@ package org.jkiss.tools.rcplaunchconfig.producers.iml;
 
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
-import org.jkiss.tools.rcplaunchconfig.BundleInfo;
-import org.jkiss.tools.rcplaunchconfig.PathsManager;
-import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.*;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
@@ -29,7 +27,7 @@ public class IMLConfigurationProducer {
 
     private final Set<String> generatedLibraries = new HashSet<>();
     private final Set<Path> rootModules = new HashSet<>();
-    private final Set<BundleInfo> modules = new HashSet<>();
+    private final Set<ModuleInfo> modules = new HashSet<>();
 
     private final Map<Path, Result> products = new LinkedHashMap<>();
     /**
@@ -41,7 +39,8 @@ public class IMLConfigurationProducer {
      */
     public void generateIMLFiles(@NotNull Result result, @Nullable Path productPath) throws IOException {
         log.info("Generating IML configuration in " + PathsManager.INSTANCE.getImlModulesPath());
-        List<BundleInfo> modules = new ArrayList<>();
+        // Bundles
+        List<ModuleInfo> modules = new ArrayList<>();
         for (BundleInfo bundleInfo : result.getBundlesByNames().values()) {
             if (this.modules.contains(bundleInfo)) {
                 continue;
@@ -53,6 +52,19 @@ public class IMLConfigurationProducer {
                 createConfigFile(imlFilePath, moduleConfig);
             }
         }
+
+        // Features
+        for (FeatureInfo featureInfo : result.getResolvedFeatures().values()) {
+            if (DevPropertiesProducer.isBundleAcceptable(featureInfo.getFeatureName())) {
+                String moduleConfig = generateIMLFeatureConfig(featureInfo, result);
+                modules.add(featureInfo);
+                Path imlFilePath = getImlModulePath(featureInfo);
+                createConfigFile(imlFilePath, moduleConfig);
+            }
+        }
+
+
+
         if (productPath != null) {
             products.put(productPath, result);
         }
@@ -247,10 +259,10 @@ public class IMLConfigurationProducer {
                 .append(rootModule.getFileName()).append("\" filepath=\"$PROJECT_DIR$/")
                 .append(rootModule.getFileName()).append("\"/>\n");
         }
-        for (BundleInfo module : modules) {
+        for (ModuleInfo module : modules) {
             builder.append("      <module fileurl=\"file://$PROJECT_DIR$/")
-                .append(module.getBundleName()).append(".iml\"").append(" filepath=\"$PROJECT_DIR$/")
-                .append(module.getBundleName()).append(".iml").append("\"/>\n");
+                .append(module.getModuleName()).append(".iml\"").append(" filepath=\"$PROJECT_DIR$/")
+                .append(module.getModuleName()).append(".iml").append("\"/>\n");
         }
         processAdditionalIMLModules(builder);
         builder.append("    </modules>\n");
@@ -439,6 +451,31 @@ public class IMLConfigurationProducer {
         return builder.toString();
     }
 
+    @Nullable
+    private String generateIMLFeatureConfig(@NotNull FeatureInfo featureInfo, @NotNull Result result) throws IOException {
+        if (featureInfo.getFeatureXmlFile() == null) {
+            log.warn("Feature doesn't contain any data");
+            return null;
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append("<module type=\"JAVA_MODULE\" version=\"4\">\n");
+        builder.append(" <component name=\"NewModuleRootManager\">\n");
+        Path featurePath = featureInfo.getFeatureXmlFile().getParent();
+        builder.append("  <exclude-output/>").append("\n");
+
+        {
+            builder.append("  <content url=\"").append(getFormattedRelativePath(featurePath, false, false)).append("\">")
+                .append("\n");
+            builder.append("   <excludeFolder url=\"")
+                .append(getFormattedRelativePath(featurePath.resolve("target"), false, false))
+                .append("\"/>").append("\n");
+            builder.append("  </content>").append("\n");
+        }
+        builder.append(" </component>").append("\n");
+        builder.append("</module>");
+        return builder.toString();
+    }
+
     private Properties readBuildConfiguration(Path bundlePath) throws IOException {
         Path resolve = bundlePath.resolve("build.properties");
         return FileUtils.readPropertiesFile(resolve);
@@ -553,6 +590,10 @@ public class IMLConfigurationProducer {
 
     private Path getImlModulePath(@NotNull BundleInfo bundleInfo) {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(bundleInfo.getBundleName() + ".iml");
+    }
+
+    private Path getImlModulePath(@NotNull FeatureInfo featureInfo) {
+        return PathsManager.INSTANCE.getImlModulesPath().resolve(featureInfo.getFeatureName() + ".iml");
     }
 
     private Path getImplModuleConfigPath() {

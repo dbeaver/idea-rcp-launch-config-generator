@@ -20,6 +20,7 @@ import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.FeatureInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
@@ -57,8 +58,14 @@ public class PluginResolver {
         if (PackageChecker.INSTANCE.isPackageExcluded(bundleName)) {
             return;
         }
+
+        FeatureInfo currentFeature = FeatureResolver.getCurrentFeature();
+
         var previousParsedBundle = result.getBundleByName(bundleName);
         if (previousParsedBundle != null) {
+            if (currentFeature != null) {
+                currentFeature.addBundleDependency(previousParsedBundle);
+            }
             if (previousParsedBundle.getStartLevel() == null && startLevel != null) {
                 // if previousParsedBundle does not have 'startLevel' — update it
                 var newParsedBundle = new BundleInfo(
@@ -114,6 +121,9 @@ public class PluginResolver {
                 .collect(Collectors.joining("\n  "));
             log.debug("Found multiple plugins '{}'. First will be used.\n  {}", bundleName, bundlesPaths);
             parseBundleInfo(result, bundleInfos.get(0), cache);
+        }
+        if (currentFeature != null && !bundleInfos.isEmpty()) {
+            currentFeature.addBundleDependency(previousParsedBundle);
         }
     }
 
