@@ -16,6 +16,59 @@
  */
 package org.jkiss.tools.rcplaunchconfig;
 
-public class FeatureInfo {
+import java.io.File;
+import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
+public class FeatureInfo implements ModuleInfo {
+
+    private final String featureName;
+    private final Path featureXmlFile;
+    private final Set<BundleInfo> bundles = new LinkedHashSet<>();
+    private final Set<FeatureInfo> features = new LinkedHashSet<>();
+
+    public FeatureInfo(String featureName, File featureXmlFile) {
+        this.featureName = featureName;
+        this.featureXmlFile = featureXmlFile.toPath();
+    }
+
+    public String getFeatureName() {
+        return featureName;
+    }
+
+    public Path getFeatureXmlFile() {
+        return featureXmlFile;
+    }
+
+    public Set<BundleInfo> getBundles() {
+        return bundles;
+    }
+
+    public Set<FeatureInfo> getFeatures() {
+        return features;
+    }
+
+    public void addBundleDependency(BundleInfo bundleInfo) {
+        bundles.add(bundleInfo);
+    }
+
+    public void addFeatureDependency(FeatureInfo featureInfo) {
+        features.add(featureInfo);
+    }
+
+    @Override
+    public String toString() {
+        return "FeatureInfo[" + featureName + "]";
+    }
+
+    @Override
+    public String getModuleName() {
+        return getFeatureName();
+    }
+
+    @Override
+    public Path getModuleFile() {
+        return getFeatureXmlFile();
+    }
 }

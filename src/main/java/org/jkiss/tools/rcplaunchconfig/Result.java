@@ -19,6 +19,7 @@ package org.jkiss.tools.rcplaunchconfig;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -26,7 +27,7 @@ public class Result {
 
     private final Map<String, BundleInfo> bundlesByNames = new LinkedHashMap<>();
 
-    private final Set<String> resolvedFeatures = new LinkedHashSet<>();
+    private final Map<String, FeatureInfo> resolvedFeatures = new LinkedHashMap<>();
 
     private Path osgiSplashPath = null;
     private String productName;
@@ -34,10 +35,10 @@ public class Result {
     private String productId;
     private String applicationId;
 
-    private ProductLaunchArguments arguments = new ProductLaunchArguments();
+    private final ProductLaunchArguments arguments = new ProductLaunchArguments();
 
-    public void addResolvedFeature(@Nonnull String featureName) {
-        resolvedFeatures.add(featureName);
+    public FeatureInfo addResolvedFeature(@Nonnull String featureName, File featureXmlFile) {
+        return resolvedFeatures.computeIfAbsent(featureName, s -> new FeatureInfo(featureName, featureXmlFile));
     }
 
     public void addBundle(@Nonnull BundleInfo bundleInfo) {
@@ -57,7 +58,7 @@ public class Result {
     }
 
     public boolean isFeatureResolved(@Nonnull String featureName) {
-        return resolvedFeatures.contains(featureName);
+        return resolvedFeatures.containsKey(featureName);
     }
 
     public boolean isPluginResolved(@Nonnull String pluginName) {
@@ -70,6 +71,10 @@ public class Result {
 
     public @Nonnull Map<String, BundleInfo> getBundlesByNames() {
         return bundlesByNames;
+    }
+
+    public Map<String, FeatureInfo> getResolvedFeatures() {
+        return resolvedFeatures;
     }
 
     public @Nullable Path getOsgiSplashPath() {

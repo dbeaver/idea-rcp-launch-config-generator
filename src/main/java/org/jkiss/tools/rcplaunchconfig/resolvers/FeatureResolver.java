@@ -18,6 +18,7 @@ package org.jkiss.tools.rcplaunchconfig.resolvers;
 
 import jakarta.annotation.Nonnull;
 import org.jkiss.code.NotNull;
+import org.jkiss.tools.rcplaunchconfig.FeatureInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
@@ -32,9 +33,7 @@ import org.slf4j.LoggerFactory;
 import javax.xml.stream.XMLStreamException;
 import java.io.File;
 import java.io.IOException;
-import java.util.Comparator;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class FeatureResolver {
@@ -42,6 +41,15 @@ public class FeatureResolver {
     private static final Logger log = LoggerFactory.getLogger(FeatureResolver.class);
 
     private static final String FEATURES_XML_FILENAME = "feature.xml";
+
+    private static final List<FeatureInfo> featureStack = new ArrayList<>();
+
+    public static FeatureInfo getCurrentFeature() {
+        if (featureStack.isEmpty()) {
+            return null;
+        }
+        return featureStack.get(featureStack.size() - 1);
+    }
 
     public static void resolveFeatureDependencies(
         @Nonnull Result result,
@@ -109,7 +117,20 @@ public class FeatureResolver {
         @Nonnull String bundleName,
         @Nonnull File featureXmlFile
     ) throws XMLStreamException, IOException {
-        result.addResolvedFeature(bundleName);
+        FeatureInfo currentFeature = getCurrentFeature();
+
+        FeatureInfo newFeature = result.addResolvedFeature(bundleName, featureXmlFile);
+        featureStack.add(newFeature);
+
+        if (currentFeature != null) {
+            currentFeature.addFeatureDependency(newFeature);
+        }
         XmlReader.INSTANCE.parseXmlFile(result, featureXmlFile);
+
+        FeatureInfo lastFeature = featureStack.remove(featureStack.size() - 1);
+        if (lastFeature != newFeature) {
+            throw new IOException("Feature parser internal error. Feature [" +
+                lastFeature.getFeatureName() + "] found while [" + newFeature.getFeatureName() + "] was expected");
+        }
     }
 }

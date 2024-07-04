@@ -23,7 +23,7 @@ import org.jkiss.code.NotNull;
 import java.nio.file.Path;
 import java.util.*;
 
-public class BundleInfo {
+public class BundleInfo implements ModuleInfo {
 
     public static String currentOS;
     public static String currentWS;
@@ -194,5 +194,15 @@ public class BundleInfo {
     @Override
     public String toString() {
         return "BundleInfo[" + bundleName + "]";
+    }
+
+    @Override
+    public String getModuleName() {
+        return getBundleName();
+    }
+
+    @Override
+    public Path getModuleFile() {
+        return getPath();
     }
 }
