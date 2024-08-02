@@ -101,7 +101,7 @@ public class PluginResolver {
             Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = BundleUtils.getMaxVersionRemoteBundle(bundleName, cache);
             if (maxVersionRemoteBundle.isPresent() && BundleUtils.isRemoteBundleVersionGreater(maxVersionRemoteBundle.get(), bundleInfos.get(0))) {
                 maxVersionRemoteBundle.get().resolveBundle();
-                parseBundleInfo(result, bundleInfos.get(0), cache);
+                parseBundleInfo(result, maxVersionRemoteBundle.get(), cache);
             } else {
                 parseBundleInfo(result, bundleInfos.get(0), cache);
             }
