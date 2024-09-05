@@ -48,6 +48,7 @@ public enum PathsManager {
     private Path projectsFolderPath;
     private String workspaceName;
     private List<Path> additionalRepositoriesPaths;
+    private Set<String> testLibraries;
 
     public void init(
         @Nonnull Properties settings,
@@ -165,6 +166,13 @@ public enum PathsManager {
                 .map(projectsFolderPath::resolve)
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());
+
+        var testLibrariesString = (String) settings.get(ConfigurationConstants.TEST_LIBRARIES);
+        if (testLibrariesString != null) {
+            this.testLibraries = Arrays.stream(testLibrariesString.split(";"))
+                .map(String::trim).collect(Collectors.toSet());
+        }
+
         var additionalLibrariesString = (String) settings.get(ConfigurationConstants.ADDITIONAL_LIBRARIES_PATHS_PARAM);
         if (additionalLibrariesString != null) {
             this.additionalLibraries = Arrays.stream(additionalLibrariesString.split(";"))
@@ -214,6 +222,10 @@ public enum PathsManager {
 
     public @Nullable List<Path> getAdditionalLibraries() {
         return additionalLibraries;
+    }
+
+    public @Nullable Set<String> getTestLibraries() {
+        return testLibraries;
     }
 
     @Nullable

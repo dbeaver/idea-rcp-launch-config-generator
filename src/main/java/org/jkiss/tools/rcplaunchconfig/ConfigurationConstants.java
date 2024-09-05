@@ -33,4 +33,5 @@ public class ConfigurationConstants {
     public static final String DEFAULT_WORKSPACE_LOCATION = "dbeaver-workspace/dependencies/";
 
     public static final String FEATURES_FOLDER = "features";
+    public static final Object TEST_LIBRARIES = "testLibraries";
 }

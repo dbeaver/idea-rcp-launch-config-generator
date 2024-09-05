@@ -23,6 +23,10 @@ public class IMLConfigurationProducer {
     public static final Logger log = LoggerFactory.getLogger(IMLConfigurationProducer.class);
 
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
+    public static final String TEST_FOLDER = "src/test/java";
+
+
+
     private final HashMap<String, Set<BundleInfo>> bundlePackageImports = new LinkedHashMap<>();
 
     private final Set<String> generatedLibraries = new HashSet<>();
@@ -417,6 +421,9 @@ public class IMLConfigurationProducer {
                     .append(getFormattedRelativePath(bundleInfo.getPath().resolve(output), false, false))
                     .append("\"/>").append("\n");
             }
+            if (bundleInfo.getPath() != null) {
+                appendTestSources(bundleInfo.getPath(), builder);
+            }
             builder.append("  </content>").append("\n");
         }
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
@@ -435,6 +442,14 @@ public class IMLConfigurationProducer {
                 }
             }
         }
+        if (bundleInfo.getPath() != null && bundleInfo.getPath().resolve(TEST_FOLDER).toFile().exists()) {
+            Set<String> testLibraries = PathsManager.INSTANCE.getTestLibraries();
+            if (testLibraries != null) {
+                for (String testLibrary : testLibraries) {
+                    addModuleLibrary(testLibrary, builder, result, resolvedBundles, false);
+                }
+            }
+        }
         for (String requireFragment : bundleInfo.getRequireFragments()) {
             builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireFragment)
                 .append("\"/>").append("\n");
@@ -449,6 +464,15 @@ public class IMLConfigurationProducer {
         builder.append(" </component>").append("\n");
         builder.append("</module>");
         return builder.toString();
+    }
+
+    private void appendTestSources(@NotNull Path bundlePath, StringBuilder builder) {
+        Path testFolder = bundlePath.resolve(TEST_FOLDER);
+        if (testFolder.toFile().exists()) {
+            builder.append("   <sourceFolder url=\"")
+                .append(getFormattedRelativePath(bundlePath.resolve(testFolder), false, false))
+                .append("\" isTestSource=\"true\"/>").append("\n");
+        }
     }
 
     @Nullable
