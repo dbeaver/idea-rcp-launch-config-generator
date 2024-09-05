@@ -24,9 +24,6 @@ public class IMLConfigurationProducer {
 
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
     public static final String TEST_FOLDER = "src/test/java";
-
-
-
     private final HashMap<String, Set<BundleInfo>> bundlePackageImports = new LinkedHashMap<>();
 
     private final Set<String> generatedLibraries = new HashSet<>();
