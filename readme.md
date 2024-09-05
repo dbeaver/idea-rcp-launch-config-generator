@@ -1,4 +1,7 @@
 # Eclipse RCP launcher generator for IDEA
+
+DBeaver build instructions: https://github.com/dbeaver/dbeaver/wiki/Develop-in-IDEA
+
 # Prerequisites
 Before proceeding with building DBeaver, ensure that your system meets the following prerequisites:
 
