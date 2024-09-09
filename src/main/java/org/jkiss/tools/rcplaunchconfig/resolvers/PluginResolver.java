@@ -162,9 +162,10 @@ public class PluginResolver {
         }
     }
 
-    public static void resolveTestBundles(Result result) throws IOException {
+    public static void resolveTestBundlesAndLibraries(Result result) throws IOException {
+        PathsManager manager = PathsManager.INSTANCE;
         P2BundleLookupCache lookupCache = P2RepositoryManager.INSTANCE.getLookupCache();
-        Collection<Path> testBundlesPaths = PathsManager.INSTANCE.getTestBundlesPaths();
+        Collection<Path> testBundlesPaths = manager.getTestBundlesPaths();
         for (Path testBundlesPath : testBundlesPaths) {
             if (testBundlesPath.toFile().exists() && testBundlesPath.toFile().isDirectory()) {
                 List<BundleInfo> bundlesToResolve = new ArrayList<>();
@@ -186,6 +187,40 @@ public class PluginResolver {
                         }
                     }
                 }
+                Set<String> testLibraries = manager.getTestLibraries();
+                if (testLibraries != null) {
+                    for (String testLibrary : testLibraries) {
+                        BundleInfo bundleByName = result.getBundleByName(testLibrary);
+                        if (bundleByName == null) {
+                            var pluginsFoldersPaths = PathsManager.INSTANCE.getBundlesLocations();
+
+                            List<BundleInfo> bundleInfos = pluginsFoldersPaths.stream()
+                                .map(pluginFolderPath -> {
+                                    var correctedFolderName = correctFolderName(testLibrary);
+                                    return FileUtils.findFirstChildByPackageName(pluginFolderPath, correctedFolderName);
+                                })
+                                .filter(Objects::nonNull)
+                                .map(pluginJarOrFolder -> extractBundleInfo(pluginJarOrFolder, 0))
+                                .filter(Objects::nonNull)
+                                .toList();
+                            if (!bundleInfos.isEmpty()) {
+                                bundleByName = bundleInfos.get(0);
+                                result.addBundle(bundleByName);
+                            } else {
+                                Collection<RemoteP2BundleInfo> remoteBundlesByName = lookupCache.getRemoteBundlesByName(testLibrary);
+                                Optional<RemoteP2BundleInfo> remoteP2BundleInfo = remoteBundlesByName.stream().findFirst();
+                                if (remoteP2BundleInfo.isPresent()) {
+                                    remoteP2BundleInfo.get().resolveBundle();
+                                    bundleByName = remoteP2BundleInfo.get();
+                                    result.addBundle(bundleByName);
+                                }
+                            }
+                        }
+                        if (bundleByName != null) {
+                            bundlesToResolve.add(bundleByName);
+                        }
+                    }
+                }
                 for (BundleInfo bundleInfo : bundlesToResolve) {
                     for (String requireBundle : bundleInfo.getRequireBundles()) {
                         resolvePluginDependencies(result, requireBundle, null, lookupCache);
@@ -195,7 +230,9 @@ public class PluginResolver {
                     }
                 }
             }
+
         }
+
     }
 
     private static void parseBundleInfo(

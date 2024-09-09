@@ -39,33 +39,42 @@ Parameter | Description
 
 Configuration file example:
 ```properties
+workspaceName=dbeaver-ce
 featuresPaths=\
   dbeaver/features;
 bundlesPaths=\
   dbeaver-common/modules;\
-  dbeaver/plugins;
+  dbeaver/plugins;\
+  dbeaver/plugins-dev
 repositories=\
   https://p2.dev.dbeaver.com/eclipse-repo/;\
   https://download.eclipse.org/releases/${eclipse-version}/;
-testBundles=\
+testLibraries=\
   org.junit;\
   org.mockito.mockito-core;\
   junit-jupiter-api;\
-  org.opentest4j
+  org.opentest4j;\
+  org.hamcrest.core
 productsPaths=\
   dbeaver/product/community/DBeaver.product;
 ideaConfigurationFilesPaths=\
-  dbeaver/.ide/idea/copyright;\
-  dbeaver/.ide/idea/scopes;
+  dbeaver/.ide/.idea
+testBundlePaths=\
+  dbeaver/test;
+optionalFeatureRepositories=\
+  dbeaver/product/repositories
 ```
-Parameter | Description
-------|----
-featuresPaths | list of paths to Eclipse features folders  
-bundlesPaths | list of paths to Eclipse bundles folders
-productsPaths | list of paths to Eclipse products, working directory can be provided after ':' for IDEA launch configs
-repositories | list of repositories used to download third-party bundles from
-testBundles | Bundles required for launching unit tests
-ideaConfigurationFilesPaths | Files of IDEA configuration to be copied(optional)
-additionalModuleRoots | Additional root IDEA modules can be generated if required(optional) 
+| Parameter                   | Description                                                                                                               |
+|-----------------------------|---------------------------------------------------------------------------------------------------------------------------|
+| workspaceName               | Name of the generated workspace folder                                                                                    |
+| featuresPaths               | List of paths to Eclipse features folders                                                                                 |
+| bundlesPaths                | List of paths to Eclipse bundles folders                                                                                  |
+| productsPaths               | List of paths to Eclipse products, working directory can be provided after ':' for IDEA launch configs                    |
+| repositories                | List of repositories used to download third-party bundles from                                                            |
+| testBundlePaths             | Unit tests bundles(optional)                                                                                              |
+| testLibraries               | Libraries used for bundles unit tests(optional)                                                                           |
+| ideaConfigurationFilesPaths | Files of IDEA configuration to be copied(optional)                                                                        |
+| additionalModuleRoots       | Additional root IDEA modules can be generated if required(optional)                                                       |
+| optionalFeatureRepositories | Repositories containing information about optional features which are not included in product launch by default(optional) |
 
 Note: Technically this tool should work with any Eclipse RCP, not just dbeaver or cloudbeaver.

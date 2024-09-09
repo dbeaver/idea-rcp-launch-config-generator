@@ -125,7 +125,7 @@ public class EntryPoint {
             }
             {
                 log.info("Loading test bundles");
-                PluginResolver.resolveTestBundles(result);
+                PluginResolver.resolveTestBundlesAndLibraries(result);
             }
             {
                 IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, resultPath);

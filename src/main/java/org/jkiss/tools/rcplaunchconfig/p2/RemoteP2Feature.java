@@ -38,9 +38,7 @@ public class RemoteP2Feature {
     }
 
     public boolean resolveFeature() {
-        if (path != null) {
-            return true;
-        }
+        if (isDownloaded()) return true;
         log.info("Downloading " + getName() + "_" + getVersion() + " from " + getRepository().getName() + "... ");
         Path filePath = repository.resolveFeature(this);
         if (filePath == null) {
@@ -49,6 +47,14 @@ public class RemoteP2Feature {
         this.path = filePath;
         return true;
     }
+
+    public boolean isDownloaded() {
+        if (path != null) {
+            return true;
+        }
+        return false;
+    }
+
     public RemoteP2Repository getRepository() {
         return repository;
     }
