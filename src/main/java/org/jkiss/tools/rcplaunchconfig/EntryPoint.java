@@ -22,6 +22,7 @@ import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
 import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
+import org.jkiss.tools.rcplaunchconfig.resolvers.FeatureResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.xml.CategoryXMLFileParser;
@@ -81,64 +82,71 @@ public class EntryPoint {
                 bundlesPaths
             );
         }
-        for (Map.Entry<Path, String> productPath : pathsManager.getProductsPathsAndWorkDirs().entrySet()) {
+        pathsManager.getProductsPathsAndWorkDirs().entrySet().parallelStream().forEach((productPath) -> {
             log.info("Target location: " + productPath);
-
-            var result = new Result();
-            result.setWorkDir(productPath.getValue());
-            XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile());
-            new DynamicImportsResolver()
-                .start(result, p2RepositoryManager.getLookupCache());
-
-            var resultPath = params.resultFilesPath;
-            resultPath = resultPath.resolve(productPath.getKey().getFileName());
             try {
-                Files.createDirectories(resultPath.getParent());
-            } catch (Throwable throwable) {
-                log.debug("Error creating target parent directories");
-            }
-            try {
-                FileUtils.removeAllFromDir(resultPath);
-            } catch (Throwable e) {
-                log.debug("Error deleting target folder", e);
-            }
+                var result = new Result();
+                result.setWorkDir(productPath.getValue());
+                result.setProductPath(productPath.getKey());
+                FeatureResolver.addNewFeatureProject(result.getProductPath());
+                XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile());
+                new DynamicImportsResolver()
+                    .start(result, p2RepositoryManager.getLookupCache());
 
-            {
-                // dev props
-                var devProperties = DevPropertiesProducer.generateDevProperties(result.getBundlesByNames().values());
-                FileUtils.writePropertiesFile(resultPath.resolve("dev.properties"), devProperties);
-            }
-            {
-                // config ini
-                var configIni = ConfigIniProducer.generateConfigIni(
-                    result.getOsgiSplashPath(),
-                    result.getBundlesByNames().values()
-                );
-                FileUtils.writePropertiesFile(resultPath.resolve("config.ini"), configIni);
-            }
-            {
-                // debug launch
-                String launchConfig = ConfigIniProducer.generateProductLaunch(params, result);
-                Files.writeString(
-                    productPath.getKey().getParent().resolve(result.getProductName() + ".product.launch"),
-                    launchConfig);
-            }
-            {
-                log.info("Loading test bundles");
-                PluginResolver.resolveTestBundlesAndLibraries(result);
-            }
-            {
-                IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, resultPath);
-            }
-            List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
-            if (additionalLibraries != null) {
-                for (Path additionalLibrary : additionalLibraries) {
-                    FileUtils.copyFolder(additionalLibrary, PathsManager.INSTANCE.getEclipsePath(), false);
+                var resultPath = params.resultFilesPath;
+                resultPath = resultPath.resolve(productPath.getKey().getFileName());
+                try {
+                    Files.createDirectories(resultPath.getParent());
+                } catch (Throwable throwable) {
+                    log.debug("Error creating target parent directories");
                 }
+                try {
+                    FileUtils.removeAllFromDir(resultPath);
+                } catch (Throwable e) {
+                    log.debug("Error deleting target folder", e);
+                }
+
+                {
+                    // dev props
+                    var devProperties = DevPropertiesProducer.generateDevProperties(result.getBundlesByNames().values());
+                    FileUtils.writePropertiesFile(resultPath.resolve("dev.properties"), devProperties);
+                }
+                {
+                    // config ini
+                    var configIni = ConfigIniProducer.generateConfigIni(
+                        result.getOsgiSplashPath(),
+                        result.getBundlesByNames().values()
+                    );
+                    FileUtils.writePropertiesFile(resultPath.resolve("config.ini"), configIni);
+                }
+                {
+                    // debug launch
+                    String launchConfig = ConfigIniProducer.generateProductLaunch(params, result);
+                    Files.writeString(
+                        productPath.getKey().getParent().resolve(result.getProductName() + ".product.launch"),
+                        launchConfig);
+                }
+                {
+                    log.info("Loading test bundles");
+                    PluginResolver.resolveTestBundlesAndLibraries(result);
+                }
+                {
+                    IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, resultPath);
+                }
+            } catch (XMLStreamException | IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
+        if (additionalLibraries != null) {
+            for (Path additionalLibrary : additionalLibraries) {
+                FileUtils.copyFolder(additionalLibrary, PathsManager.INSTANCE.getEclipsePath(), false);
             }
         }
         if (!CommonUtils.isEmpty(pathsManager.getAdditionalRepositoriesPaths())) {
             Result result = new Result();
+            result.setProductPath(Path.of("/"));
+            FeatureResolver.addNewFeatureProject(result.getProductPath());
             for (Path additionalRepositoriesPath : pathsManager.getAdditionalRepositoriesPaths()) {
                 try (Stream<Path> stream = Files.walk(additionalRepositoriesPath)) {
                     List<Path> categoryXMLS = stream.filter(Files::isRegularFile)

@@ -218,6 +218,11 @@ public class DynamicImportsResolver {
             this.newBundlesByNames = new LinkedHashMap<>();
         }
 
+        @Override
+        public Path getProductPath() {
+            return previousResult.getProductPath();
+        }
+
         public Collection<BundleInfo> getNewBundles() {
             return newBundlesByNames.values();
         }

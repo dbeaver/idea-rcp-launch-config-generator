@@ -15,6 +15,9 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -24,11 +27,15 @@ public class IMLConfigurationProducer {
 
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
     public static final String TEST_FOLDER = "src/test/java";
-    private final HashMap<String, Set<BundleInfo>> bundlePackageImports = new LinkedHashMap<>();
+    private final Map<String, Set<BundleInfo>> bundlePackageImports = new ConcurrentHashMap<>();
 
     private final Set<String> generatedLibraries = new HashSet<>();
     private final Set<Path> rootModules = new HashSet<>();
     private final Set<ModuleInfo> modules = new HashSet<>();
+
+    Set<Path> createdModules = new HashSet<>();
+
+    private final Lock lock = new ReentrantLock();
 
     private final Map<Path, Result> products = new LinkedHashMap<>();
     /**
@@ -239,13 +246,24 @@ public class IMLConfigurationProducer {
     }
 
     private void createConfigFile(@NotNull Path configPath, @NotNull String libraryConfig) throws IOException {
-        Files.deleteIfExists(configPath);
-        Files.createDirectories(configPath.getParent());
-        Files.createFile(configPath);
-        if (Files.exists(configPath)) {
-            try (PrintWriter out = new PrintWriter(configPath.toFile())) {
-                out.print(libraryConfig);
+        while (!lock.tryLock()) {
+            Thread.onSpinWait();
+        }
+        try {
+            if (createdModules.contains(configPath)) {
+                return;
             }
+            Files.deleteIfExists(configPath);
+            Files.createDirectories(configPath.getParent());
+            Files.createFile(configPath);
+            if (Files.exists(configPath)) {
+                try (PrintWriter out = new PrintWriter(configPath.toFile())) {
+                    out.print(libraryConfig);
+                }
+            }
+            createdModules.add(configPath);
+        } finally {
+            lock.unlock();
         }
     }
 

@@ -22,6 +22,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class RemoteP2Feature {
     private static final Logger log = LoggerFactory.getLogger(RemoteP2BundleInfo.class);
@@ -30,6 +32,8 @@ public class RemoteP2Feature {
     String name;
     String version;
     private Path path;
+    private final Lock lock = new ReentrantLock();
+
 
     public RemoteP2Feature(String name, String version, RemoteP2Repository repository) {
         this.repository = repository;
@@ -38,21 +42,26 @@ public class RemoteP2Feature {
     }
 
     public boolean resolveFeature() {
-        if (isDownloaded()) return true;
-        log.info("Downloading " + getName() + "_" + getVersion() + " from " + getRepository().getName() + "... ");
-        Path filePath = repository.resolveFeature(this);
-        if (filePath == null) {
-            return false;
+        while (!lock.tryLock()) {
+            // Already resolving by another thread
+            Thread.onSpinWait();
         }
-        this.path = filePath;
-        return true;
+        try {
+            if (isDownloaded()) return true;
+            log.info("Downloading " + getName() + "_" + getVersion() + " from " + getRepository().getName() + "... ");
+            Path filePath = repository.resolveFeature(this);
+            if (filePath == null) {
+                return false;
+            }
+            this.path = filePath;
+            return true;
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public boolean isDownloaded() {
-        if (path != null) {
-            return true;
-        }
-        return false;
+    private boolean isDownloaded() {
+        return path != null;
     }
 
     public RemoteP2Repository getRepository() {
@@ -68,6 +77,14 @@ public class RemoteP2Feature {
     }
 
     public Path getPath() {
-        return path;
+        while (!lock.tryLock()) {
+            // Already resolving by another thread
+            Thread.onSpinWait();
+        }
+        try {
+            return path;
+        } finally {
+            lock.unlock();
+        }
     }
 }

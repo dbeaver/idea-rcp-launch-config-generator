@@ -20,6 +20,8 @@ import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.jkiss.code.NotNull;
+import org.jkiss.tools.rcplaunchconfig.EntryPoint;
+import org.jkiss.tools.rcplaunchconfig.FeatureInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +35,7 @@ import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -44,6 +47,7 @@ public class FileUtils {
 
     private static final String NAME_AND_VERSION_SEPARATOR = "_";
 
+    private static final Object lockObject = new String();
     private static final Map<File, File[]> folderContents = new HashMap<>();
     public static final Set<String> preferOlderBundles = Set.of(
 //        "com.google.guava",
@@ -229,20 +233,36 @@ public class FileUtils {
     }
 
     @org.jkiss.code.Nullable
-    public static Path tryToDownloadFile(@NotNull URI fileURI, @org.jkiss.code.Nullable Path path)  {
+    public static Path tryToDownloadFile(@NotNull URI fileURI, @org.jkiss.code.Nullable Path path, boolean checkExisting)  {
         try {
-            if (tryToLoadFile(fileURI)) {
-                InputStream stream = fileURI.toURL().openStream();
-                if (path == null) {
-                    path = Files.createTempFile("dbeaver", ".jar");
-                    path.toFile().deleteOnExit();
+            if (!checkExisting | tryToLoadFile(fileURI)) {
+                try (InputStream stream = fileURI.toURL().openStream()) {
+                    if (path == null) {
+                        path = Files.createTempFile("dbeaver", ".jar");
+                        path.toFile().deleteOnExit();
+                        Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING);
+                    } else {
+                        boolean directory = Files.isDirectory(path);
+                        Path tempPath;
+                        if (directory) {
+                            tempPath = Files.createTempDirectory(String.valueOf(path.getFileName()));
+                        } else {
+                            String fileName = path.getFileName().toString();
+                            tempPath = Files.createTempFile("dbeaver", fileName.substring(fileName.lastIndexOf(".")));
+                        }
+                        Files.copy(stream, tempPath, StandardCopyOption.REPLACE_EXISTING);
+                        // Yes this is a full lock, but I *really* don't want anything happening during copy to guarantee avoiding half-copy
+                        synchronized (lockObject){
+                            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    }
+                    return path;
                 }
-                Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING);
-                return path;
             }
         } catch (IOException | URISyntaxException e) {
             return null;
         }
+
         return null;
     }
 

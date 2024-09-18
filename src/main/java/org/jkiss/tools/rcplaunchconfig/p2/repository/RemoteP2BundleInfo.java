@@ -32,6 +32,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
@@ -40,6 +42,7 @@ public class RemoteP2BundleInfo extends BundleInfo {
 
     private final RemoteP2Repository repository;
     private final boolean zipped;
+    private final Lock lock = new ReentrantLock();
 
     private RemoteP2BundleInfo(
         @NotNull RemoteP2Repository repositoryURL,
@@ -72,49 +75,96 @@ public class RemoteP2BundleInfo extends BundleInfo {
     }
 
     public boolean resolveBundle() {
-        if (path.toFile().exists()) {
-            return true;
+        while (!lock.tryLock()) {
+            // Already resolving by another thread
+            Thread.onSpinWait();
         }
-        log.info("Downloading " + getBundleName() + "_" + getBundleVersion() + " from " + getRepository().getName() + "... ");
-        Path filePath = repository.resolveBundle(this);
-        if (filePath == null) {
-            return false;
-        }
-        if (path.toFile().isDirectory()) {
-            File manifestFile = path.resolve(DynamicImportsResolver.MANIFEST_PATH).toFile();
-            if (!manifestFile.exists()) {
-                log.error("Cannot find '{}'", manifestFile.getPath());
+        try {
+            if (path.toFile().exists()) {
+                return true;
+            }
+            log.info("Downloading " + getBundleName() + "_" + getBundleVersion() + " from " + getRepository().getName() + "... ");
+            Path filePath = repository.resolveBundle(this);
+            if (filePath == null) {
                 return false;
             }
-            try (var inputStream = new FileInputStream(manifestFile)) {
-                var manifest = new Manifest(inputStream);
-                this.classpathLibs = ManifestParser.parseBundleClasspath(manifest.getMainAttributes());
-                this.reexportedBundles = ManifestParser.parseReexportedBundles(manifest.getMainAttributes());
-                this.fragmentHost = ManifestParser.parseFragmentHost(manifest.getMainAttributes());
-            } catch (IOException e) {
-                log.error("Cannot load bundle", e);
-                return false;
-            }
-        } else {
-            try (var jarFile = new JarFile(path.toFile())) {
-                var manifest = jarFile.getManifest();
-                this.classpathLibs = ManifestParser.parseBundleClasspath(manifest.getMainAttributes());
-                this.reexportedBundles = ManifestParser.parseReexportedBundles(manifest.getMainAttributes());
-                this.fragmentHost = ManifestParser.parseFragmentHost(manifest.getMainAttributes());
-            } catch (IOException e) {
-                log.error("Cannot load bundle", e);
-                return false;
-            }
-        }
-        Collection<RemoteP2BundleInfo> sourceBundle = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByName(getBundleName() + ".source");
-        if (!sourceBundle.isEmpty()) {
-            for (RemoteP2BundleInfo remoteP2BundleInfo : sourceBundle) {
-                if (remoteP2BundleInfo.getBundleVersion().equalsIgnoreCase(getBundleVersion())) {
-                    remoteP2BundleInfo.resolveBundle();
+            if (path.toFile().isDirectory()) {
+                File manifestFile = path.resolve(DynamicImportsResolver.MANIFEST_PATH).toFile();
+                if (!manifestFile.exists()) {
+                    log.error("Cannot find '{}'", manifestFile.getPath());
+                    return false;
+                }
+                try (var inputStream = new FileInputStream(manifestFile)) {
+                    var manifest = new Manifest(inputStream);
+                    this.classpathLibs = ManifestParser.parseBundleClasspath(manifest.getMainAttributes());
+                    this.reexportedBundles = ManifestParser.parseReexportedBundles(manifest.getMainAttributes());
+                    this.fragmentHost = ManifestParser.parseFragmentHost(manifest.getMainAttributes());
+                } catch (IOException e) {
+                    log.error("Cannot load bundle", e);
+                    return false;
+                }
+            } else {
+                try (var jarFile = new JarFile(path.toFile())) {
+                    var manifest = jarFile.getManifest();
+                    this.classpathLibs = ManifestParser.parseBundleClasspath(manifest.getMainAttributes());
+                    this.reexportedBundles = ManifestParser.parseReexportedBundles(manifest.getMainAttributes());
+                    this.fragmentHost = ManifestParser.parseFragmentHost(manifest.getMainAttributes());
+                } catch (IOException e) {
+                    log.error("Cannot load bundle", e);
+                    return false;
                 }
             }
+            Collection<RemoteP2BundleInfo> sourceBundle = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByName(getBundleName() + ".source");
+            if (!sourceBundle.isEmpty()) {
+                for (RemoteP2BundleInfo remoteP2BundleInfo : sourceBundle) {
+                    if (remoteP2BundleInfo.getBundleVersion().equalsIgnoreCase(getBundleVersion())) {
+                        remoteP2BundleInfo.resolveBundle();
+                    }
+                }
+            }
+            return true;
+        } finally {
+            lock.unlock();
         }
-        return true;
+    }
+
+    @NotNull
+    @Override
+    public List<String> getClasspathLibs() {
+        while (!lock.tryLock()) {
+            Thread.onSpinWait();
+        }
+        try {
+            return super.getClasspathLibs();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @NotNull
+    @Override
+    public Set<String> getReexportedBundles() {
+        while (!lock.tryLock()) {
+            Thread.onSpinWait();
+        }
+        try {
+            return super.getReexportedBundles();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Nullable
+    @Override
+    public String getFragmentHost() {
+        while (!lock.tryLock()) {
+            Thread.onSpinWait();
+        }
+        try {
+            return super.getFragmentHost();
+        } finally {
+            lock.unlock();
+        }
     }
 
     private Path getPluginPath() {

@@ -83,7 +83,7 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
             URI resolve = pluginsFolder.resolve(pluginFilename + ".jar");
             if (remoteP2BundleInfo.isZipped()) {
                 Path file = eclipsePluginsPath.resolve(pluginFilename);
-                Path jarPath = FileUtils.tryToDownloadFile(resolve, null);
+                Path jarPath = FileUtils.tryToDownloadFile(resolve, null, false);
                 if (jarPath != null) {
                     boolean success = FileUtils.extractJarToFolder(jarPath, file);
                     if (success) {
@@ -93,7 +93,7 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
                 return null;
             } else {
                 Path file = eclipsePluginsPath.resolve(pluginFilename + ".jar");
-                return  FileUtils.tryToDownloadFile(resolve, file);
+                return  FileUtils.tryToDownloadFile(resolve, file, false);
             }
         } catch (URISyntaxException | IOException e) {
             log.error("Error resolving the artifact", e);
@@ -108,7 +108,7 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
             String featureName = remoteP2Feature.getName() + "_" + remoteP2Feature.getVersion();
             URI resolve = pluginsFolder.resolve(featureName + ".jar");
             Path filePath = eclipseFeaturesPath.resolve(featureName);
-            Path jarPath = FileUtils.tryToDownloadFile(resolve, null);
+            Path jarPath = FileUtils.tryToDownloadFile(resolve, null, false);
             FileUtils.extractJarToFolder(jarPath, filePath);
             return filePath;
         } catch (URISyntaxException | IOException e) {
@@ -127,8 +127,8 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
             if (compositeJar == null && compositeXML == null) {
                 URI compositeArtifactJarURI = url.toURI().resolve("compositeArtifacts.jar");
                 URI compositeArtifactJarXML = url.toURI().resolve("compositeArtifacts.xml");
-                compositeJar = FileUtils.tryToDownloadFile(compositeArtifactJarURI, fileCache.getCacheFilePath("compositeArtifacts.jar"));
-                compositeXML = FileUtils.tryToDownloadFile(compositeArtifactJarXML, fileCache.getCacheFilePath("compositeArtifacts.xml"));
+                compositeJar = FileUtils.tryToDownloadFile(compositeArtifactJarURI, fileCache.getCacheFilePath("compositeArtifacts.jar"), true);
+                compositeXML = FileUtils.tryToDownloadFile(compositeArtifactJarXML, fileCache.getCacheFilePath("compositeArtifacts.xml"), true);
             }
             if (compositeJar != null) {
                 Path path = FileUtils.extractConfigFromJar(compositeJar, "compositeArtifacts.xml");
@@ -203,7 +203,7 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
             Path artifactsIndexPath = fileCache.lookInRepositoryCache("artifacts.jar");
             if (artifactsIndexPath == null) {
                 URI artifactsURI = url.toURI().resolve("artifacts.jar");
-                artifactsIndexPath = FileUtils.tryToDownloadFile(artifactsURI, fileCache.getCacheFilePath("artifacts.jar"));
+                artifactsIndexPath = FileUtils.tryToDownloadFile(artifactsURI, fileCache.getCacheFilePath("artifacts.jar"), true);
             }
             if (artifactsIndexPath != null) {
                 indexArtifacts(artifactsIndexPath);
@@ -211,7 +211,7 @@ public class RemoteP2Repository implements IRepository<RemoteP2BundleInfo> {
             Path contentPath = fileCache.lookInRepositoryCache("content.jar");
             if (contentPath == null) {
                 URI contentsURI = url.toURI().resolve("content.jar");
-                contentPath = FileUtils.tryToDownloadFile(contentsURI, fileCache.getCacheFilePath("content.jar"));
+                contentPath = FileUtils.tryToDownloadFile(contentsURI, fileCache.getCacheFilePath("content.jar"), true);
             }
             if (contentPath != null) {
                 Path contentsXMl = FileUtils.extractConfigFromJar(contentPath, "content.xml");

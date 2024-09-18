@@ -59,7 +59,7 @@ public class PluginResolver {
             return;
         }
 
-        FeatureInfo currentFeature = FeatureResolver.getCurrentFeature();
+        FeatureInfo currentFeature = FeatureResolver.getCurrentFeature(result.getProductPath());
 
         var previousParsedBundle = result.getBundleByName(bundleName);
         if (previousParsedBundle != null) {
