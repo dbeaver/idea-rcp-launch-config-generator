@@ -28,14 +28,15 @@ This tool generates the `dev.properties` and `config.ini` files needed to run th
 
 Accepts the following required parameters:
 
-Parameter | Description
-------|----
--config | Path to file with configuration
--eclipse.version | Version of eclipse(use ${eclipse-version} for maven version)
--projectsFolder | Path to projects folder
--eclipse | Path to the folder with eclipse and other dependencies should be the same. The same as ECLIPSE_PATH in IDEA preferences(optional, `${projectsFolder}/../dbeaver-workspace` will be used if not specifed)
--output | Place for result files
-
+| Parameter        | Description                                                                                                                                                                                              |
+|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| -config          | Path to file with configuration                                                                                                                                                                          |
+| -eclipse.version | Version of eclipse(use ${eclipse-version} for maven version)                                                                                                                                             |
+| -projectsFolder  | Path to projects folder                                                                                                                                                                                  |
+| -eclipse         | Path to the folder with eclipse and other dependencies should be the same. The same as ECLIPSE_PATH in IDEA preferences(optional, `${projectsFolder}/../dbeaver-workspace` will be used if not specifed) |
+| -output          | Place for result files                                                                                                                                                                                   |
+| -singleCoreMode  | (Debug) Uses only one core for the project resolution                                                                                                                                                    |
+| -debug           | Provides more detailed output                                                                                                                                                                            |
 
 Configuration file example:
 ```properties
