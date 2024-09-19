@@ -111,8 +111,8 @@ public class ManifestParser {
         Stream<String> requiredBundlesStream = requireBundlesArg == null ? null : Arrays.stream(
                 removeAllBetweenQuotes(requireBundlesArg)
                     .split(",")
-            )
-            .filter(ManifestParser::filterOptionalDependencies);
+            );
+            //.filter(ManifestParser::filterOptionalDependencies);
         return requiredBundlesStream;
     }
 
@@ -142,7 +142,7 @@ public class ManifestParser {
         }
         var packagesListWithoutQuotes = removeAllBetweenQuotes(packagesList);
         return Arrays.stream(packagesListWithoutQuotes.split(","))
-            .filter(ManifestParser::filterOptionalDependencies)
+            //.filter(ManifestParser::filterOptionalDependencies)
             .map(ManifestParser::trimBundleName)
             .collect(Collectors.toSet());
     }
