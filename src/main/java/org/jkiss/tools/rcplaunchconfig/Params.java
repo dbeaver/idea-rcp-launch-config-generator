@@ -40,6 +40,13 @@ public class Params {
     @Option(names = "-output", description = "Place for result files", required = true)
     public Path resultFilesPath;
 
+    @Option(names = "-singleCoreMode", description = "flag to use only one thread")
+    public boolean singleCoreMode;
+
+    @Option(names = "-debug", description = "More verbose output")
+    public boolean debug;
+
+
     public @Nonnull ParseResult init(String[] args) {
         return new CommandLine(this)
             .parseArgs(args);
