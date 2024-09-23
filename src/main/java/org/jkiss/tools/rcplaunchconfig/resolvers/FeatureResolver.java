@@ -33,22 +33,38 @@ import org.slf4j.LoggerFactory;
 import javax.xml.stream.XMLStreamException;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 public class FeatureResolver {
+    private final Lock lock = new ReentrantLock();
 
     private static final Logger log = LoggerFactory.getLogger(FeatureResolver.class);
 
     private static final String FEATURES_XML_FILENAME = "feature.xml";
 
-    private static final List<FeatureInfo> featureStack = new ArrayList<>();
+    private static final Map<Path, List<FeatureInfo>> projectFeatureStack = new ConcurrentHashMap<>();
 
-    public static FeatureInfo getCurrentFeature() {
-        if (featureStack.isEmpty()) {
+    public static void addNewFeatureProject(Path productPath) {
+        projectFeatureStack.put(productPath, new ArrayList<>());
+    }
+
+    public static FeatureInfo getCurrentFeature(Path productPath) {
+        try {
+            if (!projectFeatureStack.containsKey(productPath)) {
+                System.out.println("Failed " + productPath);
+            }
+        } catch (NullPointerException nullPointerException) {
+            System.out.println("Failed " + productPath);
+        }
+        if (projectFeatureStack.get(productPath).isEmpty()) {
             return null;
         }
-        return featureStack.get(featureStack.size() - 1);
+        return projectFeatureStack.get(productPath).get(projectFeatureStack.get(productPath).size() - 1);
     }
 
     public static void resolveFeatureDependencies(
@@ -117,17 +133,17 @@ public class FeatureResolver {
         @Nonnull String bundleName,
         @Nonnull File featureXmlFile
     ) throws XMLStreamException, IOException {
-        FeatureInfo currentFeature = getCurrentFeature();
+        FeatureInfo currentFeature = getCurrentFeature(result.getProductPath());
 
         FeatureInfo newFeature = result.addResolvedFeature(bundleName, featureXmlFile);
-        featureStack.add(newFeature);
+        projectFeatureStack.get(result.getProductPath()).add(newFeature);
 
         if (currentFeature != null) {
             currentFeature.addFeatureDependency(newFeature);
         }
         XmlReader.INSTANCE.parseXmlFile(result, featureXmlFile);
 
-        FeatureInfo lastFeature = featureStack.remove(featureStack.size() - 1);
+        FeatureInfo lastFeature = projectFeatureStack.get(result.getProductPath()).remove(projectFeatureStack.get(result.getProductPath()).size() - 1);
         if (lastFeature != newFeature) {
             throw new IOException("Feature parser internal error. Feature [" +
                 lastFeature.getFeatureName() + "] found while [" + newFeature.getFeatureName() + "] was expected");

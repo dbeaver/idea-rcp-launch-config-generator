@@ -35,6 +35,8 @@ public class Result {
     private String productId;
     private String applicationId;
 
+    private Path productPath;
+
     private final ProductLaunchArguments arguments = new ProductLaunchArguments();
 
     public FeatureInfo addResolvedFeature(@Nonnull String featureName, File featureXmlFile) {
@@ -93,6 +95,10 @@ public class Result {
         return productUID;
     }
 
+    public Path getProductPath() {
+        return productPath;
+    }
+
     public String getProductId() {
         return productId;
     }
@@ -116,6 +122,10 @@ public class Result {
 
     public void setWorkDir(@Nullable String workDir) {
         this.workDir = workDir;
+    }
+
+    public void setProductPath(Path productPath) {
+        this.productPath = productPath;
     }
 
     public void setProductInfo(String productName, String uid, String id, String application) {
