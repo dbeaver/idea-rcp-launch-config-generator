@@ -170,19 +170,17 @@ public class PluginResolver {
             if (testBundlesPath.toFile().exists() && testBundlesPath.toFile().isDirectory()) {
                 List<BundleInfo> bundlesToResolve = new ArrayList<>();
                 for (File file : testBundlesPath.toFile().listFiles()) {
-                    if (file.getName().startsWith("org.jkiss") || file.getName().startsWith("com.dbeaver") || file.getName().startsWith("io.cloudbeaver")) {
-                        if (file.isDirectory()) {
-                            var manifestFile = file.toPath().resolve(MANIFEST_PATH).toFile();
-                            if (!manifestFile.exists()) {
-                                continue;
-                            }
-                            try (var inputStream = new FileInputStream(manifestFile)) {
-                                var manifest = new Manifest(inputStream);
-                                BundleInfo bundleInfo = ManifestParser.parseManifest(file.toPath(), null, manifest);
-                                if (bundleInfo != null) {
-                                    result.addBundle(bundleInfo);
-                                    bundlesToResolve.add(bundleInfo);
-                                }
+                    if (file.isDirectory()) {
+                        var manifestFile = file.toPath().resolve(MANIFEST_PATH).toFile();
+                        if (!manifestFile.exists()) {
+                            continue;
+                        }
+                        try (var inputStream = new FileInputStream(manifestFile)) {
+                            var manifest = new Manifest(inputStream);
+                            BundleInfo bundleInfo = ManifestParser.parseManifest(file.toPath(), null, manifest);
+                            if (bundleInfo != null) {
+                                result.addBundle(bundleInfo);
+                                bundlesToResolve.add(bundleInfo);
                             }
                         }
                     }
