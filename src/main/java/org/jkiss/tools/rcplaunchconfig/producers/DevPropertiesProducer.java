@@ -31,7 +31,9 @@ public class DevPropertiesProducer {
         "org.jkiss",
         "io.cloudbeaver",
         "com.dbeaver",
-        "swtbot-simple"
+        "swtbot-simple",
+        "connections",
+        "unit"
     );
     private static final String DEFAULT_CLASSPATH = "target/classes";
 
