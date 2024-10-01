@@ -51,7 +51,8 @@ public class FileUtils {
     private static final Map<File, File[]> folderContents = new HashMap<>();
     public static final Set<String> preferOlderBundles = Set.of(
 //        "com.google.guava",
-        "jakarta.servlet-api"
+        "jakarta.servlet-api",
+        "org.apache.commons.io"
     );
 
 

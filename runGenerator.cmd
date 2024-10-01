@@ -28,7 +28,7 @@ call mvn package -q
 
 echo Run generator
 :: Run the Maven commands with the specified options
-call mvn -f "pom.xml" package -T 1C -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -config %WORKING_DIR%osgi-app.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace/products/"
+call mvn -f "pom.xml" package -T 1C -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -config %WORKING_DIR%osgi-app.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace/products/ -singleCoreMode"
 
 :end
 endlocal
