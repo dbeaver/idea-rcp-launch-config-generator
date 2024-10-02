@@ -22,6 +22,9 @@ import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.RemoteP2Feature;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2Repository;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyInformation;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
+import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
 import org.jkiss.utils.CommonUtils;
 import org.jkiss.utils.Pair;
 import org.xml.sax.Attributes;
@@ -46,7 +49,7 @@ public class ContentFileHandler extends DefaultHandler {
     private final RemoteP2Repository repository;
     private final P2BundleLookupCache cache;
     private RemoteP2BundleInfo.RemoteBundleInfoBuilder currentBundle;
-    private Pair<String, DependencyType> currentDependency;
+    private Pair<DependencyInformation, DependencyType> currentDependency;
 
     private ParserState currentState = ParserState.ROOT;
     private ContentType currentContentType = null;
@@ -132,12 +135,18 @@ public class ContentFileHandler extends DefaultHandler {
             }
             String name = attributes.getValue(ContentFileConstants.NAME_FIELD);
             String namespace = attributes.getValue(ContentFileConstants.NAMESPACE_FIELD);
+            String depVersion = attributes.getValue(ContentFileConstants.VERSION_FIELD);
+            String depRange = attributes.getValue(ContentFileConstants.RANGE_FIELD);
             DependencyType type = DependencyType.getType(namespace);
             currentState = ParserState.DEPENDENCY;
             if (currentBundle == null) {
                 initBundle(false);
             }
-            currentDependency = new Pair<>(name, type);
+            currentDependency = new Pair<>(new DependencyInformation(
+                name,
+                depVersion != null ? new Version(depVersion) : null,
+                depRange != null ? VersionRange.fromString(depRange) : null
+                ), type);
         }
         if (!currentState.isInvalid()
             && currentState.isInsideUnit()
@@ -196,9 +205,9 @@ public class ContentFileHandler extends DefaultHandler {
         if (currentState.isInsideDependency() && ContentFileConstants.REQUIRED_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if (currentState != ParserState.DEPENDENCY_INVALID) {
                 if (currentDependency.getSecond().equals(DependencyType.BUNDLE)) {
-                    currentBundle.addToRequiredBundles(currentDependency.getFirst());
+                    currentBundle.addToRequiredBundles(currentDependency.getFirst().name(), currentDependency.getFirst().range());
                 } else if (currentDependency.getSecond().equals(DependencyType.PACKAGE)) {
-                    currentBundle.addToRequiredPackages(currentDependency.getFirst());
+                    currentBundle.addToRequiredPackages(currentDependency.getFirst().name(), currentDependency.getFirst().range());
                 }
             }
             currentDependency = null;
@@ -210,7 +219,7 @@ public class ContentFileHandler extends DefaultHandler {
                 if (
                     currentDependency.getSecond().equals(DependencyType.PACKAGE)
                 ) {
-                    currentBundle.addToExportPackage(currentDependency.getFirst());
+                    currentBundle.addToExportPackage(currentDependency.getFirst().name(), currentDependency.getFirst().version());
                 }
             }
             currentDependency = null;
@@ -219,7 +228,7 @@ public class ContentFileHandler extends DefaultHandler {
         if (currentState.isInsideDependency()
             && ContentFileConstants.REQUIRED_PROPERTIES_KEYWORD.equalsIgnoreCase(qualifiedName)) {
             if (currentState != ParserState.DEPENDENCY_INVALID) {
-                currentBundle.addToRequiredPackages(currentDependency.getFirst());
+                currentBundle.addToRequiredPackages(currentDependency.getFirst().name(), currentDependency.getFirst().range());
             }
             currentDependency = null;
             currentState = ParserState.PLUGIN_VALID;
@@ -417,4 +426,5 @@ public class ContentFileHandler extends DefaultHandler {
         }
 
     }
+
 }

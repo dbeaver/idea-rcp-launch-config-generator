@@ -3,7 +3,7 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 
 import org.jkiss.tools.rcplaunchconfig.Artifact;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
-import org.jkiss.tools.rcplaunchconfig.util.BundleVersion;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -47,8 +47,8 @@ public class IndexFileParser {
                 Element element = (Element) node;
                 String classifier = element.getAttribute("classifier");
                 String id = element.getAttribute("id");
-                BundleVersion bundleVersion = new BundleVersion(element.getAttribute("version"));
-                artifacts.add(new Artifact(classifier, id, bundleVersion));
+                Version version = new Version(element.getAttribute("version"));
+                artifacts.add(new Artifact(classifier, id, version));
             } else {
                 throw new RepositoryInitialisationError("Incorrect index file structure");
             }

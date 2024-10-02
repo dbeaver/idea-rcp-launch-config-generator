@@ -21,6 +21,10 @@ import jakarta.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyInformation;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
+import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
+import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,13 +34,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ManifestParser {
 
     private static final Logger log = LoggerFactory.getLogger(ManifestParser.class);
-
+    private static final Pattern VERSION_REGEX = Pattern.compile(".*(?:version|bundle-version)=\"([^\"]*)");
     public static @Nullable BundleInfo parseManifest(
         @Nonnull Path pathToContainingFolderOrJar,
         @Nullable Integer startLevel,
@@ -57,10 +63,11 @@ public class ManifestParser {
 
         var requireBundlesArg = attributes.getValue("Require-Bundle");
         Stream<String> requiredBundlesStream = getBundlesStream(requireBundlesArg);
-        List<String> requireBundles = requiredBundlesStream == null
+        List<Pair<String, VersionRange>> requireBundles = requiredBundlesStream == null
             ? List.of()
             : requiredBundlesStream
-            .map(ManifestParser::trimBundleName)
+            .map(it -> convertToDependencyInformation(it, false))
+            .map(ManifestParser::convertDependencyInformationToVersionRangePair)
             .collect(Collectors.toList());
 
         String requiredFragmentsArg = attributes.getValue("X-Require-Fragment");
@@ -72,9 +79,9 @@ public class ManifestParser {
             .toList();
 
         Set<String> reexportedBundles = parseReexportedBundles(attributes);
-        var exportPackageArg = splitPackagesList(attributes.getValue("Export-Package"));
-        var importPackageArg = splitPackagesList(attributes.getValue("Import-Package"));
-        String fragmentHost = parseFragmentHost(attributes);
+        var exportPackageArg = splitExportPackagesList(attributes.getValue("Export-Package"));
+        var importPackageArg = splitImportPackagesList(attributes.getValue("Import-Package"));
+        Pair<String, VersionRange> fragmentHost = parseFragmentHost(attributes);
         return new BundleInfo(
             pathToContainingFolderOrJar,
             bundleName,
@@ -91,8 +98,19 @@ public class ManifestParser {
     }
 
     @org.jkiss.code.Nullable
-    public static String parseFragmentHost(Attributes attributes) {
-        return attributes.getValue("Fragment-Host") == null ? null : trimBundleName(attributes.getValue("Fragment-Host"));
+    public static Pair<String, VersionRange> parseFragmentHost(Attributes attributes) {
+        if (attributes.getValue("Fragment-Host") == null) {
+            return null;
+        }
+        String value = attributes.getValue("Fragment-Host");
+        Matcher matcher = VERSION_REGEX.matcher(value);
+        VersionRange range = null;
+        if (matcher.matches()) {
+            String group = matcher.group(1);
+            range = VersionRange.fromString(group);
+        }
+        String name = trimBundleName(attributes.getValue("Fragment-Host"));
+        return new Pair<>(name, range);
     }
 
     @NotNull
@@ -100,10 +118,9 @@ public class ManifestParser {
         var requireBundlesArg = attrs.getValue("Require-Bundle");
         Stream<String> requiredBundlesStream;
         requiredBundlesStream = getBundlesStream(requireBundlesArg);
-        Set<String> reexportedBundles = requiredBundlesStream == null ? Set.of() :
+        return requiredBundlesStream == null ? Set.of() :
             requiredBundlesStream.filter(it -> it.contains("visibility:=reexport"))
                 .map(ManifestParser::trimBundleName).collect(Collectors.toSet());
-        return reexportedBundles;
     }
 
     @org.jkiss.code.Nullable
@@ -125,6 +142,27 @@ public class ManifestParser {
             .trim();
     }
 
+    public static DependencyInformation convertToDependencyInformation(String bundleInfoString, boolean isExport) {
+        Version version = null;
+        VersionRange versionRange = null;
+        Matcher matcher = VERSION_REGEX.matcher(bundleInfoString);
+        if (matcher.matches()) {
+            if (isExport) {
+                version = new Version(matcher.group(1));
+            } else {
+                versionRange = VersionRange.fromString(matcher.group(1));
+            }
+        }
+        return new DependencyInformation(trimBundleName(bundleInfoString), version, versionRange);
+    }
+
+    public static Pair<String, VersionRange> convertDependencyInformationToVersionRangePair(DependencyInformation information) {
+        return new Pair<>(information.name(), information.range());
+    }
+    public static Pair<String, Version> convertDependencyInformationToVersionPair(DependencyInformation information) {
+        return new Pair<>(information.name(), information.version());
+    }
+
     public static @Nonnull List<String> parseBundleClasspath(@Nonnull Attributes attrs) {
         var bundleClassPathArg = attrs.getValue("Bundle-ClassPath");
         if (bundleClassPathArg == null) {
@@ -136,15 +174,32 @@ public class ManifestParser {
             .collect(Collectors.toList());
     }
 
-    private static Set<String> splitPackagesList(@Nullable String packagesList) {
+    private static Set<Pair<String, Version>> splitExportPackagesList(@Nullable String packagesList) {
         if (packagesList == null) {
             return Set.of();
         }
+        Stream<DependencyInformation> dependencyInformationStream = getDependencyInformationStream(packagesList, true);
+        return dependencyInformationStream
+            .map(ManifestParser::convertDependencyInformationToVersionPair)
+            .collect(Collectors.toSet());
+    }
+
+    private static Set<Pair<String, VersionRange>> splitImportPackagesList(@Nullable String packagesList) {
+        if (packagesList == null) {
+            return Set.of();
+        }
+        Stream<DependencyInformation> dependencyInformationStream = getDependencyInformationStream(packagesList, false);
+        return dependencyInformationStream
+            .map(ManifestParser::convertDependencyInformationToVersionRangePair)
+            .collect(Collectors.toSet());
+    }
+
+    @NotNull
+    private static Stream<DependencyInformation> getDependencyInformationStream(@NotNull String packagesList, boolean isExport) {
         var packagesListWithoutQuotes = removeAllBetweenQuotes(packagesList);
         return Arrays.stream(packagesListWithoutQuotes.split(","))
             .filter(ManifestParser::filterOptionalDependencies)
-            .map(ManifestParser::trimBundleName)
-            .collect(Collectors.toSet());
+            .map(it -> convertToDependencyInformation(it, isExport));
     }
 
     private static @Nonnull String removeAllBetweenQuotes(@Nonnull String str) {

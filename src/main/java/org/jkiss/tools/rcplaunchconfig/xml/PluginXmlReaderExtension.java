@@ -20,6 +20,7 @@ import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
+import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +39,7 @@ class PluginXmlReaderExtension extends XmlReaderExtension {
             ? Integer.parseInt(startLevelAttr.getValue())
             : null;
         try {
-            PluginResolver.resolvePluginDependencies(result, idAttr.getValue(), startLevel, P2RepositoryManager.INSTANCE.getLookupCache());
+            PluginResolver.resolvePluginDependencies(result, new Pair<>(idAttr.getValue(), null), startLevel, P2RepositoryManager.INSTANCE.getLookupCache());
         } catch (IOException e) {
             log.error("Failed to resolve plugin", e);
         }

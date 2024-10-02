@@ -20,8 +20,6 @@ import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.jkiss.code.NotNull;
-import org.jkiss.tools.rcplaunchconfig.EntryPoint;
-import org.jkiss.tools.rcplaunchconfig.FeatureInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +33,6 @@ import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -99,12 +96,12 @@ public class FileUtils {
         var filesByVersions = Arrays.stream(files)
             .collect(Collectors.toMap(FileUtils::extractVersion, it -> it));
 
-        BundleVersion properVersion;
-        Stream<BundleVersion> bundleStream = filesByVersions.keySet().stream();
+        Version properVersion;
+        Stream<Version> bundleStream = filesByVersions.keySet().stream();
         if (preferOlderBundles.contains(packageName)) {
-            properVersion = bundleStream.min(BundleVersion::compareTo).orElseThrow();
+            properVersion = bundleStream.min(Version::compareTo).orElseThrow();
         } else {
-            properVersion = bundleStream.max(BundleVersion::compareTo).orElseThrow();
+            properVersion = bundleStream.max(Version::compareTo).orElseThrow();
         }
         var result = filesByVersions.get(properVersion);
 
@@ -121,8 +118,8 @@ public class FileUtils {
         return result;
     }
 
-    public static @Nonnull BundleVersion extractVersion(@Nonnull File file) {
-        return new BundleVersion(StringUtils.substringAfterLast(file.getName(), NAME_AND_VERSION_SEPARATOR));
+    public static @Nonnull Version extractVersion(@Nonnull File file) {
+        return new Version(StringUtils.substringAfterLast(file.getName(), NAME_AND_VERSION_SEPARATOR));
     }
 
     public static @Nonnull Properties readPropertiesFile(@Nonnull Path path) throws IOException {

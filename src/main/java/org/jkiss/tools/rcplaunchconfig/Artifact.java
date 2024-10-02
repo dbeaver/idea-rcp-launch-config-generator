@@ -16,8 +16,8 @@
  */
 package org.jkiss.tools.rcplaunchconfig;
 
-import org.jkiss.tools.rcplaunchconfig.util.BundleVersion;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
 
-public record Artifact(String classifier, String id, BundleVersion version){
+public record Artifact(String classifier, String id, Version version){
 
 }

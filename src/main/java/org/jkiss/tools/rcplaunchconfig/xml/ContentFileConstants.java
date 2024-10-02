@@ -35,6 +35,7 @@ public class ContentFileConstants {
     public static final String FIELD_VALUE = "value";
     public static final String ID_FIELD = "id";
     public static final String NAMESPACE_FIELD = "namespace";
+    public static final String RANGE_FIELD = "range";
     public static final String NAME_FIELD = "name";
     public static final String MATCH_FIELD = "match";
     public static final String KEY_FIELD = "key";

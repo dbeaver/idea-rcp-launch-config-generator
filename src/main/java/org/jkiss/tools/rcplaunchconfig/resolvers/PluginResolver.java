@@ -28,6 +28,10 @@ import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
+import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
+import org.jkiss.utils.CommonUtils;
+import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,17 +55,17 @@ public class PluginResolver {
 
     public static void resolvePluginDependencies(
         @Nonnull Result result,
-        @Nonnull String bundleName,
+        @Nonnull Pair<String, VersionRange> bundleInfo,
         @Nullable Integer startLevel,
         P2BundleLookupCache cache
     ) throws IOException {
-        if (PackageChecker.INSTANCE.isPackageExcluded(bundleName)) {
+        if (PackageChecker.INSTANCE.isPackageExcluded(bundleInfo.getFirst())) {
             return;
         }
 
         FeatureInfo currentFeature = FeatureResolver.getCurrentFeature(result.getProductPath());
 
-        var previousParsedBundle = result.getBundleByName(bundleName);
+        var previousParsedBundle = result.getBundleByInfoAndVersion(bundleInfo);
         if (previousParsedBundle != null) {
             if (currentFeature != null) {
                 currentFeature.addBundleDependency(previousParsedBundle);
@@ -90,15 +94,16 @@ public class PluginResolver {
 
         var bundleInfos = pluginsFoldersPaths.stream()
             .map(pluginFolderPath -> {
-                var correctedFolderName = correctFolderName(bundleName);
+                var correctedFolderName = correctFolderName(bundleInfo.getFirst());
                 return FileUtils.findFirstChildByPackageName(pluginFolderPath, correctedFolderName);
             })
             .filter(Objects::nonNull)
             .map(pluginJarOrFolder -> extractBundleInfo(pluginJarOrFolder, startLevel))
             .filter(Objects::nonNull)
+            .filter(it -> VersionRange.isVersionsCompatible(bundleInfo.getSecond(), new Version(it.getBundleVersion())))
             .toList();
         if (bundleInfos.size() == 1) {
-            Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = BundleUtils.getMaxVersionRemoteBundle(bundleName, cache);
+            Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = BundleUtils.getMaxVersionRemoteBundle(bundleInfo, cache);
             if (maxVersionRemoteBundle.isPresent() && BundleUtils.isRemoteBundleVersionGreater(maxVersionRemoteBundle.get(), bundleInfos.get(0))) {
                 maxVersionRemoteBundle.get().resolveBundle();
                 parseBundleInfo(result, maxVersionRemoteBundle.get(), cache);
@@ -107,9 +112,9 @@ public class PluginResolver {
             }
         } else if (bundleInfos.isEmpty()) {
 
-            Optional<RemoteP2BundleInfo> remoteP2BundleInfos = BundleUtils.getMaxVersionRemoteBundle(bundleName, cache);
+            Optional<RemoteP2BundleInfo> remoteP2BundleInfos = BundleUtils.getMaxVersionRemoteBundle(bundleInfo, cache);
             if (remoteP2BundleInfos.isEmpty()) {
-                log.error("Couldn't find plugin '{}'", bundleName);
+                log.error("Couldn't find plugin '{}'", bundleInfo);
             } else {
                 remoteP2BundleInfos.stream().findFirst().get().resolveBundle();
                 parseBundleInfo(result, remoteP2BundleInfos.stream().findFirst().get(), cache);
@@ -119,7 +124,7 @@ public class PluginResolver {
             var bundlesPaths = bundleInfos.stream()
                 .map(it -> it.getPath().toString())
                 .collect(Collectors.joining("\n  "));
-            log.debug("Found multiple plugins '{}'. First will be used.\n  {}", bundleName, bundlesPaths);
+            log.debug("Found multiple plugins '{}'. First will be used.\n  {}", bundleInfo, bundlesPaths);
             parseBundleInfo(result, bundleInfos.get(0), cache);
         }
         if (currentFeature != null && !bundleInfos.isEmpty()) {
@@ -188,7 +193,7 @@ public class PluginResolver {
                 Set<String> testLibraries = manager.getTestLibraries();
                 if (testLibraries != null) {
                     for (String testLibrary : testLibraries) {
-                        BundleInfo bundleByName = result.getBundleByName(testLibrary);
+                        Set<BundleInfo> bundleByName = result.getBundlesByName(testLibrary);
                         if (bundleByName == null) {
                             var pluginsFoldersPaths = PathsManager.INSTANCE.getBundlesLocations();
 
@@ -202,25 +207,30 @@ public class PluginResolver {
                                 .filter(Objects::nonNull)
                                 .toList();
                             if (!bundleInfos.isEmpty()) {
-                                bundleByName = bundleInfos.get(0);
-                                result.addBundle(bundleByName);
+                                bundleByName = new HashSet<>(bundleInfos);
+                                for (BundleInfo bundleInfo : bundleByName) {
+                                    result.addBundle(bundleInfo);
+                                }
                             } else {
                                 Collection<RemoteP2BundleInfo> remoteBundlesByName = lookupCache.getRemoteBundlesByName(testLibrary);
                                 Optional<RemoteP2BundleInfo> remoteP2BundleInfo = remoteBundlesByName.stream().findFirst();
                                 if (remoteP2BundleInfo.isPresent()) {
                                     remoteP2BundleInfo.get().resolveBundle();
-                                    bundleByName = remoteP2BundleInfo.get();
-                                    result.addBundle(bundleByName);
-                                }
+                                    bundleByName.add(remoteP2BundleInfo.get());
+                                    for (BundleInfo bundleInfo : bundleByName) {
+                                        result.addBundle(bundleInfo);
+                                    }                                }
                             }
                         }
                         if (bundleByName != null) {
-                            bundlesToResolve.add(bundleByName);
+                            for (BundleInfo bundleInfo : bundleByName) {
+                                result.addBundle(bundleInfo);
+                            }
                         }
                     }
                 }
                 for (BundleInfo bundleInfo : bundlesToResolve) {
-                    for (String requireBundle : bundleInfo.getRequireBundles()) {
+                    for (Pair<String, VersionRange> requireBundle : bundleInfo.getRequireBundles()) {
                         resolvePluginDependencies(result, requireBundle, null, lookupCache);
                     }
                     if (bundleInfo.getFragmentHost() != null) {
@@ -256,12 +266,19 @@ public class PluginResolver {
     private static BundleInfo getHostBundle(@NotNull Result result,
                                             @NotNull BundleInfo bundleInfo,
                                             P2BundleLookupCache cache) {
-        BundleInfo hostBundle = result.getBundleByName(bundleInfo.getFragmentHost());
-        if (hostBundle == null) {
-            Collection<RemoteP2BundleInfo> remoteBundlesByName = cache.getRemoteBundlesByName(bundleInfo.getFragmentHost());
+        if (bundleInfo.getFragmentHost() == null) {
+            return null;
+        }
+        Set<BundleInfo> hostBundles = result.getBundlesByName(bundleInfo.getFragmentHost().getFirst());
+        BundleInfo hostBundle = null;
+        if (CommonUtils.isEmpty(hostBundles) || hostBundles.stream().noneMatch(it -> VersionRange.isVersionsCompatible(bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion())))) {
+            Collection<RemoteP2BundleInfo> remoteBundlesByName = cache.getRemoteBundlesByName(bundleInfo.getFragmentHost().getFirst()).stream().filter(it -> VersionRange
+                .isVersionsCompatible(bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion()))).toList();
             if (!remoteBundlesByName.isEmpty()) {
                 hostBundle = remoteBundlesByName.stream().findFirst().orElse(null);
             }
+        } else if (hostBundles.stream().anyMatch(it -> VersionRange.isVersionsCompatible(bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion())))) {
+            hostBundle = hostBundles.stream().filter(it -> VersionRange.isVersionsCompatible(bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion()))).findFirst().get();
         }
         return hostBundle;
     }

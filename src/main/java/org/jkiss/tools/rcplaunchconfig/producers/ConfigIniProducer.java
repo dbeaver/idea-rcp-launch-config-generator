@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ConfigIniProducer {
@@ -43,7 +44,7 @@ public class ConfigIniProducer {
 
     public static Map<String, String> generateConfigIni(
         @Nullable Path osgiSplashPath,
-        @Nonnull Collection<BundleInfo> bundles
+        @Nonnull Collection<Set<BundleInfo>> bundles
     ) throws IOException {
         Map<String, String> result = new LinkedHashMap<>();
         if (osgiSplashPath != null) {
@@ -57,8 +58,9 @@ public class ConfigIniProducer {
         return result;
     }
 
-    private static @Nonnull String getOsgiBundlesValue(@Nonnull Collection<BundleInfo> bundles) {
+    private static @Nonnull String getOsgiBundlesValue(@Nonnull Collection<Set<BundleInfo>> bundles) {
         return bundles.stream()
+            .flatMap(Collection::stream)
             .filter(it -> it.getPath() != null)
             .map(ConfigIniProducer::getBundleReference)
             .collect(Collectors.joining(","));
@@ -156,16 +158,20 @@ public class ConfigIniProducer {
                 "    <booleanAttribute key=\"useProduct\" value=\"true\"/>\n" +
                 "    <booleanAttribute key=\"usefeatures\" value=\"false\"/>\n");
         lstr.append("    <setAttribute key=\"selected_target_bundles\">\n");
-        for (var bundleInfo : result.getBundlesByNames().values()) {
-            if (!DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
-                lstr.append("        <setEntry value=\"").append(bundleInfo.getBundleName()).append(getBundleStartLevel(bundleInfo)).append("\"/>\n");
+        for (var bundleInfos : result.getBundlesByNames().values()) {
+            for (BundleInfo bundleInfo : bundleInfos) {
+                if (!DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
+                    lstr.append("        <setEntry value=\"").append(bundleInfo.getBundleName()).append(getBundleStartLevel(bundleInfo)).append("\"/>\n");
+                }
             }
         }
         lstr.append("    </setAttribute>\n");
         lstr.append("    <setAttribute key=\"selected_workspace_bundles\">\n");
-        for (var bundleInfo : result.getBundlesByNames().values()) {
-            if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
-                lstr.append("        <setEntry value=\"").append(bundleInfo.getBundleName()).append(getBundleStartLevel(bundleInfo)).append("\"/>\n");
+        for (var bundleInfos : result.getBundlesByNames().values()) {
+            for (BundleInfo bundleInfo : bundleInfos) {
+                if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
+                    lstr.append("        <setEntry value=\"").append(bundleInfo.getBundleName()).append(getBundleStartLevel(bundleInfo)).append("\"/>\n");
+                }
             }
         }
 

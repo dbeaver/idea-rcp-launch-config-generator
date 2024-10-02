@@ -20,6 +20,8 @@ package org.jkiss.tools.rcplaunchconfig.p2;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
+import org.jkiss.utils.Pair;
 
 import java.util.Collection;
 
@@ -45,8 +47,8 @@ public class P2BundleLookupCache {
 
     public void addRemoteBundle(RemoteP2BundleInfo remoteP2BundleInfo) {
         remoteBundlesByNames.put(remoteP2BundleInfo.getBundleName(), remoteP2BundleInfo);
-        for (String exportPackage : remoteP2BundleInfo.getExportPackages()) {
-            remoteBundlesByExports.put(exportPackage, remoteP2BundleInfo);
+        for (Pair<String, Version> exportPackage : remoteP2BundleInfo.getExportPackages()) {
+            remoteBundlesByExports.put(exportPackage.getFirst(), remoteP2BundleInfo);
         }
     }
 
