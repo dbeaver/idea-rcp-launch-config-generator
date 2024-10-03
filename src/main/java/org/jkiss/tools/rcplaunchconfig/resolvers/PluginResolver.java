@@ -92,16 +92,19 @@ public class PluginResolver {
 
         var pluginsFoldersPaths = PathsManager.INSTANCE.getBundlesLocations();
 
-        var bundleInfos = pluginsFoldersPaths.stream()
-            .map(pluginFolderPath -> {
-                var correctedFolderName = correctFolderName(bundleInfo.getFirst());
-                return FileUtils.findFirstChildByPackageName(pluginFolderPath, correctedFolderName);
-            })
-            .filter(Objects::nonNull)
-            .map(pluginJarOrFolder -> extractBundleInfo(pluginJarOrFolder, startLevel))
-            .filter(Objects::nonNull)
-            .filter(it -> VersionRange.isVersionsCompatible(bundleInfo.getSecond(), new Version(it.getBundleVersion())))
-            .toList();
+        List<BundleInfo> bundleInfos = new ArrayList<>();
+        for (Path pluginsFoldersPath : pluginsFoldersPaths) {
+            var correctedFolderName = correctFolderName(bundleInfo.getFirst());
+            File pluginJarOrFolder = FileUtils.findFirstChildByPackageName(pluginsFoldersPath, correctedFolderName);
+            if (pluginJarOrFolder != null) {
+                BundleInfo info = extractBundleInfo(pluginJarOrFolder, startLevel);
+                if (info != null) {
+                    if (VersionRange.isVersionsCompatible(bundleInfo.getSecond(), new Version(info.getBundleVersion()))) {
+                        bundleInfos.add(info);
+                    }
+                }
+            }
+        }
         if (bundleInfos.size() == 1) {
             Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = BundleUtils.getMaxVersionRemoteBundle(bundleInfo, cache);
             if (maxVersionRemoteBundle.isPresent() && BundleUtils.isRemoteBundleVersionGreater(maxVersionRemoteBundle.get(), bundleInfos.get(0))) {
@@ -212,6 +215,7 @@ public class PluginResolver {
                                     result.addBundle(bundleInfo);
                                 }
                             } else {
+                                bundleByName = new HashSet<>(bundleInfos);
                                 Collection<RemoteP2BundleInfo> remoteBundlesByName = lookupCache.getRemoteBundlesByName(testLibrary);
                                 Optional<RemoteP2BundleInfo> remoteP2BundleInfo = remoteBundlesByName.stream().findFirst();
                                 if (remoteP2BundleInfo.isPresent()) {
@@ -219,7 +223,8 @@ public class PluginResolver {
                                     bundleByName.add(remoteP2BundleInfo.get());
                                     for (BundleInfo bundleInfo : bundleByName) {
                                         result.addBundle(bundleInfo);
-                                    }                                }
+                                    }
+                                }
                             }
                         }
                         if (bundleByName != null) {
@@ -272,11 +277,8 @@ public class PluginResolver {
         Set<BundleInfo> hostBundles = result.getBundlesByName(bundleInfo.getFragmentHost().getFirst());
         BundleInfo hostBundle = null;
         if (CommonUtils.isEmpty(hostBundles) || hostBundles.stream().noneMatch(it -> VersionRange.isVersionsCompatible(bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion())))) {
-            Collection<RemoteP2BundleInfo> remoteBundlesByName = cache.getRemoteBundlesByName(bundleInfo.getFragmentHost().getFirst()).stream().filter(it -> VersionRange
-                .isVersionsCompatible(bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion()))).toList();
-            if (!remoteBundlesByName.isEmpty()) {
-                hostBundle = remoteBundlesByName.stream().findFirst().orElse(null);
-            }
+            hostBundle = cache.getRemoteBundlesByName(bundleInfo.getFragmentHost().getFirst()).stream().filter(it -> VersionRange
+                .isVersionsCompatible(bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion()))).findFirst().orElse(null);
         } else if (hostBundles.stream().anyMatch(it -> VersionRange.isVersionsCompatible(bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion())))) {
             hostBundle = hostBundles.stream().filter(it -> VersionRange.isVersionsCompatible(bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion()))).findFirst().get();
         }

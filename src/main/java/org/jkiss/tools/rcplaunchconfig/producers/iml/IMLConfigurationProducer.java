@@ -32,11 +32,11 @@ public class IMLConfigurationProducer {
     public static final String TEST_FOLDER = "src/test/java";
     private final Map<Pair<String, VersionRange>, Set<BundleInfo>> bundlePackageImports = new ConcurrentHashMap<>();
 
-    private final Set<String> generatedLibraries = new HashSet<>();
-    private final Set<Path> rootModules = new HashSet<>();
-    private final Set<ModuleInfo> modules = new HashSet<>();
+    private final Set<String> generatedLibraries = new LinkedHashSet<>();
+    private final Set<Path> rootModules = new LinkedHashSet<>();
+    private final Set<ModuleInfo> modules = new LinkedHashSet<>();
 
-    Set<Path> createdModules = new HashSet<>();
+    Set<Path> createdModules = new LinkedHashSet<>();
 
     private final Lock lock = new ReentrantLock();
 
@@ -187,7 +187,7 @@ public class IMLConfigurationProducer {
 
     private Set<Path> generateRootModules() throws IOException {
         Set<Path> presentModules = PathsManager.INSTANCE.getModulesRoots().stream().filter(it -> it.toFile().exists()).collect(Collectors.toSet());
-        Set<Path> rootModules = new HashSet<>();
+        Set<Path> rootModules = new LinkedHashSet<>();
         Path imlModuleRoot = PathsManager.INSTANCE.getImlModulesPath();
         for (Path presentModule : presentModules) {
             String rootModuleConfig = generateRootModule(presentModule);
@@ -247,7 +247,7 @@ public class IMLConfigurationProducer {
      * Add imported by package bundle to the list
      */
     public void addRequiredBundleforPackage(@NotNull Pair<String, VersionRange> packageName, @NotNull BundleInfo bundleInfo) {
-        bundlePackageImports.computeIfAbsent(packageName, it -> new HashSet<>()).add(bundleInfo);
+        bundlePackageImports.computeIfAbsent(packageName, it -> new LinkedHashSet<>()).add(bundleInfo);
     }
 
     private void createConfigFile(@NotNull Path configPath, @NotNull String libraryConfig) throws IOException {
@@ -457,7 +457,7 @@ public class IMLConfigurationProducer {
         }
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
-        HashSet<Pair<String, Version>> resolvedBundles = new HashSet<>();
+        LinkedHashSet<Pair<String, Version>> resolvedBundles = new LinkedHashSet<>();
         for (Pair<String, VersionRange> requireBundle : bundleInfo.getRequireBundles()) {
             appendBundleInfo(bundleInfo, requireBundle, builder, result, resolvedBundles);
         }
@@ -556,7 +556,7 @@ public class IMLConfigurationProducer {
         boolean isExported = bundleInfo.getReexportedBundles().contains(requireBundle.getFirst());
         if (DevPropertiesProducer.isBundleAcceptable(requireBundle.getFirst())) {
             resolvedBundles.add(new Pair<>(requireBundle.getFirst(), new Version(bundle.getBundleVersion())));
-            builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireBundle)
+            builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireBundle.getFirst())
                 .append(isExported ? "\" exported=\"\"" : "\"").append("/>").append("\n");
         } else {
             addModuleLibrary(new Pair<>(requireBundle.getFirst(), new Version(bundle.getBundleVersion())), builder, result, resolvedBundles, isExported);
@@ -611,7 +611,7 @@ public class IMLConfigurationProducer {
         builder.append("<component name=\"libraryTable\">").append("\n");
         builder.append(" <library name=\"").append(bundleInfo.getBundleName()).append("\">\n");
         builder.append("   <CLASSES>").append("\n");
-        HashSet<Pair<String, Version>> libraryObjects = new HashSet<>();
+        LinkedHashSet<Pair<String, Version>> libraryObjects = new LinkedHashSet<>();
         appendLibraryInfo(builder, bundleInfo, result, libraryObjects, true);
         builder.append("  </CLASSES>").append("\n");
         Set<BundleInfo> sources = result.getBundlesByName(bundleInfo.getBundleName() + ".source");
@@ -639,7 +639,7 @@ public class IMLConfigurationProducer {
             Optional<RemoteP2BundleInfo> source = sources.stream().filter(it -> new Version(it.getBundleVersion()).equals(resolvedBundle.getSecond())).findFirst();
             if (source.isPresent()) {
                 source.get().resolveBundle();
-                appendLibraryInfo(builder, source.get(), result, new HashSet<>(), false);
+                appendLibraryInfo(builder, source.get(), result, new LinkedHashSet<>(), false);
             }
         }
         builder.append("     </SOURCES>\n");

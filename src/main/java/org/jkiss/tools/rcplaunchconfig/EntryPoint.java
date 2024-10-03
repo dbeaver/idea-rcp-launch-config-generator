@@ -17,7 +17,6 @@
 package org.jkiss.tools.rcplaunchconfig;
 
 import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
@@ -33,7 +32,6 @@ import org.jkiss.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -97,66 +95,75 @@ public class EntryPoint {
                 bundlesPaths
             );
         }
+        List<ResultInfo> executionResults = forkJoinPool.submit(() -> pathsManager.getProductsPathsAndWorkDirs().entrySet().parallelStream().map((productPath) -> {
+            log.info("Starting generation for: %s" + productPath);
+            log.debug("Thread name %s used for %s".formatted(Thread.currentThread().getName(), productPath));
+            try {
+                Result result = new Result();
+                result.setWorkDir(productPath.getValue());
+                result.setProductPath(productPath.getKey());
+                FeatureResolver.addNewFeatureProject(result.getProductPath());
+                XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile());
+                new DynamicImportsResolver()
+                    .start(result, p2RepositoryManager.getLookupCache());
+
+                var resultPath = params.resultFilesPath;
+                resultPath = resultPath.resolve(productPath.getKey().getFileName());
+                try {
+                    Files.createDirectories(resultPath.getParent());
+                } catch (Throwable throwable) {
+                    log.debug("Error creating target parent directories for %s".formatted(resultPath));
+                }
+                try {
+                    FileUtils.removeAllFromDir(resultPath);
+                } catch (Throwable e) {
+                    log.debug("Error deleting target folder for %s".formatted(resultPath), e);
+                }
+                log.info("Product generation for %s completed".formatted(result.getProductId()));
+                log.debug("Thread %s finished execution".formatted(Thread.currentThread().getName()));
+                return new ResultInfo(productPath, result, resultPath);
+            } catch (XMLStreamException | IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).collect(Collectors.toList())).join();
         forkJoinPool.submit(() -> {
-                pathsManager.getProductsPathsAndWorkDirs().entrySet().parallelStream().forEach((productPath) -> {
-                    log.info("Starting generation for: %s" + productPath);
-                    log.debug("Thread name %s used for %s".formatted(Thread.currentThread().getName(), productPath)) ;
-                    try {
-                        var result = new Result();
-                        result.setWorkDir(productPath.getValue());
-                        result.setProductPath(productPath.getKey());
-                        FeatureResolver.addNewFeatureProject(result.getProductPath());
-                        XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile());
-                        new DynamicImportsResolver()
-                            .start(result, p2RepositoryManager.getLookupCache());
-
-                        var resultPath = params.resultFilesPath;
-                        resultPath = resultPath.resolve(productPath.getKey().getFileName());
-                        try {
-                            Files.createDirectories(resultPath.getParent());
-                        } catch (Throwable throwable) {
-                            log.debug("Error creating target parent directories for %s".formatted(resultPath));
-                        }
-                        try {
-                            FileUtils.removeAllFromDir(resultPath);
-                        } catch (Throwable e) {
-                            log.debug("Error deleting target folder for %s".formatted(resultPath), e);
-                        }
-
-                        {
-                            // dev props
-                            var devProperties = DevPropertiesProducer.generateDevProperties(result.getBundlesByNames().values());
-                            FileUtils.writePropertiesFile(resultPath.resolve("dev.properties"), devProperties);
-                        }
-                        {
-                            // config ini
-                            var configIni = ConfigIniProducer.generateConfigIni(
-                                result.getOsgiSplashPath(),
-                                result.getBundlesByNames().values()
-                            );
-                            FileUtils.writePropertiesFile(resultPath.resolve("config.ini"), configIni);
-                        }
-                        {
-                            // debug launch
-                            String launchConfig = ConfigIniProducer.generateProductLaunch(params, result);
-                            Files.writeString(
-                                productPath.getKey().getParent().resolve(result.getProductName() + ".product.launch"),
-                                launchConfig);
-                        }
-                        {
-                            log.info("Starting to load test bundles for %s...".formatted(result.getProductName()));
-                            PluginResolver.resolveTestBundlesAndLibraries(result);
-                        }
-                        {
-                            IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, resultPath);
-                        }
-                        log.info("Product generation for %s completed".formatted(result.getProductId()));
-                        log.debug("Thread %s finished execution".formatted(Thread.currentThread().getName()));
-                    } catch (XMLStreamException | IOException e) {
-                        throw new RuntimeException(e);
+            executionResults.parallelStream().forEach((executionResult) -> {
+                try {
+                    Path resultPath = executionResult.resultPath();
+                    Result result = executionResult.result;
+                    Map.Entry<Path, String> productPath = executionResult.productPath();
+                    {
+                        // dev props
+                        var devProperties = DevPropertiesProducer.generateDevProperties(result.getBundlesByNames().values());
+                        FileUtils.writePropertiesFile(resultPath.resolve("dev.properties"), devProperties);
                     }
-                });
-            }).join();
+                    {
+                        // config ini
+                        var configIni = ConfigIniProducer.generateConfigIni(
+                            result.getOsgiSplashPath(),
+                            result.getBundlesByNames().values()
+                        );
+                        FileUtils.writePropertiesFile(resultPath.resolve("config.ini"), configIni);
+                    }
+                    {
+                        // debug launch
+                        String launchConfig = ConfigIniProducer.generateProductLaunch(params, result);
+                        Files.writeString(
+                            productPath.getKey().getParent().resolve(result.getProductName() + ".product.launch"),
+                            launchConfig);
+                    }
+                    {
+                        log.info("Starting to load test bundles for %s...".formatted(result.getProductName()));
+                        PluginResolver.resolveTestBundlesAndLibraries(result);
+                    }
+                    {
+                        IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, resultPath);
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }).join();
         log.info("Product generation completed for all products!");
         forkJoinPool.shutdown();
         List<Path> additionalLibraries = PathsManager.INSTANCE.getAdditionalLibraries();
@@ -190,5 +197,9 @@ public class EntryPoint {
         log.info("Producing final IML configuration...");
         IMLConfigurationProducer.INSTANCE.generateImplConfiguration();
         log.info("Execution completed!");
+    }
+
+    private record ResultInfo(Map.Entry<Path, String> productPath, Result result, Path resultPath) {
+
     }
 }

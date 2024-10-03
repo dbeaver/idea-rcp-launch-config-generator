@@ -31,18 +31,18 @@ public class VersionRange extends Pair<Version, Version> {
             return new VersionRange(first, second, includingFirst, includingSecond);
         } else {
             Version version = new Version(range);
-            return new VersionRange(version, version, true, true);
+            return new VersionRange(version, null, true, true);
         }
     }
 
     public boolean versionIsSuitable(Version version) {
         boolean isValid = true;
         if (getFirst() != null) {
-            int comparisonWithFirst = getFirst().compareTo(version);
+            int comparisonWithFirst = version.compareTo(getFirst());
             isValid &= comparisonWithFirst > 0 | (includingFirst && comparisonWithFirst == 0);
         }
         if (getSecond() != null) {
-            int comparisonWithSecond = getSecond().compareTo(version);
+            int comparisonWithSecond = version.compareTo(getSecond());
             isValid &= comparisonWithSecond < 0 | (includingSecond && comparisonWithSecond == 0);
         }
         return isValid;

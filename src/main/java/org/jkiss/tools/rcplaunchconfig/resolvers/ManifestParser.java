@@ -125,12 +125,11 @@ public class ManifestParser {
 
     @org.jkiss.code.Nullable
     private static Stream<String> getBundlesStream(String requireBundlesArg) {
-        Stream<String> requiredBundlesStream = requireBundlesArg == null ? null : Arrays.stream(
+        return requireBundlesArg == null ? null : Arrays.stream(
                 removeAllBetweenQuotes(requireBundlesArg)
                     .split(",")
             )
             .filter(ManifestParser::filterOptionalDependencies);
-        return requiredBundlesStream;
     }
 
     private static boolean filterOptionalDependencies(@Nonnull String depString) {

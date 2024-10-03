@@ -76,7 +76,7 @@ public class BundleInfo implements ModuleInfo {
     // E.g. jakarta.annotation-api of different versions (1.x and 2.x) are completely different and export different packages
     // Thus we need all versions
     private String additionalVersions;
-    private Set<BundleInfo> fragments = new HashSet<>();
+    private final Set<BundleInfo> fragments = new HashSet<>();
 
     public BundleInfo(
         @Nullable Path path,

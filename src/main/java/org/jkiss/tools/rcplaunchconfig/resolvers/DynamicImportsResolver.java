@@ -164,10 +164,9 @@ public class DynamicImportsResolver {
                 for (var requireBundle : bundleToAdd.getRequireBundles()) {
                     PluginResolver.resolvePluginDependencies(newResult, requireBundle, null, lookupCache);
                 }
-                for (var newAddedBundle : newResult.getNewBundles()) {
-                    for (BundleInfo info : newAddedBundle) {
-                        resolveImportPackages(newResult, eclipsePluginsByExportedPackages, parsedResultPluginsByExportedPackages, info, bundlesToAddByImportPackage, lookupCache);
-                    }
+                BundleInfo[] array = newResult.getNewBundles().toArray(new BundleInfo[0]);
+                for (var newAddedBundle : array) {
+                    resolveImportPackages(newResult, eclipsePluginsByExportedPackages, parsedResultPluginsByExportedPackages, newAddedBundle, bundlesToAddByImportPackage, lookupCache);
                 }
                 newResult.flush();
             }
@@ -240,8 +239,8 @@ public class DynamicImportsResolver {
             return previousResult.getProductPath();
         }
 
-        public Collection<Set<BundleInfo>> getNewBundles() {
-            return newBundlesByNames.values();
+        public Collection<BundleInfo> getNewBundles() {
+            return newBundlesByNames.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
         }
 
         @Override
