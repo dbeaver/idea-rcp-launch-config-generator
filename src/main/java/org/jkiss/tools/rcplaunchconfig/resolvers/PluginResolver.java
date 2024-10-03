@@ -213,6 +213,7 @@ public class PluginResolver {
                                 bundleByName = new HashSet<>(bundleInfos);
                                 for (BundleInfo bundleInfo : bundleByName) {
                                     result.addBundle(bundleInfo);
+                                    bundlesToResolve.add(bundleInfo);
                                 }
                             } else {
                                 bundleByName = new HashSet<>(bundleInfos);
@@ -223,6 +224,7 @@ public class PluginResolver {
                                     bundleByName.add(remoteP2BundleInfo.get());
                                     for (BundleInfo bundleInfo : bundleByName) {
                                         result.addBundle(bundleInfo);
+                                        bundlesToResolve.add(bundleInfo);
                                     }
                                 }
                             }
