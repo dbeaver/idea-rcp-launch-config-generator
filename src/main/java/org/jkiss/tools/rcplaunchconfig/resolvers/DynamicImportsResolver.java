@@ -111,13 +111,13 @@ public class DynamicImportsResolver {
         @Nonnull P2BundleLookupCache lookupCache
     ) throws IOException {
         for (var packageToImport : bundleInfo.getImportPackages()) {
+            List<BundleInfo> suitableParsedBundles = getSuitableBundles(parsedResultPluginsByExportedPackages, packageToImport);
             if (PackageChecker.INSTANCE.isPackageExcluded(packageToImport.getFirst()) ||
-                parsedResultPluginsByExportedPackages.containsKey(packageToImport) ||
+                !suitableParsedBundles.isEmpty() ||
                 bundlesToAddByImportPackage.containsKey(packageToImport)
             ) {
-                if (parsedResultPluginsByExportedPackages.containsKey(packageToImport)) {
-                    List<BundleInfo> list = getSuitableBundles(parsedResultPluginsByExportedPackages, packageToImport);
-                    for (BundleInfo info : list) {
+                if (!suitableParsedBundles.isEmpty()) {
+                    for (BundleInfo info : suitableParsedBundles) {
                         IMLConfigurationProducer.INSTANCE.addRequiredBundleforPackage(packageToImport, info);
                     }
                 }
@@ -128,19 +128,27 @@ public class DynamicImportsResolver {
             if (eclipseBundlesWithThisPackage.isEmpty()) {
                 Collection<RemoteP2BundleInfo> remoteP2BundleInfos = lookupCache.getRemoteBundlesByExport(packageToImport.getFirst());
                 if (!failedToResolvePackagesToBundles.containsKey(packageToImport) && !lookupCache.getRemoteBundlesByExport(packageToImport.getFirst()).isEmpty()) {
+                    RemoteP2BundleInfo maxVersionRemoteBundle = null;
                     for (RemoteP2BundleInfo remoteP2BundleInfo : remoteP2BundleInfos) {
                         if (excludedBundles.contains(remoteP2BundleInfo.getBundleName())) {
                             continue;
                         }
-                        Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = BundleUtils.getMaxVersionRemoteBundle(new Pair<>(remoteP2BundleInfo.getBundleVersion(), packageToImport.getSecond()), lookupCache);
-                        if (maxVersionRemoteBundle.isPresent() && maxVersionRemoteBundle.get().resolveBundle()) {
-                            for (var packageToExport : maxVersionRemoteBundle.get().getExportPackages()) {
-                                eclipsePluginsByExportedPackages.put(packageToExport.getFirst(), new Pair<>(maxVersionRemoteBundle.get(), packageToExport.getSecond()));
+                        Optional<Pair<String, Version>> exportedPackage = remoteP2BundleInfo.getExportPackages().stream().filter(it -> it.getFirst().equals(packageToImport.getFirst())).findFirst();
+                        if (exportedPackage.isPresent() && VersionRange.isVersionsCompatible(packageToImport.getSecond(), exportedPackage.get().getSecond())) {
+                            if (maxVersionRemoteBundle == null) {
+                                maxVersionRemoteBundle = remoteP2BundleInfo;
+                            } else {
+                                maxVersionRemoteBundle = new Version(maxVersionRemoteBundle.getBundleVersion()).compareTo(new Version(remoteP2BundleInfo.getBundleVersion())) < 0 ? remoteP2BundleInfo : maxVersionRemoteBundle;
                             }
-                            eclipseBundlesWithThisPackage.add(maxVersionRemoteBundle.get());
-                        } else {
-                            failedToResolvePackagesToBundles.put(packageToImport.getFirst(), bundleInfo);
                         }
+                    }
+                    if (maxVersionRemoteBundle != null && maxVersionRemoteBundle.resolveBundle()) {
+                        for (var packageToExport : maxVersionRemoteBundle.getExportPackages()) {
+                            eclipsePluginsByExportedPackages.put(packageToExport.getFirst(), new Pair<>(maxVersionRemoteBundle, packageToExport.getSecond()));
+                        }
+                        eclipseBundlesWithThisPackage.add(maxVersionRemoteBundle);
+                    } else {
+                        failedToResolvePackagesToBundles.put(packageToImport.getFirst(), bundleInfo);
                     }
                     if (eclipseBundlesWithThisPackage.isEmpty()) {
                         continue;
