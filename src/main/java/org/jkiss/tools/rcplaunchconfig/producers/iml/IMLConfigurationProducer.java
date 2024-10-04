@@ -81,7 +81,7 @@ public class IMLConfigurationProducer {
         if (productPath != null) {
             products.put(productPath, result);
         }
-        log.info(modules.size() + " module IML config generated");
+        log.info(modules.size() + " module IML configs associated for " + result.getProductName());
         this.modules.addAll(modules);
         rootModules.addAll(generateRootModules());
     }
