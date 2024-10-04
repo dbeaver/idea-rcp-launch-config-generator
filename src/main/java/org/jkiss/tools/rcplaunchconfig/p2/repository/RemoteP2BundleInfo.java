@@ -24,6 +24,9 @@ import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.ManifestParser;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
+import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
+import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,10 +52,10 @@ public class RemoteP2BundleInfo extends BundleInfo {
         @NotNull String bundleName,
         @NotNull String bundleVersion,
         @NotNull List<String> classpathLibs,
-        @NotNull List<String> requireBundles,
-        @NotNull Set<String> exportPackages,
+        @NotNull List<Pair<String, VersionRange>> requireBundles,
+        @NotNull Set<Pair<String, Version>> exportPackages,
         @NotNull Set<String> reexportedBundles,
-        @NotNull Set<String> importPackages,
+        @NotNull Set<Pair<String, VersionRange>> importPackages,
         @Nullable Integer startLevel,
         boolean zipped
     ) {
@@ -156,9 +159,11 @@ public class RemoteP2BundleInfo extends BundleInfo {
         }
     }
 
+
+
     @Nullable
     @Override
-    public String getFragmentHost() {
+    public Pair<String, VersionRange> getFragmentHost() {
         while (!lock.tryLock()) {
             Thread.onSpinWait();
         }
@@ -192,10 +197,10 @@ public class RemoteP2BundleInfo extends BundleInfo {
         private List<String> classpathLibs;
 
         private RemoteP2Repository repository;
-        private final List<String> requireBundles = new ArrayList<>();
+        private final List<Pair<String, VersionRange>> requireBundles = new ArrayList<>();
         private Set<String> reexportedBundles = new HashSet<>();
-        private final Set<String> exportPackages = new LinkedHashSet<>();
-        private final Set<String> importPackages = new LinkedHashSet<>();
+        private final Set<Pair<String, Version>> exportPackages = new LinkedHashSet<>();
+        private final Set<Pair<String, VersionRange>> importPackages = new LinkedHashSet<>();
         Integer startLevel;
         private boolean zipped = false;
 
@@ -237,18 +242,18 @@ public class RemoteP2BundleInfo extends BundleInfo {
             return this;
         }
 
-        public RemoteBundleInfoBuilder addToRequiredBundles(String requiredBundle) {
-            this.requireBundles.add(requiredBundle);
+        public RemoteBundleInfoBuilder addToRequiredBundles(String requiredBundle, VersionRange range) {
+            this.requireBundles.add(new Pair<>(requiredBundle, range));
             return this;
         }
 
-        public RemoteBundleInfoBuilder addToExportPackage(String exportPackage) {
-            this.exportPackages.add(exportPackage);
+        public RemoteBundleInfoBuilder addToExportPackage(String exportPackage, Version version) {
+            this.exportPackages.add(new Pair<>(exportPackage, version));
             return this;
         }
 
-        public RemoteBundleInfoBuilder addToRequiredPackages(String importPackage) {
-            this.importPackages.add(importPackage);
+        public RemoteBundleInfoBuilder addToRequiredPackages(String importPackage, VersionRange range) {
+            this.importPackages.add(new Pair<>(importPackage, range));
             return this;
         }
 

@@ -18,6 +18,9 @@ package org.jkiss.tools.rcplaunchconfig;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
+import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
+import org.jkiss.utils.Pair;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -25,7 +28,7 @@ import java.util.*;
 
 public class Result {
 
-    private final Map<String, BundleInfo> bundlesByNames = new LinkedHashMap<>();
+    private final Map<String, Set<BundleInfo>> bundlesByNames = new LinkedHashMap<>();
 
     private final Map<String, FeatureInfo> resolvedFeatures = new LinkedHashMap<>();
 
@@ -45,17 +48,19 @@ public class Result {
 
     public void addBundle(@Nonnull BundleInfo bundleInfo) {
         String bundleName = bundleInfo.getBundleName();
-        BundleInfo oldInfo = bundlesByNames.get(bundleName);
+        Set<BundleInfo> oldInfo = bundlesByNames.get(bundleName);
         if (oldInfo == null) {
-            bundlesByNames.put(bundleName, bundleInfo);
-        } else if (oldInfo.getBundleVersion().equals(bundleInfo.getBundleVersion())) {
+            bundlesByNames.computeIfAbsent(bundleName, it -> new HashSet<>()).add(bundleInfo);
+            return;
+        }
+        Optional<BundleInfo> oldBundle = oldInfo.stream().filter(it -> it.getBundleVersion().equals(bundleInfo.getBundleVersion())).findFirst();
+        if (oldBundle.isEmpty()) {
+            bundlesByNames.computeIfAbsent(bundleName, it -> new HashSet<>()).add(bundleInfo);
+        } else if (oldBundle.get().getBundleVersion().equals(bundleInfo.getBundleVersion())) {
             // Do nothing
-            if (bundleInfo.getStartLevel() != null && !Objects.equals(oldInfo.getStartLevel(), bundleInfo.getStartLevel())) {
-                bundlesByNames.put(bundleName, bundleInfo);
+            if (bundleInfo.getStartLevel() != null && !Objects.equals(oldBundle.get().getStartLevel(), bundleInfo.getStartLevel())) {
+                bundlesByNames.computeIfAbsent(bundleName, it -> new HashSet<>()).add(bundleInfo);
             }
-        } else {
-            // Multiple bundle versions
-            bundlesByNames.put(bundleName + "_" + bundleInfo.getBundleVersion(), bundleInfo);
         }
     }
 
@@ -67,11 +72,19 @@ public class Result {
         return bundlesByNames.containsKey(pluginName);
     }
 
-    public @Nullable BundleInfo getBundleByName(@Nonnull String name) {
+    public @Nullable Set<BundleInfo> getBundlesByName(@Nonnull String name) {
         return bundlesByNames.get(name);
     }
 
-    public @Nonnull Map<String, BundleInfo> getBundlesByNames() {
+    public @Nullable BundleInfo getBundleByInfoAndVersion(Pair<String, VersionRange> bundle) {
+        if (bundlesByNames.get(bundle.getFirst()) == null) {
+            return null;
+        }
+        return bundlesByNames.get(bundle.getFirst()).stream().filter(it -> VersionRange.
+            isVersionsCompatible(bundle.getSecond(), new Version(it.getBundleVersion()))).findFirst().orElse(null);
+    }
+
+    public @Nonnull Map<String, Set<BundleInfo>> getBundlesByNames() {
         return bundlesByNames;
     }
 
@@ -108,7 +121,6 @@ public class Result {
     }
 
 
-
     @Nullable
     public String getWorkDir() {
         return workDir;
@@ -117,6 +129,7 @@ public class Result {
     public ProductLaunchArguments getArguments() {
         return arguments;
     }
+
     @Nullable
     public String workDir;
 

@@ -19,6 +19,9 @@ package org.jkiss.tools.rcplaunchconfig;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.jkiss.code.NotNull;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
+import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
+import org.jkiss.utils.Pair;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -59,33 +62,33 @@ public class BundleInfo implements ModuleInfo {
     private final List<String> requireFragments;
 
     protected Set<String> reexportedBundles;
-    protected String fragmentHost;
+    protected Pair<String, VersionRange> fragmentHost;
     @NotNull
     protected Path path;
     private final String bundleName;
     private final String bundleVersion;
     protected List<String> classpathLibs;
-    private final List<String> requireBundles;
-    private final Set<String> exportPackages;
-    private final Set<String> importPackages;
+    private final List<Pair<String, VersionRange>> requireBundles;
+    private final Set<Pair<String, Version>> exportPackages;
+    private final Set<Pair<String, VersionRange>> importPackages;
     private final Integer startLevel;
     // Additional versions is an exceptional case
     // E.g. jakarta.annotation-api of different versions (1.x and 2.x) are completely different and export different packages
     // Thus we need all versions
     private String additionalVersions;
-    private Set<BundleInfo> fragments = new HashSet<>();
+    private final Set<BundleInfo> fragments = new HashSet<>();
 
     public BundleInfo(
         @Nullable Path path,
         @Nonnull String bundleName,
         @Nonnull String bundleVersion,
         @Nonnull List<String> classpathLibs,
-        @Nonnull List<String> requireBundles,
+        @Nonnull List<Pair<String, VersionRange>> requireBundles,
         @Nonnull Set<String> reexportedBundles,
-        @Nonnull Set<String> exportPackages,
-        @Nonnull Set<String> importPackages,
+        @Nonnull Set<Pair<String, Version>> exportPackages,
+        @Nonnull Set<Pair<String, VersionRange>> importPackages,
         @Nonnull List<String> requiredFragments,
-        @Nullable String fragmentHost,
+        @Nullable Pair<String, VersionRange> fragmentHost,
         @Nullable Integer startLevel) {
         this.path = path;
         this.bundleName = bundleName;
@@ -116,11 +119,11 @@ public class BundleInfo implements ModuleInfo {
         return classpathLibs;
     }
 
-    public @Nonnull List<String> getRequireBundles() {
+    public @Nonnull List<Pair<String, VersionRange>> getRequireBundles() {
         return requireBundles;
     }
 
-    public @Nonnull Set<String> getExportPackages() {
+    public @Nonnull Set<Pair<String, Version>> getExportPackages() {
         return exportPackages;
     }
 
@@ -128,11 +131,11 @@ public class BundleInfo implements ModuleInfo {
         return reexportedBundles;
     }
 
-    public @Nonnull Set<String> getImportPackages() {
+    public @Nonnull Set<Pair<String, VersionRange>> getImportPackages() {
         return importPackages;
     }
 
-    public @Nullable String getFragmentHost() {
+    public @Nullable Pair<String, VersionRange> getFragmentHost() {
         return fragmentHost;
     }
 

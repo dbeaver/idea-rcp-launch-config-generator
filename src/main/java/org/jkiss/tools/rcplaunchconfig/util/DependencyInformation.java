@@ -14,10 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jkiss.tools.rcplaunchconfig;
+package org.jkiss.tools.rcplaunchconfig.util;
 
-import org.jkiss.tools.rcplaunchconfig.util.Version;
-
-public record Artifact(String classifier, String id, Version version){
-
+public record DependencyInformation (String name, Version version, VersionRange range){
 }

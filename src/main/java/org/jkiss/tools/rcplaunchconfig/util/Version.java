@@ -16,13 +16,13 @@
  */
 package org.jkiss.tools.rcplaunchconfig.util;
 
-public class BundleVersion implements Comparable<BundleVersion> {
+public class Version implements Comparable<Version> {
     int major;
     int minor;
     int micro;
     String delta;
 
-    public BundleVersion(String str) {
+    public Version(String str) {
         int divPos1 = str.indexOf('.');
         if (divPos1 == -1) {
             major = Integer.parseInt(str);
@@ -50,7 +50,7 @@ public class BundleVersion implements Comparable<BundleVersion> {
     }
 
     @Override
-    public int compareTo(BundleVersion o) {
+    public int compareTo(Version o) {
         int dif = major - o.major;
         if (dif != 0) return dif;
         dif = minor - o.minor;

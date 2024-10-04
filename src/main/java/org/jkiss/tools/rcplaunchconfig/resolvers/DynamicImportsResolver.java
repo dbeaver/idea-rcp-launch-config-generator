@@ -20,6 +20,7 @@ import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
+import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
@@ -27,6 +28,9 @@ import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
+import org.jkiss.tools.rcplaunchconfig.util.Version;
+import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
+import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,23 +58,27 @@ public class DynamicImportsResolver {
     public void start(@Nonnull Result result, P2BundleLookupCache lookupCache) throws IOException {
         var eclipsePluginsByExportedPackages = readEclipsePluginsExportedPackages(PathsManager.INSTANCE.getEclipsePluginsPath());
 
-        var parsedBundlesByExportedPackages = new ArrayListValuedHashMap<String, BundleInfo>();
-        for (var parsedBundle : result.getBundlesByNames().values()) {
-            for (var exportedPackage : parsedBundle.getExportPackages()) {
-                parsedBundlesByExportedPackages.put(exportedPackage, parsedBundle);
+        MultiValuedMap<String, Pair<BundleInfo, Version>> parsedBundlesByExportedPackages = new ArrayListValuedHashMap<>();
+        for (var parsedBundles : result.getBundlesByNames().values()) {
+            for (BundleInfo parsedBundle : parsedBundles) {
+                for (var exportedPackage : parsedBundle.getExportPackages()) {
+                    parsedBundlesByExportedPackages.put(exportedPackage.getFirst(), new Pair<>(parsedBundle, exportedPackage.getSecond()));
+                }
             }
         }
 
         var bundlesToCheck = new LinkedHashMap<>(result.getBundlesByNames());
-        var additionalBundlesByImportPackage = new ArrayListValuedHashMap<String, BundleInfo>();
-        for (var bundleForResolve : bundlesToCheck.values()) {
-            resolveImportPackages(
-                result,
-                eclipsePluginsByExportedPackages,
-                parsedBundlesByExportedPackages,
-                bundleForResolve,
-                additionalBundlesByImportPackage,
-                lookupCache);
+        var additionalBundlesByImportPackage = new ArrayListValuedHashMap<Pair<String, VersionRange>, BundleInfo>();
+        for (var bundlesForResolve : bundlesToCheck.values()) {
+            for (BundleInfo bundleInfo : bundlesForResolve) {
+                resolveImportPackages(
+                    result,
+                    eclipsePluginsByExportedPackages,
+                    parsedBundlesByExportedPackages,
+                    bundleInfo,
+                    additionalBundlesByImportPackage,
+                    lookupCache);
+            }
         }
         for (var additionalBundle : additionalBundlesByImportPackage.values()) {
             //if (!result.isPluginResolved(additionalBundle.getBundleName())) {
@@ -96,48 +104,57 @@ public class DynamicImportsResolver {
 
     private void resolveImportPackages(
         @Nonnull Result result,
-        @Nonnull MultiValuedMap<String, BundleInfo> eclipsePluginsByExportedPackages,
-        @Nonnull MultiValuedMap<String, BundleInfo> parsedResultPluginsByExportedPackages,
+        @Nonnull MultiValuedMap<String, Pair<BundleInfo, Version>> eclipsePluginsByExportedPackages,
+        @Nonnull MultiValuedMap<String, Pair<BundleInfo, Version>> parsedResultPluginsByExportedPackages,
         @Nonnull BundleInfo bundleInfo,
-        @Nonnull MultiValuedMap<String, BundleInfo> bundlesToAddByImportPackage,
+        @Nonnull MultiValuedMap<Pair<String, VersionRange>, BundleInfo> bundlesToAddByImportPackage,
         @Nonnull P2BundleLookupCache lookupCache
     ) throws IOException {
         for (var packageToImport : bundleInfo.getImportPackages()) {
-            if (PackageChecker.INSTANCE.isPackageExcluded(packageToImport) ||
-                parsedResultPluginsByExportedPackages.containsKey(packageToImport) ||
+            List<BundleInfo> suitableParsedBundles = getSuitableBundles(parsedResultPluginsByExportedPackages, packageToImport);
+            if (PackageChecker.INSTANCE.isPackageExcluded(packageToImport.getFirst()) ||
+                !suitableParsedBundles.isEmpty() ||
                 bundlesToAddByImportPackage.containsKey(packageToImport)
             ) {
-                if (parsedResultPluginsByExportedPackages.containsKey(packageToImport)) {
-                    for (BundleInfo info : parsedResultPluginsByExportedPackages.get(packageToImport)) {
+                if (!suitableParsedBundles.isEmpty()) {
+                    for (BundleInfo info : suitableParsedBundles) {
                         IMLConfigurationProducer.INSTANCE.addRequiredBundleforPackage(packageToImport, info);
                     }
                 }
                 // skip packages which is excluded or already resolved or planned to add
                 continue;
             }
-            var eclipseBundlesWithThisPackage = new ArrayList<>(eclipsePluginsByExportedPackages.get(packageToImport));
+            var eclipseBundlesWithThisPackage = new ArrayList<>(getSuitableBundles(eclipsePluginsByExportedPackages, packageToImport));
             if (eclipseBundlesWithThisPackage.isEmpty()) {
-                Collection<RemoteP2BundleInfo> remoteP2BundleInfos = lookupCache.getRemoteBundlesByExport(packageToImport);
-                if (!failedToResolvePackagesToBundles.containsKey(packageToImport) && !lookupCache.getRemoteBundlesByExport(packageToImport).isEmpty()) {
+                Collection<RemoteP2BundleInfo> remoteP2BundleInfos = lookupCache.getRemoteBundlesByExport(packageToImport.getFirst());
+                if (!failedToResolvePackagesToBundles.containsKey(packageToImport) && !lookupCache.getRemoteBundlesByExport(packageToImport.getFirst()).isEmpty()) {
+                    RemoteP2BundleInfo maxVersionRemoteBundle = null;
                     for (RemoteP2BundleInfo remoteP2BundleInfo : remoteP2BundleInfos) {
                         if (excludedBundles.contains(remoteP2BundleInfo.getBundleName())) {
                             continue;
                         }
-                        Optional<RemoteP2BundleInfo> maxVersionRemoteBundle = BundleUtils.getMaxVersionRemoteBundle(remoteP2BundleInfo.getBundleName(), lookupCache);
-                        if (maxVersionRemoteBundle.isPresent() && maxVersionRemoteBundle.get().resolveBundle()) {
-                            for (var packageToExport : maxVersionRemoteBundle.get().getExportPackages()) {
-                                eclipsePluginsByExportedPackages.put(packageToExport, maxVersionRemoteBundle.get());
+                        Optional<Pair<String, Version>> exportedPackage = remoteP2BundleInfo.getExportPackages().stream().filter(it -> it.getFirst().equals(packageToImport.getFirst())).findFirst();
+                        if (exportedPackage.isPresent() && VersionRange.isVersionsCompatible(packageToImport.getSecond(), exportedPackage.get().getSecond())) {
+                            if (maxVersionRemoteBundle == null) {
+                                maxVersionRemoteBundle = remoteP2BundleInfo;
+                            } else {
+                                maxVersionRemoteBundle = new Version(maxVersionRemoteBundle.getBundleVersion()).compareTo(new Version(remoteP2BundleInfo.getBundleVersion())) < 0 ? remoteP2BundleInfo : maxVersionRemoteBundle;
                             }
-                            eclipseBundlesWithThisPackage.add(maxVersionRemoteBundle.get());
-                        } else {
-                            failedToResolvePackagesToBundles.put(packageToImport, bundleInfo);
                         }
+                    }
+                    if (maxVersionRemoteBundle != null && maxVersionRemoteBundle.resolveBundle()) {
+                        for (var packageToExport : maxVersionRemoteBundle.getExportPackages()) {
+                            eclipsePluginsByExportedPackages.put(packageToExport.getFirst(), new Pair<>(maxVersionRemoteBundle, packageToExport.getSecond()));
+                        }
+                        eclipseBundlesWithThisPackage.add(maxVersionRemoteBundle);
+                    } else {
+                        failedToResolvePackagesToBundles.put(packageToImport.getFirst(), bundleInfo);
                     }
                     if (eclipseBundlesWithThisPackage.isEmpty()) {
                         continue;
                     }
                 } else {
-                    failedToResolvePackagesToBundles.put(packageToImport, bundleInfo);
+                    failedToResolvePackagesToBundles.put(packageToImport.getFirst(), bundleInfo);
                     continue;
                 }
             } else if (eclipseBundlesWithThisPackage.size() > 1) {
@@ -155,7 +172,8 @@ public class DynamicImportsResolver {
                 for (var requireBundle : bundleToAdd.getRequireBundles()) {
                     PluginResolver.resolvePluginDependencies(newResult, requireBundle, null, lookupCache);
                 }
-                for (var newAddedBundle : newResult.getNewBundles()) {
+                BundleInfo[] array = newResult.getNewBundles().toArray(new BundleInfo[0]);
+                for (var newAddedBundle : array) {
                     resolveImportPackages(newResult, eclipsePluginsByExportedPackages, parsedResultPluginsByExportedPackages, newAddedBundle, bundlesToAddByImportPackage, lookupCache);
                 }
                 newResult.flush();
@@ -163,7 +181,13 @@ public class DynamicImportsResolver {
         }
     }
 
-    private @Nonnull MultiValuedMap<String, BundleInfo> readEclipsePluginsExportedPackages(
+    @NotNull
+    private static List<BundleInfo> getSuitableBundles(@NotNull MultiValuedMap<String, Pair<BundleInfo, Version>> bundlesByExportedPackages,
+                                                       Pair<String, VersionRange> packageToImport) {
+        return bundlesByExportedPackages.get(packageToImport.getFirst()).stream().filter(it -> VersionRange.isVersionsCompatible(packageToImport.getSecond(), it.getSecond())).map(Pair::getFirst).toList();
+    }
+
+    private @Nonnull MultiValuedMap<String, Pair<BundleInfo, Version>> readEclipsePluginsExportedPackages(
         @Nonnull Path eclipsePluginsPath
     ) throws IOException {
 
@@ -174,7 +198,7 @@ public class DynamicImportsResolver {
             return new ArrayListValuedHashMap<>();
         }
 
-        var result = new ArrayListValuedHashMap<String, BundleInfo>();
+        var result = new ArrayListValuedHashMap<String, Pair<BundleInfo, Version>>();
 
         for (var folderOrJar : children) {
             if (".DS_Store".equals(folderOrJar.getName())) {
@@ -202,7 +226,7 @@ public class DynamicImportsResolver {
             }
             if (bundleInfo != null) {
                 for (var packageToExport : bundleInfo.getExportPackages()) {
-                    result.put(packageToExport, bundleInfo);
+                    result.put(packageToExport.getFirst(), new Pair<>(bundleInfo, packageToExport.getSecond()));
                 }
             }
         }
@@ -211,7 +235,7 @@ public class DynamicImportsResolver {
 
     static class DynamicImportResult extends Result {
         private final Result previousResult;
-        private final Map<String, BundleInfo> newBundlesByNames;
+        private final Map<String, Set<BundleInfo>> newBundlesByNames;
 
         DynamicImportResult(@Nonnull Result previousResult) {
             this.previousResult = previousResult;
@@ -224,12 +248,12 @@ public class DynamicImportsResolver {
         }
 
         public Collection<BundleInfo> getNewBundles() {
-            return newBundlesByNames.values();
+            return newBundlesByNames.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
         }
 
         @Override
         public void addBundle(@Nonnull BundleInfo bundleInfo) {
-            newBundlesByNames.put(bundleInfo.getBundleName(), bundleInfo);
+            newBundlesByNames.computeIfAbsent(bundleInfo.getBundleName(), it -> new HashSet<>()).add(bundleInfo);
         }
 
         @Override
@@ -239,24 +263,26 @@ public class DynamicImportsResolver {
 
         @Nullable
         @Override
-        public BundleInfo getBundleByName(@Nonnull String name) {
+        public Set<BundleInfo> getBundlesByName(@Nonnull String name) {
             var newBundle = newBundlesByNames.get(name);
             return newBundle != null
                 ? newBundle
-                : previousResult.getBundleByName(name);
+                : previousResult.getBundlesByName(name);
         }
 
         @Nonnull
         @Override
-        public Map<String, BundleInfo> getBundlesByNames() {
-            var result = new LinkedHashMap<>(newBundlesByNames);
+        public Map<String, Set<BundleInfo>> getBundlesByNames() {
+            Map<String, Set<BundleInfo>> result = new LinkedHashMap<>(newBundlesByNames);
             result.putAll(previousResult.getBundlesByNames());
             return result;
         }
 
         public void flush() {
             for (var bundleInfo : newBundlesByNames.values()) {
-                previousResult.addBundle(bundleInfo);
+                for (BundleInfo info : bundleInfo) {
+                    previousResult.addBundle(info);
+                }
             }
         }
     }

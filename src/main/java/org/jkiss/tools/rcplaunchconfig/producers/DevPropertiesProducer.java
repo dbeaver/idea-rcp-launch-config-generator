@@ -19,9 +19,7 @@ package org.jkiss.tools.rcplaunchconfig.producers;
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -37,11 +35,13 @@ public class DevPropertiesProducer {
     );
     private static final String DEFAULT_CLASSPATH = "target/classes";
 
-    public static @Nonnull Map<String, String> generateDevProperties(@Nonnull Iterable<BundleInfo> bundles) {
+    public static @Nonnull Map<String, String> generateDevProperties(@Nonnull Collection<Set<BundleInfo>> bundles) {
         Map<String, String> result = new LinkedHashMap<>();
-        for (var bundleInfo : bundles) {
-            if (isBundleAcceptable(bundleInfo.getBundleName())) {
-                result.put(bundleInfo.getBundleName(), generateValue(bundleInfo.getClasspathLibs()));
+        for (var bundleInfos : bundles) {
+            for (BundleInfo bundleInfo : bundleInfos) {
+                if (isBundleAcceptable(bundleInfo.getBundleName())) {
+                    result.put(bundleInfo.getBundleName(), generateValue(bundleInfo.getClasspathLibs()));
+                }
             }
         }
         result.put("@ignoredot@", Boolean.TRUE.toString());
