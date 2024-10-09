@@ -149,7 +149,7 @@ public class IMLConfigurationProducer {
             }
         }
         config.append("\"/>\n");
-        Map<String, String> associatedParameters = PathsManager.INSTANCE.getAssociatedParameters(result.getProductName());
+        Map<String, String> associatedParameters = PathsManager.INSTANCE.getAssociatedParameters(result.getProductUID());
         if (associatedParameters != null) {
             config.append("    <envs>").append("\n");
             for (Map.Entry<String, String> parameterEntry : associatedParameters.entrySet()) {
