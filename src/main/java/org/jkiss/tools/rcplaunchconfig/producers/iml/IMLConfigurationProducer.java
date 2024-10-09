@@ -596,8 +596,11 @@ public class IMLConfigurationProducer {
         boolean directoryBundle = bundleByName.getPath().toFile().isDirectory();
         addLibraryEntry(bundleByName, builder, isExported, directoryBundle);
         if (!directoryBundle) {
+            Set<Pair<String, Version>> oldResolvedBundles = new LinkedHashSet<>(resolvedBundles);
             appendLibraryInfo(builder, bundleByName, result, resolvedBundles, false);
-            endLibraryEntry(builder, result, resolvedBundles);
+            HashSet<Pair<String, Version>> diff = new HashSet<>(resolvedBundles);
+            diff.removeAll(oldResolvedBundles);
+            endLibraryEntry(builder, result, diff);
         } else {
             if (!generatedLibraries.contains(bundleByName.getBundleName())) {
                 String libraryConfig = generateXMLLibraryConfig(bundleByName, result);
@@ -622,10 +625,12 @@ public class IMLConfigurationProducer {
         LinkedHashSet<Pair<String, Version>> libraryObjects = new LinkedHashSet<>();
         appendLibraryInfo(builder, bundleInfo, result, libraryObjects, true);
         builder.append("  </CLASSES>").append("\n");
-        Set<BundleInfo> sources = result.getBundlesByName(bundleInfo.getBundleName() + ".source");
         builder.append("   <SOURCES>").append("\n");
-        if (sources != null) {
-            appendLibraryInfo(builder, sources.stream().filter(it -> it.getBundleVersion().equals(bundleInfo.getBundleVersion())).findFirst().get(), result, libraryObjects, true);
+        for (Pair<String, Version> libraryObject : libraryObjects) {
+            Set<BundleInfo> sources = result.getBundlesByName(libraryObject.getFirst() + ".source");
+            if (sources != null) {
+                appendLibraryInfo(builder, sources.stream().filter(it -> it.getBundleVersion().equals(bundleInfo.getBundleVersion())).findFirst().get(), result, libraryObjects, true);
+            }
         }
         builder.append("   </SOURCES>").append("\n");
         builder.append("   <jarDirectory url=\"")
@@ -636,15 +641,17 @@ public class IMLConfigurationProducer {
         return builder.toString();
     }
 
-    private void endLibraryEntry(@NotNull StringBuilder builder,
-                                 Result result,
-                                 Set<Pair<String, Version>> resolvedBundles) {
+    private void endLibraryEntry(
+        @NotNull StringBuilder builder,
+        Result result,
+        Set<Pair<String, Version>> resolvedBundles
+    ) {
         builder.append("     </CLASSES>\n");
         builder.append("     <JAVADOC />\n");
         builder.append("     <SOURCES>\n");
         for (Pair<String, Version> resolvedBundle : resolvedBundles) {
             Collection<RemoteP2BundleInfo> sources = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByName(resolvedBundle.getFirst() + ".source");
-            Optional<RemoteP2BundleInfo> source = sources.stream().filter(it -> new Version(it.getBundleVersion()).equals(resolvedBundle.getSecond())).findFirst();
+            Optional<RemoteP2BundleInfo> source = sources.stream().filter(it -> new Version(it.getBundleVersion()).compareTo(resolvedBundle.getSecond()) == 0).findFirst();
             if (source.isPresent()) {
                 source.get().resolveBundle();
                 appendLibraryInfo(builder, source.get(), result, new LinkedHashSet<>(), false);

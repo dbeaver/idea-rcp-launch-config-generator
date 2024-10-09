@@ -59,7 +59,8 @@ public class Result {
         } else if (oldBundle.get().getBundleVersion().equals(bundleInfo.getBundleVersion())) {
             // Do nothing
             if (bundleInfo.getStartLevel() != null && !Objects.equals(oldBundle.get().getStartLevel(), bundleInfo.getStartLevel())) {
-                bundlesByNames.computeIfAbsent(bundleName, it -> new HashSet<>()).add(bundleInfo);
+                bundlesByNames.get(bundleName).remove(oldBundle.get());
+                bundlesByNames.get(bundleName).add(bundleInfo);
             }
         }
     }
