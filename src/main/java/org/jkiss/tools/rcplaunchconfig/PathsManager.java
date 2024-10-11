@@ -156,16 +156,16 @@ public enum PathsManager {
             }
         }
         modulesRoots = set;
-        String additionalModuleRootsString = (String) settings.get(ConfigurationConstants.ADDITIONAL_MODULE_ROOTS_PARAM);
+        String additionalModuleRootsString = settings.getProperty(ConfigurationConstants.ADDITIONAL_MODULE_ROOTS_PARAM);
         if (additionalModuleRootsString != null) {
             Set<Path> additionalModuleRoots = Arrays.stream(additionalModuleRootsString.split(";"))
                 .map(String::trim)
                 .map(projectsFolderPath::resolve).collect(Collectors.toSet());
             modulesRoots.addAll(additionalModuleRoots);
         }
-        Object associatedPropertiesObject = settings.get(ConfigurationConstants.ASSOCIATED_PROPERTIES);
-        if (associatedPropertiesObject instanceof String properties) {
-            Stream<String> propertyStream = Arrays.stream(properties.split(";"))
+        String associatedPropertiesObject = settings.getProperty(ConfigurationConstants.ASSOCIATED_PROPERTIES);
+        if (associatedPropertiesObject != null) {
+            Stream<String> propertyStream = Arrays.stream(associatedPropertiesObject.split(";"))
                 .filter(it -> it.split("=").length == 2).map(String::trim);
             this.associatedProperties = propertyStream.peek(productProperties -> {
                 String values = productProperties.split("=")[1];
