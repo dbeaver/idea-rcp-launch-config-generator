@@ -70,7 +70,7 @@ public enum PathsManager {
         if (!eclipsePluginsPath.toFile().exists()) {
             Files.createDirectories(eclipsePluginsPath);
         }
-        this.workspaceName = (String) settings.get(ConfigurationConstants.WORKSPACE_NAME_PARAM);
+        this.workspaceName = settings.getProperty(ConfigurationConstants.WORKSPACE_NAME_PARAM);
 
         imlModules = eclipsePath.getParent().resolve(workspaceName);
         if (!imlModules.toFile().exists()) {
@@ -81,7 +81,7 @@ public enum PathsManager {
         if (!eclipseFeaturesPath.toFile().exists()) {
             Files.createDirectories(eclipseFeaturesPath);
         }
-        var featuresPathsString = (String) settings.get(ConfigurationConstants.FEATURES_PATHS_PARAM);
+        var featuresPathsString = settings.getProperty(ConfigurationConstants.FEATURES_PATHS_PARAM);
         featuresPaths = Arrays.stream(featuresPathsString.split(";"))
             .map(String::trim)
             .map(projectsFolderPath::resolve)
@@ -100,7 +100,7 @@ public enum PathsManager {
             additionalRepositoriesPaths = List.of();
         }
 
-        String additionalIMlModulesString = (String) settings.get(ConfigurationConstants.ADDITIONAL_IML_MODULES_PARAM);
+        String additionalIMlModulesString = settings.getProperty(ConfigurationConstants.ADDITIONAL_IML_MODULES_PARAM);
         if (additionalIMlModulesString != null) {
             additionalIMlModules = Arrays.stream(additionalIMlModulesString.split(";"))
                 .map(String::trim)
@@ -108,7 +108,7 @@ public enum PathsManager {
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());
         }
-        var bundlesPathsString = (String) settings.get(ConfigurationConstants.BUNDLES_PATHS_PARAM);
+        var bundlesPathsString = settings.getProperty(ConfigurationConstants.BUNDLES_PATHS_PARAM);
         bundlesPaths = Stream.concat(
                 Arrays.stream(bundlesPathsString.split(";"))
                     .map(String::trim)
@@ -120,7 +120,7 @@ public enum PathsManager {
             )
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
-        var productsPathsString = (String) settings.get(ConfigurationConstants.PRODUCTS_PATHS_PARAM);
+        var productsPathsString = settings.getProperty(ConfigurationConstants.PRODUCTS_PATHS_PARAM);
         Map<Path, String> list = new LinkedHashMap<>();
         for (String pathString : productsPathsString.split(";")) {
             String trim = pathString.trim();
@@ -178,19 +178,19 @@ public enum PathsManager {
         }
 
 
-        var testBundlesPathsString = (String) settings.get(ConfigurationConstants.TEST_BUNDLE_PATHS_PARAM);
+        var testBundlesPathsString = settings.getProperty(ConfigurationConstants.TEST_BUNDLE_PATHS_PARAM);
         testBundlesPaths =
             Arrays.stream(testBundlesPathsString.split(";"))
                 .map(String::trim)
                 .map(projectsFolderPath::resolve)
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());
-        var testLibrariesString = (String) settings.get(ConfigurationConstants.TEST_LIBRARIES);
+        String testLibrariesString = settings.getProperty(ConfigurationConstants.TEST_LIBRARIES);
         if (testLibrariesString != null) {
             this.testLibraries = Arrays.stream(testLibrariesString.split(";"))
                 .map(String::trim).collect(Collectors.toSet());
         }
-        var additionalLibrariesString = (String) settings.get(ConfigurationConstants.ADDITIONAL_LIBRARIES_PATHS_PARAM);
+        var additionalLibrariesString = settings.getProperty(ConfigurationConstants.ADDITIONAL_LIBRARIES_PATHS_PARAM);
         if (additionalLibrariesString != null) {
             this.additionalLibraries = Arrays.stream(additionalLibrariesString.split(";"))
                 .map(String::trim)
@@ -198,7 +198,7 @@ public enum PathsManager {
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());;
         }
-        String ideaConfigurationFilesString = (String) settings.get(ConfigurationConstants.IDEA_CONFIGURATION_FILES_PATHS_PARAM);
+        String ideaConfigurationFilesString = settings.getProperty(ConfigurationConstants.IDEA_CONFIGURATION_FILES_PATHS_PARAM);
         if (ideaConfigurationFilesString != null) {
             this.ideaConfigurationFiles = Arrays.stream(ideaConfigurationFilesString.split(";"))
                 .map(String::trim)
@@ -302,6 +302,7 @@ public enum PathsManager {
         if (associatedProperties == null) {
             return null;
         }
+
         Set<String> properties = associatedProperties.get(product);
         if (properties != null) {
             Map<String, String> result = new HashMap<>();
