@@ -24,6 +24,7 @@ public class ConfigurationConstants {
     public static final String BUNDLES_PATHS_PARAM = "bundlesPaths";
     public static final String PRODUCTS_PATHS_PARAM = "productsPaths";
     public static final String ADDITIONAL_MODULE_ROOTS_PARAM = "additionalModuleRoots";
+    public static final String ASSOCIATED_PROPERTIES = "associateProperties";
     public static final String TEST_BUNDLE_PATHS_PARAM = "testBundlePaths";
     public static final String ADDITIONAL_LIBRARIES_PATHS_PARAM = "additionalLibrariesPaths";
     public static final String IDEA_CONFIGURATION_FILES_PATHS_PARAM = "ideaConfigurationFilesPaths";
@@ -33,5 +34,5 @@ public class ConfigurationConstants {
     public static final String DEFAULT_WORKSPACE_LOCATION = "dbeaver-workspace/dependencies/";
 
     public static final String FEATURES_FOLDER = "features";
-    public static final Object TEST_LIBRARIES = "testLibraries";
+    public static final String TEST_LIBRARIES = "testLibraries";
 }
