@@ -254,6 +254,10 @@ public enum PathsManager {
         return eclipsePath;
     }
 
+    public @Nonnull Path getTreeOutputFolder() {
+        return eclipsePath.getParent().resolve(ConfigurationConstants.TREE_OUTPUT);
+    }
+
     public @Nonnull Path getEclipsePluginsPath() {
         return eclipsePluginsPath;
     }

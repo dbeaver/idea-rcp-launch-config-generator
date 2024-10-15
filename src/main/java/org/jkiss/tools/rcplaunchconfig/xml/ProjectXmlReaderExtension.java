@@ -19,6 +19,7 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.PathsManager;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +36,8 @@ class ProjectXmlReaderExtension extends XmlReaderExtension {
     private static final QName LOCATION_NAME = new QName("", "location");
 
     @Override
-    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader) {
+    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader,
+                                    DependencyGraph graph) {
         if (!matchesDeclaredOS(startElement)) {
             return;
         }
@@ -50,13 +52,13 @@ class ProjectXmlReaderExtension extends XmlReaderExtension {
                 break;
             }
             case "feature": {
-                FeatureXmlReaderExtension.resolveFeature(result, startElement);
+                FeatureXmlReaderExtension.resolveFeature(result, startElement, graph);
                 break;
             }
             case "plugin": {
                 var idAttr = startElement.getAttributeByName(ID_ATTR_NAME);
                 if (idAttr != null) {
-                    PluginXmlReaderExtension.resolvePlugin(result, startElement, idAttr);
+                    PluginXmlReaderExtension.resolvePlugin(result, startElement, idAttr, graph);
                 }
                 break;
             }

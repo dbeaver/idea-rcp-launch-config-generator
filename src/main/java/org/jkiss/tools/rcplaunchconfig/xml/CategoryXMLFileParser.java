@@ -18,6 +18,7 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.resolvers.FeatureResolver;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -36,7 +37,7 @@ import java.util.Set;
 public class CategoryXMLFileParser {
     private static final Logger log = LoggerFactory.getLogger(CategoryXMLFileParser.class);
 
-    public static void parseCategoryXML(Result result, Path path) {
+    public static void parseCategoryXML(Result result, Path path, DependencyGraph graph) {
         try {
             // Initialize the XML document
             var factory = DocumentBuilderFactory.newInstance();
@@ -56,7 +57,7 @@ public class CategoryXMLFileParser {
                 if (featureNode.getNodeType() == Node.ELEMENT_NODE) {
                     Element featureElement = (Element) featureNode;
                     String id = featureElement.getAttribute("id");
-                    FeatureResolver.resolveFeatureDependencies(result, id);
+                    FeatureResolver.resolveFeatureDependencies(result, id, graph);
                 }
             }
 
