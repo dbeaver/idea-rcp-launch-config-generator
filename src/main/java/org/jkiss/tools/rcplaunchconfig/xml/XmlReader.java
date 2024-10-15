@@ -39,7 +39,11 @@ public enum XmlReader {
         new LaunchArgumentsXMLReaderExtension()
     };
 
-    public void parseXmlFile(@Nonnull Result result, @Nonnull File xmlFile, DependencyGraph graph) throws IOException, XMLStreamException {
+    public void parseXmlFile(
+        @Nonnull Result result,
+        @Nonnull File xmlFile,
+        DependencyGraph graph
+    ) throws IOException, XMLStreamException {
         try (var inputStream = new FileInputStream(xmlFile);
              var bufferedInput = new BufferedInputStream(inputStream)
         ) {

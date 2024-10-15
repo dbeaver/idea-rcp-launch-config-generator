@@ -44,7 +44,9 @@ class FeatureXmlReaderExtension extends XmlReaderExtension {
     }
 
     @Override
-    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader,
+    public void resolveStartElement(@Nonnull Result result,
+                                    @Nonnull StartElement startElement,
+                                    XMLEventReader reader,
                                     DependencyGraph graph) {
         var nameLocalPart = startElement.getName().getLocalPart();
         if (nameLocalPart.equals("includes") || nameLocalPart.equals("feature")) {

@@ -2,7 +2,6 @@ package org.jkiss.tools.rcplaunchconfig.util;
 
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
-import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 
 import java.io.IOException;
 

@@ -61,6 +61,7 @@ public class DependencyGraphImpl extends DependencyGraph {
         addCurrentNodeDependency(to);
         return traverseIntoNode(to);
     }
+
     public void addCurrentNodeDependency(@NotNull String to) {
         DependencyNode node = addNode(to);
         currentNode.addBundleDependency(node);
@@ -72,23 +73,26 @@ public class DependencyGraphImpl extends DependencyGraph {
         Path treeOutputFolder = PathsManager.INSTANCE.getTreeOutputFolder();
         Files.createDirectories(treeOutputFolder);
         StringBuffer buffer = new StringBuffer();
-        Path file = treeOutputFolder.resolve(startNode.getName().replace(".", "_").replace("/", "_").replace("\\", "_") + ".txt");
+        Path file = treeOutputFolder.resolve(startNode.getName()
+            .replace(".", "_")
+            .replace("/", "_")
+            .replace("\\", "_") + ".txt");
         if (Files.exists(file)) {
             Files.delete(file);
         }
-        printNode(
-            startNode,
-            "",
-            "",
-            buffer,
-            file
-        );
+        printNode(startNode, "", "", buffer, file);
         flushRemainingBuffer(buffer, file);  // Write any leftover content in the buffer
         log.info("Generation for %s complete".formatted(startNode));
     }
 
     // Recursive method to print each node and its dependencies
-    private void printNode(DependencyNode node, String indent, String type, StringBuffer buffer, Path outputFile) throws IOException {
+    private void printNode(
+        DependencyNode node,
+        String indent,
+        String type,
+        StringBuffer buffer,
+        Path outputFile
+    ) throws IOException {
         if (node.isVisited()) {
             writeToBuffer(buffer, indent + type + node.getName() + " (already imported)\n", outputFile);
             return;
@@ -97,7 +101,8 @@ public class DependencyGraphImpl extends DependencyGraph {
         node.setImported(true);
 
         for (Pair<DependencyNode, DependencyNode.DependencyType> dep : node.getDependencies()) {
-            String childType = dep.getSecond().equals(DependencyNode.DependencyType.DIRECT_DEPENDENCY) ? "  -> " : " -> (import)";
+            String childType = dep.getSecond()
+                .equals(DependencyNode.DependencyType.DIRECT_DEPENDENCY) ? "  -> " : " -> (import)";
             if (DevPropertiesProducer.isBundleAcceptable(dep.getFirst().getName())) {
                 printNode(dep.getFirst(), indent + " ", childType, buffer, outputFile);
             } else {

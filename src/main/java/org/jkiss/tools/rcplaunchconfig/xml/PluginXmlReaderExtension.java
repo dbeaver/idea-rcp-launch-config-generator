@@ -45,15 +45,25 @@ class PluginXmlReaderExtension extends XmlReaderExtension {
             ? Integer.parseInt(startLevelAttr.getValue())
             : null;
         try {
-            PluginResolver.resolvePluginDependencies(result, new Pair<>(idAttr.getValue(), null), startLevel, P2RepositoryManager.INSTANCE.getLookupCache(), graph);
+            PluginResolver.resolvePluginDependencies(
+                result,
+                new Pair<>(idAttr.getValue(), null),
+                startLevel,
+                P2RepositoryManager.INSTANCE.getLookupCache(),
+                graph
+            );
         } catch (IOException e) {
             log.error("Failed to resolve plugin", e);
         }
     }
 
     @Override
-    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader,
-                                    DependencyGraph graph) {
+    public void resolveStartElement(
+        @Nonnull Result result,
+        @Nonnull StartElement startElement,
+        XMLEventReader reader,
+        DependencyGraph graph
+    ) {
         if (!matchesDeclaredOS(startElement)) {
             return;
         }
