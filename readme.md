@@ -37,6 +37,7 @@ Accepts the following required parameters:
 | -output          | Place for result files                                                                                                                                                                                   |
 | -singleCoreMode  | (Debug) Uses only one core for the project resolution                                                                                                                                                    |
 | -debug           | Provides more detailed output                                                                                                                                                                            |
+| -tree            | Create dependency trees for each product                                                                                                                                                                 |
 
 Configuration file example:
 ```properties
