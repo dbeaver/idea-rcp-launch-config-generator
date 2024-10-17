@@ -32,6 +32,7 @@ public class ConfigurationConstants {
     public static final String PLUGINS_FOLDER = "plugins";
 
     public static final String DEFAULT_WORKSPACE_LOCATION = "dbeaver-workspace/dependencies/";
+    public static final String TREE_OUTPUT = "tree-output";
 
     public static final String FEATURES_FOLDER = "features";
     public static final String TEST_LIBRARIES = "testLibraries";

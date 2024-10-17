@@ -18,6 +18,7 @@ package org.jkiss.tools.rcplaunchconfig;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 import org.jkiss.tools.rcplaunchconfig.util.Version;
 import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
 import org.jkiss.utils.Pair;
@@ -41,6 +42,7 @@ public class Result {
     private Path productPath;
 
     private final ProductLaunchArguments arguments = new ProductLaunchArguments();
+    private DependencyGraph productGraph;
 
     public FeatureInfo addResolvedFeature(@Nonnull String featureName, File featureXmlFile) {
         return resolvedFeatures.computeIfAbsent(featureName, s -> new FeatureInfo(featureName, featureXmlFile));
@@ -113,6 +115,10 @@ public class Result {
         return productPath;
     }
 
+    public DependencyGraph getProductGraph() {
+        return productGraph;
+    }
+
     public String getProductId() {
         return productId;
     }
@@ -147,6 +153,10 @@ public class Result {
         this.productUID = uid;
         this.productId = id;
         this.applicationId = application;
+    }
+
+    public void setProductGraph(DependencyGraph dependencyGraph) {
+        this.productGraph = dependencyGraph;
     }
 
     public static class ProductLaunchArguments {

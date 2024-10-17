@@ -17,6 +17,7 @@
 package org.jkiss.tools.rcplaunchconfig;
 
 import ch.qos.logback.classic.Level;
+import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
@@ -25,6 +26,9 @@ import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
 import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.FeatureResolver;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraphImpl;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraphStub;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.xml.CategoryXMLFileParser;
 import org.jkiss.tools.rcplaunchconfig.xml.XmlReader;
@@ -59,6 +63,7 @@ public class EntryPoint {
         log.info("Process started with the following arguments: " + Arrays.toString(args));
         params.init(args);
         ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        boolean generateDependencyTree = params.generateDependencyTree;
         if (params.debug) {
             logger.setLevel(Level.DEBUG);
         } else {
@@ -102,11 +107,16 @@ public class EntryPoint {
                 Result result = new Result();
                 result.setWorkDir(productPath.getValue());
                 result.setProductPath(productPath.getKey());
+                DependencyGraph dependencyGraph = getGraphImplementation(generateDependencyTree);
+                result.setProductGraph(dependencyGraph);
                 FeatureResolver.addNewFeatureProject(result.getProductPath());
-                XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile());
+                dependencyGraph.traverseIntoNode(result.getProductPath().toString());
+                DependencyGraph.DependencyNode root = dependencyGraph.getCurrentNode();
+                XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile(), dependencyGraph);
+                dependencyGraph.setCurrentNode(root);
                 new DynamicImportsResolver()
-                    .start(result, p2RepositoryManager.getLookupCache());
-
+                    .start(result, p2RepositoryManager.getLookupCache(), dependencyGraph);
+                dependencyGraph.setCurrentNode(root);
                 var resultPath = params.resultFilesPath;
                 resultPath = resultPath.resolve(productPath.getKey().getFileName());
                 try {
@@ -121,6 +131,7 @@ public class EntryPoint {
                 }
                 log.info("Product generation for %s completed".formatted(result.getProductId()));
                 log.debug("Thread %s finished execution".formatted(Thread.currentThread().getName()));
+                dependencyGraph.printDependencyTree(root);
                 return new ResultInfo(productPath, result, resultPath);
             } catch (XMLStreamException | IOException e) {
                 throw new RuntimeException(e);
@@ -153,8 +164,9 @@ public class EntryPoint {
                             launchConfig);
                     }
                     {
+
                         log.info("Starting to load test bundles for %s...".formatted(result.getProductName()));
-                        PluginResolver.resolveTestBundlesAndLibraries(result);
+                        PluginResolver.resolveTestBundlesAndLibraries(result, result.getProductGraph());
                     }
                     {
                         IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, resultPath);
@@ -178,6 +190,9 @@ public class EntryPoint {
             Result result = new Result();
             result.setProductPath(Path.of("/"));
             FeatureResolver.addNewFeatureProject(result.getProductPath());
+            DependencyGraph dependencyGraph = getGraphImplementation(generateDependencyTree);
+            dependencyGraph.traverseIntoNode("additional");
+            DependencyGraph.DependencyNode root = dependencyGraph.getCurrentNode();
             for (Path additionalRepositoriesPath : pathsManager.getAdditionalRepositoriesPaths()) {
                 try (Stream<Path> stream = Files.walk(additionalRepositoriesPath)) {
                     List<Path> categoryXMLS = stream.filter(Files::isRegularFile)
@@ -185,18 +200,29 @@ public class EntryPoint {
                         .toList();
                     for (Path categoryXML : categoryXMLS) {
                         log.debug("Generating config for " + categoryXML);
-                        CategoryXMLFileParser.parseCategoryXML(result, categoryXML);
+                        CategoryXMLFileParser.parseCategoryXML(result, categoryXML, dependencyGraph);
                     }
                 } catch (IOException e) {
                     log.error("Error reading the repository " + e);
                 }
             }
+            dependencyGraph.printDependencyTree(root);
             log.debug(result.getBundlesByNames().size() + " additional bundles to resolve found");
+
             IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, null);
         }
         log.info("Producing final IML configuration...");
         IMLConfigurationProducer.INSTANCE.generateImplConfiguration();
         log.info("Execution completed!");
+    }
+
+    @NotNull
+    private static DependencyGraph getGraphImplementation(boolean generateDependencyTree) {
+        if (generateDependencyTree) {
+            return new DependencyGraphImpl();
+        } else {
+            return new DependencyGraphStub();
+        }
     }
 
     private record ResultInfo(Map.Entry<Path, String> productPath, Result result, Path resultPath) {

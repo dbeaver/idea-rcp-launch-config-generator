@@ -18,6 +18,7 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
@@ -38,7 +39,11 @@ public enum XmlReader {
         new LaunchArgumentsXMLReaderExtension()
     };
 
-    public void parseXmlFile(@Nonnull Result result, @Nonnull File xmlFile) throws IOException, XMLStreamException {
+    public void parseXmlFile(
+        @Nonnull Result result,
+        @Nonnull File xmlFile,
+        DependencyGraph graph
+    ) throws IOException, XMLStreamException {
         try (var inputStream = new FileInputStream(xmlFile);
              var bufferedInput = new BufferedInputStream(inputStream)
         ) {
@@ -48,7 +53,7 @@ public enum XmlReader {
                 if (nextEvent.isStartElement()) {
                     var startElement = nextEvent.asStartElement();
                     for (var extension : EXTENSIONS) {
-                        extension.resolveStartElement(result, startElement, reader);
+                        extension.resolveStartElement(result, startElement, reader, graph);
                     }
                 }
             }

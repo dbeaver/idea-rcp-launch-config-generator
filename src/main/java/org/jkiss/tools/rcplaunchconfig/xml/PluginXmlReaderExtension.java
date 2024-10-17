@@ -20,33 +20,50 @@ import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.events.Attribute;
 import javax.xml.stream.events.StartElement;
+import java.io.IOException;
 
 class PluginXmlReaderExtension extends XmlReaderExtension {
 
     private static final Logger log = LoggerFactory.getLogger(PluginXmlReaderExtension.class);
 
-    static void resolvePlugin(@Nonnull Result result, @Nonnull StartElement startElement, @Nonnull Attribute idAttr) {
+    static void resolvePlugin(
+        @Nonnull Result result,
+        @Nonnull StartElement startElement,
+        @Nonnull Attribute idAttr,
+        DependencyGraph graph
+    ) {
         var startLevelAttr = startElement.getAttributeByName(START_LEVEL_ATTR_NAME);
         var startLevel = startLevelAttr != null
             ? Integer.parseInt(startLevelAttr.getValue())
             : null;
         try {
-            PluginResolver.resolvePluginDependencies(result, new Pair<>(idAttr.getValue(), null), startLevel, P2RepositoryManager.INSTANCE.getLookupCache());
+            PluginResolver.resolvePluginDependencies(
+                result,
+                new Pair<>(idAttr.getValue(), null),
+                startLevel,
+                P2RepositoryManager.INSTANCE.getLookupCache(),
+                graph
+            );
         } catch (IOException e) {
             log.error("Failed to resolve plugin", e);
         }
     }
 
     @Override
-    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader) {
+    public void resolveStartElement(
+        @Nonnull Result result,
+        @Nonnull StartElement startElement,
+        XMLEventReader reader,
+        DependencyGraph graph
+    ) {
         if (!matchesDeclaredOS(startElement)) {
             return;
         }
@@ -66,6 +83,6 @@ class PluginXmlReaderExtension extends XmlReaderExtension {
         if (attribute == null) {
             return;
         }
-        resolvePlugin(result, startElement, attribute);
+        resolvePlugin(result, startElement, attribute, graph);
     }
 }

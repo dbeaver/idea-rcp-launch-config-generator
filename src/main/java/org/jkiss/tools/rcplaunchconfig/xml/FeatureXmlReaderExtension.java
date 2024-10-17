@@ -19,6 +19,7 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.resolvers.FeatureResolver;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,11 +32,11 @@ class FeatureXmlReaderExtension extends XmlReaderExtension {
 
     private static final Logger log = LoggerFactory.getLogger(FeatureXmlReaderExtension.class);
 
-    static void resolveFeature(@Nonnull Result result, @Nonnull StartElement startElement) {
+    static void resolveFeature(@Nonnull Result result, @Nonnull StartElement startElement, DependencyGraph graph) {
         var attribute = startElement.getAttributeByName(ID_ATTR_NAME);
         if (attribute != null) {
             try {
-                FeatureResolver.resolveFeatureDependencies(result, attribute.getValue());
+                FeatureResolver.resolveFeatureDependencies(result, attribute.getValue(), graph);
             } catch (IOException | XMLStreamException e) {
                 log.error("Failed to resolve feature", e);
             }
@@ -43,10 +44,13 @@ class FeatureXmlReaderExtension extends XmlReaderExtension {
     }
 
     @Override
-    public void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader) {
+    public void resolveStartElement(@Nonnull Result result,
+                                    @Nonnull StartElement startElement,
+                                    XMLEventReader reader,
+                                    DependencyGraph graph) {
         var nameLocalPart = startElement.getName().getLocalPart();
         if (nameLocalPart.equals("includes") || nameLocalPart.equals("feature")) {
-            resolveFeature(result, startElement);
+            resolveFeature(result, startElement, graph);
         }
     }
 }

@@ -19,6 +19,7 @@ package org.jkiss.tools.rcplaunchconfig.xml;
 import jakarta.annotation.Nonnull;
 import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLEventReader;
@@ -42,10 +43,15 @@ abstract class XmlReaderExtension {
         return BundleUtils.matchesDeclaredOS(
             wsAttr == null ? null : wsAttr.getValue(),
             osAttr == null ? null : osAttr.getValue(),
-            archAttr == null ? null : archAttr.getValue());
+            archAttr == null ? null : archAttr.getValue()
+        );
     }
 
 
-
-    public abstract void resolveStartElement(@Nonnull Result result, @Nonnull StartElement startElement, XMLEventReader reader) throws XMLStreamException;
+    public abstract void resolveStartElement(
+        @Nonnull Result result,
+        @Nonnull StartElement startElement,
+        XMLEventReader reader,
+        DependencyGraph graph
+    ) throws XMLStreamException;
 }
