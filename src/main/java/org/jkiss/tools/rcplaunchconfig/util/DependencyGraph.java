@@ -76,7 +76,7 @@ public abstract class DependencyGraph {
             this.dependencies.add(new Pair<>(dependency, DependencyType.BUNDLE_IMPORT));
         }
 
-        public boolean isVisited() {
+        public boolean isImported() {
             return visited;
         }
 

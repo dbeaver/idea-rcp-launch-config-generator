@@ -109,13 +109,12 @@ public class DependencyGraphImpl extends DependencyGraph {
         StringBuffer buffer,
         Path outputFile
     ) throws IOException {
-        if (node.isVisited()) {
-            writeToBuffer(buffer, indent + type + node.getName() + " (already imported)\n", outputFile);
+        if (node.isImported()) {
+            writeToBuffer(buffer, indent + type + node.getName() + " (already printed)\n", outputFile);
             return;
         }
         writeToBuffer(buffer, indent + type + node.getName() + "\n", outputFile);
         node.setImported(true);
-
         for (Pair<DependencyNode, DependencyNode.DependencyType> dep : node.getDependencies()) {
             String childType = dep.getSecond()
                 .equals(DependencyNode.DependencyType.DIRECT_DEPENDENCY) ? "  -> " : " -> (import)";
@@ -125,7 +124,6 @@ public class DependencyGraphImpl extends DependencyGraph {
                 writeToBuffer(buffer, indent + " " + childType + dep.getFirst().getName() + "\n", outputFile);
             }
         }
-        node.setImported(false);
     }
 
     private void writeToBuffer(StringBuffer outputBuffer, String content, Path outputFile) throws IOException {
