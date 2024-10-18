@@ -1,6 +1,7 @@
 package org.jkiss.tools.rcplaunchconfig.xml;
 
 import org.jkiss.tools.rcplaunchconfig.Result;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 
 import javax.xml.stream.events.StartElement;
 
@@ -17,7 +18,12 @@ public class LaunchArgumentsXMLReaderExtension extends XmlReaderExtension {
     public static final Pattern CLI_REGEX = Pattern.compile("(?<=\\s|^)-{1,2}\\S*(?:\\s+[^\\s-]\\S*)?");
 
     @Override
-    public void resolveStartElement(Result result, StartElement startElement, XMLEventReader reader) throws XMLStreamException {
+    public void resolveStartElement(
+        Result result,
+        StartElement startElement,
+        XMLEventReader reader,
+        DependencyGraph graph
+    ) throws XMLStreamException {
         if ("vmArgs".equals(startElement.getName().getLocalPart())) {
             String[] strings = extractArgs(reader, startElement.getName().getLocalPart());
             result.getArguments().setVmARGS(strings);

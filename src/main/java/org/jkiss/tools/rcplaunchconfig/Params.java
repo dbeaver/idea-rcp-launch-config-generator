@@ -37,6 +37,9 @@ public class Params {
     @Option(names = "-eclipse", description = "Path to folder with 3-rd party dependencies")
     public Path eclipsePath;
 
+    @Option(names = "-tree", description = "Option to generate dependency tree files")
+    public boolean generateDependencyTree;
+
     @Option(names = "-output", description = "Place for result files", required = true)
     public Path resultFilesPath;
 

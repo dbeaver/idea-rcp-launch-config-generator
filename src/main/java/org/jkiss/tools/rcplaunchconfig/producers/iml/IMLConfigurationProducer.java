@@ -149,14 +149,6 @@ public class IMLConfigurationProducer {
             }
         }
         config.append("\"/>\n");
-        Map<String, String> associatedParameters = PathsManager.INSTANCE.getAssociatedParameters(result.getProductUID());
-        if (associatedParameters != null) {
-            config.append("    <envs>").append("\n");
-            for (Map.Entry<String, String> parameterEntry : associatedParameters.entrySet()) {
-                config.append("     <env name=\"%s\" value=\"%s\" />\n".formatted(parameterEntry.getKey(), parameterEntry.getValue()));
-            }
-            config.append("    </envs>").append("\n");
-        }
         config.append("    <option name=\"WORKING_DIRECTORY\" value=").append(result.getWorkDir() != null ? "\""
             + result.getWorkDir() + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
         config.append("    <shortenClasspath name=\"ARGS_FILE\" />\n");

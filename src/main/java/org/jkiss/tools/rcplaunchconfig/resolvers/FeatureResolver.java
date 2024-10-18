@@ -25,6 +25,7 @@ import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
 import org.jkiss.tools.rcplaunchconfig.p2.RemoteP2Feature;
 import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.xml.XmlReader;
 import org.slf4j.Logger;
@@ -69,60 +70,70 @@ public class FeatureResolver {
 
     public static void resolveFeatureDependencies(
         @Nonnull Result result,
-        @Nonnull String bundleName
+        @Nonnull String bundleName,
+        DependencyGraph graph
     ) throws IOException, XMLStreamException {
         if (result.isFeatureResolved(bundleName)) {
             return;
         }
+        DependencyGraph.DependencyNode previousNode = graph.addCurrentNodeDependencyAndTraverse(bundleName);
+        try {
+            var featuresFoldersPaths = PathsManager.INSTANCE.getFeaturesLocations();
+            var featureXmlFiles = featuresFoldersPaths.stream()
+                .map(featuresFolderPath -> FileUtils.findFirstChildByPackageName(featuresFolderPath, bundleName))
+                .filter(Objects::nonNull)
+                .map(featureFolder -> FileUtils.findFirstChildByPackageName(featureFolder, FEATURES_XML_FILENAME))
+                .filter(Objects::nonNull)
+                .toList();
 
-        var featuresFoldersPaths = PathsManager.INSTANCE.getFeaturesLocations();
-        var featureXmlFiles = featuresFoldersPaths.stream()
-            .map(featuresFolderPath -> FileUtils.findFirstChildByPackageName(featuresFolderPath, bundleName))
-            .filter(Objects::nonNull)
-            .map(featureFolder -> FileUtils.findFirstChildByPackageName(featureFolder, FEATURES_XML_FILENAME))
-            .filter(Objects::nonNull)
-            .toList();
-
-        if (featureXmlFiles.size() == 1) {
-            Optional<RemoteP2Feature> maxVersionRemoteFeature = BundleUtils.getMaxVersionRemoteFeature(bundleName, P2RepositoryManager.INSTANCE.getLookupCache());
-            if (maxVersionRemoteFeature.isPresent() && BundleUtils.isRemoteFeatureVersionGreater(maxVersionRemoteFeature.get(), FileUtils.extractVersion(featureXmlFiles.get(0).getParentFile()))) {
-                if (!resolveRemoteFeature(result, bundleName, maxVersionRemoteFeature.get())) {
-                    log.error("Couldn't resolve newer version feature '{}'", bundleName);
-                }
-            } else {
-                parseFeatureFile(result, bundleName, featureXmlFiles.get(0));
-            }
-        } else if (featureXmlFiles.isEmpty()) {
-            P2BundleLookupCache lookupCache = P2RepositoryManager.INSTANCE.getLookupCache();
-            Optional<RemoteP2Feature> remoteP2FeatureOptional
-                = lookupCache.getRemoteFeaturesByName(bundleName).stream().max(Comparator.comparing(RemoteP2Feature::getVersion));
-            if (remoteP2FeatureOptional.isPresent()) {
-                RemoteP2Feature remoteP2Feature = remoteP2FeatureOptional.get();
-                if (resolveRemoteFeature(result, bundleName, remoteP2Feature)) {
-                    return;
-                }
-            }
-            log.error("Couldn't find feature '{}'", bundleName);
-        } else {
-            var featuresFilesPaths = featureXmlFiles.stream()
-                .map(it -> {
-                    try {
-                        return it.getCanonicalPath();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
+            if (featureXmlFiles.size() == 1) {
+                Optional<RemoteP2Feature> maxVersionRemoteFeature = BundleUtils.getMaxVersionRemoteFeature(bundleName, P2RepositoryManager.INSTANCE.getLookupCache());
+                if (maxVersionRemoteFeature.isPresent() && BundleUtils.isRemoteFeatureVersionGreater(maxVersionRemoteFeature.get(), FileUtils.extractVersion(featureXmlFiles.get(0).getParentFile()))) {
+                    if (!resolveRemoteFeature(result, bundleName, maxVersionRemoteFeature.get(), graph)) {
+                        log.error("Couldn't resolve newer version feature '{}'", bundleName);
                     }
-                })
-                .collect(Collectors.joining("\n  "));
-            log.warn("Found multiple features '{}'. First will be used.\n  {}", bundleName, featuresFilesPaths);
-            parseFeatureFile(result, bundleName, featureXmlFiles.get(0));
+                } else {
+                    parseFeatureFile(result, bundleName, featureXmlFiles.get(0), graph);
+                }
+            } else if (featureXmlFiles.isEmpty()) {
+                P2BundleLookupCache lookupCache = P2RepositoryManager.INSTANCE.getLookupCache();
+                Optional<RemoteP2Feature> remoteP2FeatureOptional
+                    = lookupCache.getRemoteFeaturesByName(bundleName).stream().max(Comparator.comparing(RemoteP2Feature::getVersion));
+                if (remoteP2FeatureOptional.isPresent()) {
+                    RemoteP2Feature remoteP2Feature = remoteP2FeatureOptional.get();
+                    if (resolveRemoteFeature(result, bundleName, remoteP2Feature, graph)) {
+                        return;
+                    }
+                }
+                log.error("Couldn't find feature '{}'", bundleName);
+            } else {
+                var featuresFilesPaths = featureXmlFiles.stream()
+                    .map(it -> {
+                        try {
+                            return it.getCanonicalPath();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .collect(Collectors.joining("\n  "));
+                log.warn("Found multiple features '{}'. First will be used.\n  {}", bundleName, featuresFilesPaths);
+                parseFeatureFile(result, bundleName, featureXmlFiles.get(0), graph);
+            }
+        } finally {
+            graph.setCurrentNode(previousNode);
         }
     }
 
-    private static boolean resolveRemoteFeature(@NotNull Result result, @NotNull String bundleName, RemoteP2Feature remoteP2Feature) throws XMLStreamException, IOException {
+    private static boolean resolveRemoteFeature(
+        @NotNull Result result,
+        @NotNull String bundleName,
+        RemoteP2Feature remoteP2Feature,
+        DependencyGraph graph
+    ) throws XMLStreamException, IOException {
         boolean success = remoteP2Feature.resolveFeature();
         if (success) {
             File child = FileUtils.findFirstChildByPackageName(remoteP2Feature.getPath(), FEATURES_XML_FILENAME);
-            parseFeatureFile(result, bundleName, child);
+            parseFeatureFile(result, bundleName, child, graph);
             return true;
         }
         return false;
@@ -131,18 +142,17 @@ public class FeatureResolver {
     private static void parseFeatureFile(
         @Nonnull Result result,
         @Nonnull String bundleName,
-        @Nonnull File featureXmlFile
+        @Nonnull File featureXmlFile,
+        DependencyGraph graph
     ) throws XMLStreamException, IOException {
         FeatureInfo currentFeature = getCurrentFeature(result.getProductPath());
-
         FeatureInfo newFeature = result.addResolvedFeature(bundleName, featureXmlFile);
         projectFeatureStack.get(result.getProductPath()).add(newFeature);
 
         if (currentFeature != null) {
             currentFeature.addFeatureDependency(newFeature);
         }
-        XmlReader.INSTANCE.parseXmlFile(result, featureXmlFile);
-
+        XmlReader.INSTANCE.parseXmlFile(result, featureXmlFile, graph);
         FeatureInfo lastFeature = projectFeatureStack.get(result.getProductPath()).remove(projectFeatureStack.get(result.getProductPath()).size() - 1);
         if (lastFeature != newFeature) {
             throw new IOException("Feature parser internal error. Feature [" +
