@@ -151,6 +151,7 @@ public class PluginResolver {
                 var manifestFile = pluginJarOrFolder.toPath().resolve(MANIFEST_PATH).toFile();
                 if (!manifestFile.exists()) {
                     log.error("Cannot find '{}'", manifestFile.getPath());
+                    return null;
                 }
                 try (var inputStream = new FileInputStream(manifestFile)) {
                     var manifest = new Manifest(inputStream);
