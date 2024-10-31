@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -37,9 +36,6 @@ public enum PathsManager {
     private Map<Path, String> productsPathsAndWorkDirs;
     private Collection<Path> testBundlesPaths;
 
-    private Map<String, Set<String>> associatedProperties;
-
-    private Map<String, Map<String, String>> propertyArray = new LinkedHashMap<>();
 
     private Path eclipsePath;
     private Path eclipsePluginsPath;
@@ -70,7 +66,7 @@ public enum PathsManager {
         if (!eclipsePluginsPath.toFile().exists()) {
             Files.createDirectories(eclipsePluginsPath);
         }
-        this.workspaceName = settings.getProperty(ConfigurationConstants.WORKSPACE_NAME_PARAM);
+        this.workspaceName = (String) settings.get(ConfigurationConstants.WORKSPACE_NAME_PARAM);
 
         imlModules = eclipsePath.getParent().resolve(workspaceName);
         if (!imlModules.toFile().exists()) {
@@ -81,7 +77,7 @@ public enum PathsManager {
         if (!eclipseFeaturesPath.toFile().exists()) {
             Files.createDirectories(eclipseFeaturesPath);
         }
-        var featuresPathsString = settings.getProperty(ConfigurationConstants.FEATURES_PATHS_PARAM);
+        var featuresPathsString = (String) settings.get(ConfigurationConstants.FEATURES_PATHS_PARAM);
         featuresPaths = Arrays.stream(featuresPathsString.split(";"))
             .map(String::trim)
             .map(projectsFolderPath::resolve)
@@ -100,7 +96,7 @@ public enum PathsManager {
             additionalRepositoriesPaths = List.of();
         }
 
-        String additionalIMlModulesString = settings.getProperty(ConfigurationConstants.ADDITIONAL_IML_MODULES_PARAM);
+        String additionalIMlModulesString = (String) settings.get(ConfigurationConstants.ADDITIONAL_IML_MODULES_PARAM);
         if (additionalIMlModulesString != null) {
             additionalIMlModules = Arrays.stream(additionalIMlModulesString.split(";"))
                 .map(String::trim)
@@ -108,7 +104,7 @@ public enum PathsManager {
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());
         }
-        var bundlesPathsString = settings.getProperty(ConfigurationConstants.BUNDLES_PATHS_PARAM);
+        var bundlesPathsString = (String) settings.get(ConfigurationConstants.BUNDLES_PATHS_PARAM);
         bundlesPaths = Stream.concat(
                 Arrays.stream(bundlesPathsString.split(";"))
                     .map(String::trim)
@@ -120,7 +116,7 @@ public enum PathsManager {
             )
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
-        var productsPathsString = settings.getProperty(ConfigurationConstants.PRODUCTS_PATHS_PARAM);
+        var productsPathsString = (String) settings.get(ConfigurationConstants.PRODUCTS_PATHS_PARAM);
         Map<Path, String> list = new LinkedHashMap<>();
         for (String pathString : productsPathsString.split(";")) {
             String trim = pathString.trim();
@@ -156,41 +152,26 @@ public enum PathsManager {
             }
         }
         modulesRoots = set;
-        String additionalModuleRootsString = settings.getProperty(ConfigurationConstants.ADDITIONAL_MODULE_ROOTS_PARAM);
+        String additionalModuleRootsString = (String) settings.get(ConfigurationConstants.ADDITIONAL_MODULE_ROOTS_PARAM);
         if (additionalModuleRootsString != null) {
             Set<Path> additionalModuleRoots = Arrays.stream(additionalModuleRootsString.split(";"))
                 .map(String::trim)
                 .map(projectsFolderPath::resolve).collect(Collectors.toSet());
             modulesRoots.addAll(additionalModuleRoots);
         }
-        String associatedPropertiesObject = settings.getProperty(ConfigurationConstants.ASSOCIATED_PROPERTIES);
-        if (associatedPropertiesObject != null) {
-            Stream<String> propertyStream = Arrays.stream(associatedPropertiesObject.split(";"))
-                .filter(it -> it.split("=").length == 2).map(String::trim);
-            this.associatedProperties = propertyStream.peek(productProperties -> {
-                String values = productProperties.split("=")[1];
-                Set<String> valuesSet = getSet(values);
-                for (String s : valuesSet) {
-                    propertyArray.computeIfAbsent(s, prop -> loadNewProperty(prop, settings));
-                }
-                }
-            ).collect(Collectors.toMap(it -> it.split("=")[0], it -> getSet(it.split("=")[1])));
-        }
-
-
-        var testBundlesPathsString = settings.getProperty(ConfigurationConstants.TEST_BUNDLE_PATHS_PARAM);
+        var testBundlesPathsString = (String) settings.get(ConfigurationConstants.TEST_BUNDLE_PATHS_PARAM);
         testBundlesPaths =
             Arrays.stream(testBundlesPathsString.split(";"))
                 .map(String::trim)
                 .map(projectsFolderPath::resolve)
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());
-        String testLibrariesString = settings.getProperty(ConfigurationConstants.TEST_LIBRARIES);
+        var testLibrariesString = (String) settings.get(ConfigurationConstants.TEST_LIBRARIES);
         if (testLibrariesString != null) {
             this.testLibraries = Arrays.stream(testLibrariesString.split(";"))
                 .map(String::trim).collect(Collectors.toSet());
         }
-        var additionalLibrariesString = settings.getProperty(ConfigurationConstants.ADDITIONAL_LIBRARIES_PATHS_PARAM);
+        var additionalLibrariesString = (String) settings.get(ConfigurationConstants.ADDITIONAL_LIBRARIES_PATHS_PARAM);
         if (additionalLibrariesString != null) {
             this.additionalLibraries = Arrays.stream(additionalLibrariesString.split(";"))
                 .map(String::trim)
@@ -198,7 +179,7 @@ public enum PathsManager {
                 .filter(FileUtils::exists)
                 .collect(Collectors.toList());;
         }
-        String ideaConfigurationFilesString = settings.getProperty(ConfigurationConstants.IDEA_CONFIGURATION_FILES_PATHS_PARAM);
+        String ideaConfigurationFilesString = (String) settings.get(ConfigurationConstants.IDEA_CONFIGURATION_FILES_PATHS_PARAM);
         if (ideaConfigurationFilesString != null) {
             this.ideaConfigurationFiles = Arrays.stream(ideaConfigurationFilesString.split(";"))
                 .map(String::trim)
@@ -207,31 +188,6 @@ public enum PathsManager {
                 .collect(Collectors.toList());
         }
         this.projectsFolderPath = projectsFolderPath;
-
-
-    }
-
-    @NotNull
-    private static Set<String> getSet(String values) {
-        Set<String> valuesSet = new LinkedHashSet<>();
-        if (values.contains(",")) {
-            valuesSet.addAll(List.of(values.split(",")));
-        } else {
-            valuesSet.add(values);
-        }
-        return valuesSet;
-    }
-
-    private Map<String, String> loadNewProperty(@Nonnull String property, @Nonnull Properties properties) {
-        String propertyString = properties.getProperty(property);
-        return Arrays.stream(propertyString.split(";"))
-            .map(pair -> pair.split("=", 2))  // Split each key=value pair
-            .filter(pair -> pair.length == 2) // Ensure valid key=value pairs
-            .collect(Collectors.toMap(
-                pair -> pair[0].trim(),        // Key
-                pair -> pair[1].trim()         // Value
-            ));
-
     }
 
     public @Nonnull Collection<Path> getFeaturesLocations() {
@@ -252,6 +208,10 @@ public enum PathsManager {
 
     public @Nonnull Path getEclipsePath() {
         return eclipsePath;
+    }
+
+    public @Nonnull Path getTreeOutputFolder() {
+        return eclipsePath.getParent().resolve(ConfigurationConstants.TREE_OUTPUT);
     }
 
     public @Nonnull Path getEclipsePluginsPath() {
@@ -296,23 +256,5 @@ public enum PathsManager {
 
     public Path getProjectsFolderPath() {
         return projectsFolderPath;
-    }
-
-    public Map<String, String> getAssociatedParameters(String product) {
-        if (associatedProperties == null) {
-            return null;
-        }
-
-        Set<String> properties = associatedProperties.get(product);
-        if (properties != null) {
-            Map<String, String> result = new HashMap<>();
-            for (String property : properties) {
-                Map<String, String> stringStringMap = propertyArray.get(property);
-                result.putAll(stringStringMap);
-            }
-            return result;
-        } else {
-            return null;
-        }
     }
 }

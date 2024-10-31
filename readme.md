@@ -37,6 +37,7 @@ Accepts the following required parameters:
 | -output          | Place for result files                                                                                                                                                                                   |
 | -singleCoreMode  | (Debug) Uses only one core for the project resolution                                                                                                                                                    |
 | -debug           | Provides more detailed output                                                                                                                                                                            |
+| -noTree          | Disable dependency tree generation for each product                                                                                                                                                      |
 
 Configuration file example:
 ```properties
@@ -45,8 +46,7 @@ featuresPaths=\
   dbeaver/features;
 bundlesPaths=\
   dbeaver-common/modules;\
-  dbeaver/plugins;\
-  dbeaver/plugins-dev
+  dbeaver/plugins
 repositories=\
   https://p2.dev.dbeaver.com/eclipse-repo/;\
   https://download.eclipse.org/releases/${eclipse-version}/;
