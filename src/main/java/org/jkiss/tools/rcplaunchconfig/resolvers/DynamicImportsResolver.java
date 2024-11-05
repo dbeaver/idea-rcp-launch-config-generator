@@ -27,7 +27,7 @@ import org.jkiss.tools.rcplaunchconfig.Result;
 import org.jkiss.tools.rcplaunchconfig.p2.P2BundleLookupCache;
 import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
-import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
 import org.jkiss.tools.rcplaunchconfig.util.Version;
 import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
 import org.jkiss.utils.Pair;
@@ -55,7 +55,7 @@ public class DynamicImportsResolver {
     private Set<String> excludedBundles = Set.of("org.eclipse.rap.rwt");
 
 
-    public void start(@Nonnull Result result, P2BundleLookupCache lookupCache) throws IOException {
+    public void start(@Nonnull Result result, P2BundleLookupCache lookupCache, DependencyGraph graph) throws IOException {
         var eclipsePluginsByExportedPackages = readEclipsePluginsExportedPackages(PathsManager.INSTANCE.getEclipsePluginsPath());
 
         MultiValuedMap<String, Pair<BundleInfo, Version>> parsedBundlesByExportedPackages = new ArrayListValuedHashMap<>();
@@ -77,7 +77,9 @@ public class DynamicImportsResolver {
                     parsedBundlesByExportedPackages,
                     bundleInfo,
                     additionalBundlesByImportPackage,
-                    lookupCache);
+                    lookupCache,
+                    graph
+                );
             }
         }
         for (var additionalBundle : additionalBundlesByImportPackage.values()) {
@@ -108,7 +110,8 @@ public class DynamicImportsResolver {
         @Nonnull MultiValuedMap<String, Pair<BundleInfo, Version>> parsedResultPluginsByExportedPackages,
         @Nonnull BundleInfo bundleInfo,
         @Nonnull MultiValuedMap<Pair<String, VersionRange>, BundleInfo> bundlesToAddByImportPackage,
-        @Nonnull P2BundleLookupCache lookupCache
+        @Nonnull P2BundleLookupCache lookupCache,
+        @Nonnull DependencyGraph graph
     ) throws IOException {
         for (var packageToImport : bundleInfo.getImportPackages()) {
             List<BundleInfo> suitableParsedBundles = getSuitableBundles(parsedResultPluginsByExportedPackages, packageToImport);
@@ -118,6 +121,7 @@ public class DynamicImportsResolver {
             ) {
                 if (!suitableParsedBundles.isEmpty()) {
                     for (BundleInfo info : suitableParsedBundles) {
+                        graph.addImportDependency(bundleInfo.getBundleName(), info.getBundleName());
                         IMLConfigurationProducer.INSTANCE.addRequiredBundleforPackage(packageToImport, info);
                     }
                 }
@@ -163,20 +167,28 @@ public class DynamicImportsResolver {
                     .collect(Collectors.joining("\n  "));
                 log.debug("Multiple plugins exports same package: '{}'\n  {}\n  All bundles will be used", packageToImport, bundlesPathsList);
             }
-            eclipseBundlesWithThisPackage.forEach(it -> IMLConfigurationProducer.INSTANCE.addRequiredBundleforPackage(packageToImport, it));
+            eclipseBundlesWithThisPackage.forEach(it -> {
+                graph.addImportDependency(bundleInfo.getBundleName(), it.getBundleName());
+                IMLConfigurationProducer.INSTANCE.addRequiredBundleforPackage(packageToImport, it);
+            });
             for (var bundleToAdd : eclipseBundlesWithThisPackage) {
-                bundlesToAddByImportPackage.put(packageToImport, bundleToAdd);
+                DependencyGraph.DependencyNode oldNode = graph.traverseIntoNode(bundleToAdd.getBundleName());
+                try {
+                    bundlesToAddByImportPackage.put(packageToImport, bundleToAdd);
 
-                var newResult = new DynamicImportResult(result);
-                resolveImportPackages(newResult, eclipsePluginsByExportedPackages, parsedResultPluginsByExportedPackages, bundleToAdd, bundlesToAddByImportPackage, lookupCache);
-                for (var requireBundle : bundleToAdd.getRequireBundles()) {
-                    PluginResolver.resolvePluginDependencies(newResult, requireBundle, null, lookupCache);
+                    var newResult = new DynamicImportResult(result);
+                    resolveImportPackages(newResult, eclipsePluginsByExportedPackages, parsedResultPluginsByExportedPackages, bundleToAdd, bundlesToAddByImportPackage, lookupCache, graph);
+                    for (var requireBundle : bundleToAdd.getRequireBundles()) {
+                        PluginResolver.resolvePluginDependencies(newResult, requireBundle, null, lookupCache, graph);
+                    }
+                    BundleInfo[] array = newResult.getNewBundles().toArray(new BundleInfo[0]);
+                    for (var newAddedBundle : array) {
+                        resolveImportPackages(newResult, eclipsePluginsByExportedPackages, parsedResultPluginsByExportedPackages, newAddedBundle, bundlesToAddByImportPackage, lookupCache, graph);
+                    }
+                    newResult.flush();
+                } finally {
+                    graph.setCurrentNode(oldNode);
                 }
-                BundleInfo[] array = newResult.getNewBundles().toArray(new BundleInfo[0]);
-                for (var newAddedBundle : array) {
-                    resolveImportPackages(newResult, eclipsePluginsByExportedPackages, parsedResultPluginsByExportedPackages, newAddedBundle, bundlesToAddByImportPackage, lookupCache);
-                }
-                newResult.flush();
             }
         }
     }
