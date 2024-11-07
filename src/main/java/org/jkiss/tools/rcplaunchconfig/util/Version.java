@@ -16,6 +16,8 @@
  */
 package org.jkiss.tools.rcplaunchconfig.util;
 
+import java.util.Objects;
+
 public class Version implements Comparable<Version> {
     int major;
     int minor;
@@ -47,6 +49,24 @@ public class Version implements Comparable<Version> {
     @Override
     public String toString() {
         return major + "." + minor + "." + micro + (delta == null ? "" : "." + delta);
+    }
+
+    @Override public boolean equals(Object obj) {
+        if (obj instanceof Version secondVersion) {
+            return secondVersion.major == this.major
+                && secondVersion.minor == this.minor
+                && secondVersion.micro == this.micro
+                && Objects.equals(secondVersion.delta, this.delta);
+        }
+        return super.equals(obj);
+    }
+
+    @Override public int hashCode() {
+        int hashCode = Integer.hashCode(major) ^ Integer.hashCode(minor) ^ Integer.hashCode(micro);
+        if (delta != null) {
+            hashCode ^= delta.hashCode();
+        }
+        return hashCode;
     }
 
     @Override

@@ -376,7 +376,9 @@ public class IMLConfigurationProducer {
             for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
                 if (bundlePackageImports.get(importPackage) != null) {
                     for (BundleInfo info : bundlePackageImports.get(importPackage)) {
-                        appendLibraryInfo(builder, info, result, resolvedBundles, isLibrary);
+                        if (!resolvedBundles.contains(new Pair<>(info.getBundleName(), new Version(info.getBundleVersion())))) {
+                            appendLibraryInfo(builder, info, result, resolvedBundles, isLibrary);
+                        }
                     }
                 }
             }
@@ -467,7 +469,20 @@ public class IMLConfigurationProducer {
         for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
             if (bundlePackageImports.get(importPackage) != null) {
                 for (BundleInfo info : bundlePackageImports.get(importPackage)) {
-                    appendBundleInfo(bundleInfo, new Pair<>(info.getBundleName(), importPackage.getSecond()), builder, result, resolvedBundles);
+                    Pair<String, Version> bundleAndVersion = new Pair<>(
+                        info.getBundleName(),
+                        new Version(info.getBundleVersion())
+                    );
+                    if (!resolvedBundles.contains(bundleAndVersion)) {
+                        appendBundleInfo(
+                            bundleInfo,
+                            new Pair<>(info.getBundleName(), importPackage.getSecond()),
+                            builder,
+                            result,
+                            resolvedBundles
+                        );
+                        resolvedBundles.add(bundleAndVersion);
+                    }
                 }
             }
         }
