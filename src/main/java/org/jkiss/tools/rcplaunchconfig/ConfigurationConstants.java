@@ -23,6 +23,8 @@ public class ConfigurationConstants {
     public static final String ADDITIONAL_IML_MODULES_PARAM = "additionalIMlModules";
     public static final String BUNDLES_PATHS_PARAM = "bundlesPaths";
     public static final String PRODUCTS_PATHS_PARAM = "productsPaths";
+    public static final String EXCLUDED_OUTPUT_PARAM = "excludeOutputs";
+
     public static final String ADDITIONAL_MODULE_ROOTS_PARAM = "additionalModuleRoots";
     public static final String TEST_BUNDLE_PATHS_PARAM = "testBundlePaths";
     public static final String ADDITIONAL_LIBRARIES_PATHS_PARAM = "additionalLibrariesPaths";

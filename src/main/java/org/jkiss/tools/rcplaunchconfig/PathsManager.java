@@ -49,6 +49,7 @@ public enum PathsManager {
     private String workspaceName;
     private List<Path> additionalRepositoriesPaths;
     private Set<String> testLibraries;
+    private Set<Path> excludePaths;
 
     public void init(
         @Nonnull Properties settings,
@@ -117,26 +118,7 @@ public enum PathsManager {
             .filter(FileUtils::exists)
             .collect(Collectors.toList());
         var productsPathsString = (String) settings.get(ConfigurationConstants.PRODUCTS_PATHS_PARAM);
-        Map<Path, String> list = new LinkedHashMap<>();
-        for (String pathString : productsPathsString.split(";")) {
-            String trim = pathString.trim();
-            if (pathString.contains(":")) {
-                String[] pathAndWorkDir = pathString.split(":");
-                if (pathAndWorkDir.length != 2) {
-                    continue;
-                }
-                Path productPath = projectsFolderPath.resolve(pathAndWorkDir[0]);
-                if (FileUtils.exists(productPath)) {
-                    list.put(productPath, pathAndWorkDir[1]);
-                }
-            } else {
-                Path  resolve = projectsFolderPath.resolve(trim);
-                if (FileUtils.exists(resolve)) {
-                    list.put(resolve, null);
-                }
-            }
-        }
-        productsPathsAndWorkDirs = list;
+        productsPathsAndWorkDirs = resolveRootPaths(projectsFolderPath, productsPathsString);
         Stream<Path> allModules = Stream.concat(Arrays.stream(bundlesPathsString.split(";"))
             .map(Path::of), Arrays.stream(featuresPathsString.split(";")).map(Path::of));
         Set<Path> collect = allModules.collect(Collectors.toSet());
@@ -158,6 +140,14 @@ public enum PathsManager {
                 .map(String::trim)
                 .map(projectsFolderPath::resolve).collect(Collectors.toSet());
             modulesRoots.addAll(additionalModuleRoots);
+        }
+        excludePaths = new LinkedHashSet<>();
+        String excludePathsString = (String) settings.get(ConfigurationConstants.EXCLUDED_OUTPUT_PARAM);
+        if (excludePathsString != null) {
+            Set<Path> excludes = Arrays.stream(excludePathsString.split(";"))
+                .map(String::trim)
+                .map(projectsFolderPath::resolve).collect(Collectors.toSet());
+            excludePaths.addAll(excludes);
         }
         var testBundlesPathsString = (String) settings.get(ConfigurationConstants.TEST_BUNDLE_PATHS_PARAM);
         testBundlesPaths =
@@ -188,6 +178,30 @@ public enum PathsManager {
                 .collect(Collectors.toList());
         }
         this.projectsFolderPath = projectsFolderPath;
+    }
+
+    @NotNull
+    private static Map<Path, String> resolveRootPaths(@NotNull Path projectsFolderPath, String productsPathsString) {
+        Map<Path, String> list = new LinkedHashMap<>();
+        for (String pathString : productsPathsString.split(";")) {
+            String trim = pathString.trim();
+            if (pathString.contains(":")) {
+                String[] pathAndWorkDir = pathString.split(":");
+                if (pathAndWorkDir.length != 2) {
+                    continue;
+                }
+                Path productPath = projectsFolderPath.resolve(pathAndWorkDir[0]);
+                if (FileUtils.exists(productPath)) {
+                    list.put(productPath, pathAndWorkDir[1]);
+                }
+            } else {
+                Path  resolve = projectsFolderPath.resolve(trim);
+                if (FileUtils.exists(resolve)) {
+                    list.put(resolve, null);
+                }
+            }
+        }
+        return list;
     }
 
     public @Nonnull Collection<Path> getFeaturesLocations() {
@@ -252,6 +266,10 @@ public enum PathsManager {
 
     public List<Path> getAdditionalRepositoriesPaths() {
         return additionalRepositoriesPaths;
+    }
+
+    public Set<Path> getExcludePaths() {
+        return excludePaths;
     }
 
     public Path getProjectsFolderPath() {

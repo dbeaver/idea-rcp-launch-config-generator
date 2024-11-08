@@ -77,5 +77,6 @@ optionalFeatureRepositories=\
 | ideaConfigurationFilesPaths | Files of IDEA configuration to be copied(optional)                                                                        |
 | additionalModuleRoots       | Additional root IDEA modules can be generated if required(optional)                                                       |
 | optionalFeatureRepositories | Repositories containing information about optional features which are not included in product launch by default(optional) |
+| excludeOutputs              | Additional folders to exclude from root module indexing                                                                   |
 
 Note: Technically this tool should work with any Eclipse RCP, not just dbeaver or cloudbeaver.

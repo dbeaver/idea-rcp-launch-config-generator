@@ -229,6 +229,14 @@ public class IMLConfigurationProducer {
                     .append("/target\"/>\n");
             }
         }
+        for (Path excludePath : PathsManager.INSTANCE.getExcludePaths()) {
+            if (excludePath.startsWith(presentModule)) {
+                productExcludes.append("        <excludeFolder url=\"")
+                    .append(getFormattedRelativePath(presentModule, false, false))
+                    .append("/").append(presentModule.relativize(excludePath).toString().replace("\\", "/"))
+                    .append("\"/>\n");
+            }
+        }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
             "<module type=\"JAVA_MODULE\" version=\"4\">\n" +
             "  <component name=\"NewModuleRootManager\">\n" +
