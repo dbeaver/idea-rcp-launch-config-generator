@@ -13,7 +13,9 @@ if [ -z "$WORKING_DIR" ]; then
   echo "No folder containing rcp_gen specified"
   exit 1
 fi
+cd aggregate
 mvn install -q
+cd ..
 # Run the Maven commands with the specified options
 mvn -f "pom.xml" \
     package \

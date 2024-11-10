@@ -24,7 +24,9 @@ if "%WORKING_DIR%"=="" (
 
 echo Build generator
 
+cd aggregate
 call mvn package -q
+cd ..
 
 echo Run generator
 :: Run the Maven commands with the specified options
