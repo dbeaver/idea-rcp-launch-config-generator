@@ -29,9 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
@@ -125,10 +123,8 @@ public class ManifestParser {
 
     @org.jkiss.code.Nullable
     private static Stream<String> getBundlesStream(String requireBundlesArg) {
-        return requireBundlesArg == null ? null : Arrays.stream(
-                removeAllBetweenQuotes(requireBundlesArg)
-                    .split(",")
-            )
+        return requireBundlesArg == null ? null : splitByTopLevel(requireBundlesArg)
+            .stream()
             .filter(ManifestParser::filterOptionalDependencies);
     }
 
@@ -145,13 +141,14 @@ public class ManifestParser {
         Version version = null;
         VersionRange versionRange = null;
         Matcher matcher = VERSION_REGEX.matcher(bundleInfoString);
-        if (matcher.matches()) {
+        if (matcher.find()) {
             if (isExport) {
                 version = new Version(matcher.group(1));
             } else {
                 versionRange = VersionRange.fromString(matcher.group(1));
             }
         }
+
         return new DependencyInformation(trimBundleName(bundleInfoString), version, versionRange);
     }
 
@@ -167,7 +164,8 @@ public class ManifestParser {
         if (bundleClassPathArg == null) {
             return List.of();
         }
-        return Arrays.stream(bundleClassPathArg.split(","))
+        return splitByTopLevel(bundleClassPathArg)
+            .stream()
             .map(String::trim)
             .filter(it -> !it.equals("."))
             .collect(Collectors.toList());
@@ -195,8 +193,7 @@ public class ManifestParser {
 
     @NotNull
     private static Stream<DependencyInformation> getDependencyInformationStream(@NotNull String packagesList, boolean isExport) {
-        var packagesListWithoutQuotes = removeAllBetweenQuotes(packagesList);
-        return Arrays.stream(packagesListWithoutQuotes.split(","))
+        return splitByTopLevel(packagesList).stream()
             .filter(ManifestParser::filterOptionalDependencies)
             .map(it -> convertToDependencyInformation(it, isExport));
     }
@@ -216,5 +213,38 @@ public class ManifestParser {
             }
         }
         return str;
+    }
+
+    public static List<String> splitByTopLevel(String s) {
+        List<String> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        Stack<Character> stack = new Stack<>();
+        boolean insideQuotes = false;
+        for (char c : s.toCharArray()) {
+            // Check for opening brackets and push to stack
+            if (c == '(' || c == '{' || c == '[') {
+                stack.push(c);
+            }
+            if (c == ')' || c == '}' || c == ']') {
+                stack.pop();
+                current.append(c);
+            }
+            if (c == '\"') {
+                insideQuotes = !insideQuotes;
+            }
+            // If it's a comma outside of any brackets, split
+            else if (c == ',' && stack.isEmpty() && !insideQuotes) {
+                result.add(current.toString().trim());
+                current = new StringBuilder();
+            } else {
+                current.append(c);
+            }
+        }
+        // Add the last part
+        if (!current.isEmpty()) {
+            result.add(current.toString().trim());
+        }
+
+        return result;
     }
 }
