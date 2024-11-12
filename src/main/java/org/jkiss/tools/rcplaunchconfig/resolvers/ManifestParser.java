@@ -201,7 +201,7 @@ public class ManifestParser {
     public static List<String> splitByTopLevel(String s) {
         List<String> result = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-        Stack<Character> stack = new Stack<>();
+        Deque<Character> stack = new ArrayDeque<>();
         boolean insideQuotes = false;
         for (char c : s.toCharArray()) {
             // Check for opening brackets and push to stack
