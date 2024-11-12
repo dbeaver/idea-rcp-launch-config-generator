@@ -198,23 +198,6 @@ public class ManifestParser {
             .map(it -> convertToDependencyInformation(it, isExport));
     }
 
-    private static @Nonnull String removeAllBetweenQuotes(@Nonnull String str) {
-        var i = str.indexOf("\"");
-        while (i != -1) {
-            var j = str.indexOf("\"", i + 1);
-            if (j != -1) {
-                var data = str.substring(0, i);
-                var temp = str.substring(j + 1);
-                data += temp;
-                str = data;
-                i = str.indexOf("\"", i + 2);
-            } else {
-                break;
-            }
-        }
-        return str;
-    }
-
     public static List<String> splitByTopLevel(String s) {
         List<String> result = new ArrayList<>();
         StringBuilder current = new StringBuilder();
