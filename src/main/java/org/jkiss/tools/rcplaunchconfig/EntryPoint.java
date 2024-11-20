@@ -17,21 +17,25 @@
 package org.jkiss.tools.rcplaunchconfig;
 
 import ch.qos.logback.classic.Level;
+import com.dbeaver.osgi.ConfigFileManager;
+import com.dbeaver.osgi.PathsManager;
+import com.dbeaver.osgi.Result;
+import com.dbeaver.osgi.resolvers.DynamicImportsResolver;
+import com.dbeaver.osgi.resolvers.FeatureResolver;
+import com.dbeaver.osgi.resolvers.PluginResolver;
+import com.dbeaver.osgi.util.DependencyGraph;
+import com.dbeaver.osgi.util.DependencyGraphImpl;
+import com.dbeaver.osgi.util.DependencyGraphStub;
+import com.dbeaver.osgi.util.FileUtils;
+import com.dbeaver.osgi.xml.CategoryXMLFileParser;
+import com.dbeaver.osgi.xml.XmlReader;
 import org.jkiss.code.NotNull;
-import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
-import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
+import com.dbeaver.osgi.p2.P2RepositoryManager;
+import com.dbeaver.osgi.p2.repository.exception.RepositoryInitialisationError;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
-import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
-import org.jkiss.tools.rcplaunchconfig.resolvers.FeatureResolver;
-import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
-import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
-import org.jkiss.tools.rcplaunchconfig.util.DependencyGraphImpl;
-import org.jkiss.tools.rcplaunchconfig.util.DependencyGraphStub;
-import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
-import org.jkiss.tools.rcplaunchconfig.xml.CategoryXMLFileParser;
-import org.jkiss.tools.rcplaunchconfig.xml.XmlReader;
+
 import org.jkiss.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -114,7 +118,7 @@ public class EntryPoint {
                 DependencyGraph.DependencyNode root = dependencyGraph.getCurrentNode();
                 XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile(), dependencyGraph);
                 dependencyGraph.setCurrentNode(root);
-                new DynamicImportsResolver()
+                new DynamicImportsResolver(IMLConfigurationProducer.INSTANCE)
                     .start(result, p2RepositoryManager.getLookupCache(), dependencyGraph);
                 dependencyGraph.setCurrentNode(root);
                 var resultPath = params.resultFilesPath;

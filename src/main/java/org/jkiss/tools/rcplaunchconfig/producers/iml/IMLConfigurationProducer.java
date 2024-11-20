@@ -1,15 +1,15 @@
 package org.jkiss.tools.rcplaunchconfig.producers.iml;
 
+import com.dbeaver.osgi.*;
+import com.dbeaver.osgi.inter.IImportListener;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
-import org.jkiss.tools.rcplaunchconfig.*;
-import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
-import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
+import com.dbeaver.osgi.p2.P2RepositoryManager;
+import com.dbeaver.osgi.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
-import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
-import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
-import org.jkiss.tools.rcplaunchconfig.util.Version;
-import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
+import com.dbeaver.osgi.util.FileUtils;
+import com.dbeaver.osgi.util.Version;
+import com.dbeaver.osgi.util.VersionRange;
 import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class IMLConfigurationProducer {
+public class IMLConfigurationProducer implements IImportListener {
     public static final Logger log = LoggerFactory.getLogger(IMLConfigurationProducer.class);
 
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
@@ -254,7 +254,7 @@ public class IMLConfigurationProducer {
     /**
      * Add imported by package bundle to the list
      */
-    public void addRequiredBundleforPackage(@NotNull Pair<String, VersionRange> packageName, @NotNull Pair<BundleInfo, Version> bundleInfo) {
+    public void notifyAboutDependency(@NotNull Pair<String, VersionRange> packageName, @NotNull Pair<BundleInfo, Version> bundleInfo) {
         bundlePackageImports.computeIfAbsent(packageName, it -> new LinkedHashSet<>()).add(bundleInfo);
     }
 

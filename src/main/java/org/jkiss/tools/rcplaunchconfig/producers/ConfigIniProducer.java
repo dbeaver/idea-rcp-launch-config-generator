@@ -16,17 +16,18 @@
  */
 package org.jkiss.tools.rcplaunchconfig.producers;
 
+import com.dbeaver.osgi.PathsManager;
+import com.dbeaver.osgi.Result;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
-import org.jkiss.tools.rcplaunchconfig.BundleInfo;
+import com.dbeaver.osgi.BundleInfo;
+import com.dbeaver.osgi.p2.P2RepositoryManager;
+import com.dbeaver.osgi.p2.repository.RemoteP2BundleInfo;
+import com.dbeaver.osgi.util.FileUtils;
 import org.jkiss.tools.rcplaunchconfig.Params;
-import org.jkiss.tools.rcplaunchconfig.PathsManager;
-import org.jkiss.tools.rcplaunchconfig.Result;
-import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
-import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
-import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 import java.io.IOException;
 import java.nio.file.Path;
