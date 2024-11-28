@@ -86,7 +86,7 @@ public class EntryPoint {
         var pathsManager = PathsManager.INSTANCE;
         pathsManager.init(settings, params.projectsFolderPath, params.eclipsePath);
         P2RepositoryManager p2RepositoryManager = P2RepositoryManager.INSTANCE;
-        p2RepositoryManager.init(settings, params.eclipseVersion);
+        p2RepositoryManager.init(settings, params.eclipseVersion, null);
         if (log.isDebugEnabled()) {
             var featuresPaths = pathsManager.getFeaturesLocations().stream()
                 .map(it -> it.toAbsolutePath().toString())
