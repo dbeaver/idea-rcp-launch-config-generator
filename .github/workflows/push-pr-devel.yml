@@ -15,7 +15,7 @@ jobs:
     name: Check
     secrets: inherit
     with:
-      project-directory: ./idea-rcp-launch-config-generator/osgi/aggregate
+      project-directory: ./idea-rcp-launch-config-generator/aggregate
       project-deps: ./idea-rcp-launch-config-generator/project.deps
       timeout-minutes: 2
 
