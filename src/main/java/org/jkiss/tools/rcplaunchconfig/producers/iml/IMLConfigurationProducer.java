@@ -1,15 +1,15 @@
 package org.jkiss.tools.rcplaunchconfig.producers.iml;
 
-import com.dbeaver.osgi.*;
-import com.dbeaver.osgi.inter.IImportListener;
+import com.dbeaver.osgi.dependency.processing.*;
+import com.dbeaver.osgi.dependency.processing.inter.IImportListener;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
-import com.dbeaver.osgi.p2.P2RepositoryManager;
-import com.dbeaver.osgi.p2.repository.RemoteP2BundleInfo;
+import com.dbeaver.osgi.dependency.processing.p2.P2RepositoryManager;
+import com.dbeaver.osgi.dependency.processing.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
-import com.dbeaver.osgi.util.FileUtils;
-import com.dbeaver.osgi.util.Version;
-import com.dbeaver.osgi.util.VersionRange;
+import com.dbeaver.osgi.dependency.processing.util.FileUtils;
+import com.dbeaver.osgi.dependency.processing.util.Version;
+import com.dbeaver.osgi.dependency.processing.util.VersionRange;
 import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

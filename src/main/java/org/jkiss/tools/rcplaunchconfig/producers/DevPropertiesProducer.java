@@ -16,8 +16,8 @@
  */
 package org.jkiss.tools.rcplaunchconfig.producers;
 
-import com.dbeaver.osgi.BundleInfo;
-import com.dbeaver.osgi.util.BundleValidator;
+import com.dbeaver.osgi.dependency.processing.BundleInfo;
+import com.dbeaver.osgi.dependency.processing.util.BundleValidator;
 import jakarta.annotation.Nonnull;
 
 import java.util.*;
