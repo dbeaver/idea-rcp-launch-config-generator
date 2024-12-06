@@ -17,25 +17,21 @@
 package org.jkiss.tools.rcplaunchconfig;
 
 import ch.qos.logback.classic.Level;
-import com.dbeaver.osgi.dependency.processing.ConfigFileManager;
-import com.dbeaver.osgi.dependency.processing.PathsManager;
-import com.dbeaver.osgi.dependency.processing.Result;
-import com.dbeaver.osgi.dependency.processing.resolvers.DynamicImportsResolver;
-import com.dbeaver.osgi.dependency.processing.resolvers.FeatureResolver;
-import com.dbeaver.osgi.dependency.processing.resolvers.PluginResolver;
-import com.dbeaver.osgi.dependency.processing.util.DependencyGraph;
-import com.dbeaver.osgi.dependency.processing.util.DependencyGraphImpl;
-import com.dbeaver.osgi.dependency.processing.util.DependencyGraphStub;
-import com.dbeaver.osgi.dependency.processing.util.FileUtils;
-import com.dbeaver.osgi.dependency.processing.xml.CategoryXMLFileParser;
-import com.dbeaver.osgi.dependency.processing.xml.XmlReader;
 import org.jkiss.code.NotNull;
-import com.dbeaver.osgi.dependency.processing.p2.P2RepositoryManager;
-import com.dbeaver.osgi.dependency.processing.p2.repository.exception.RepositoryInitialisationError;
+import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
+import org.jkiss.tools.rcplaunchconfig.p2.repository.exception.RepositoryInitialisationError;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
-
+import org.jkiss.tools.rcplaunchconfig.resolvers.DynamicImportsResolver;
+import org.jkiss.tools.rcplaunchconfig.resolvers.FeatureResolver;
+import org.jkiss.tools.rcplaunchconfig.resolvers.PluginResolver;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraph;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraphImpl;
+import org.jkiss.tools.rcplaunchconfig.util.DependencyGraphStub;
+import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
+import org.jkiss.tools.rcplaunchconfig.xml.CategoryXMLFileParser;
+import org.jkiss.tools.rcplaunchconfig.xml.XmlReader;
 import org.jkiss.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,7 +82,7 @@ public class EntryPoint {
         var pathsManager = PathsManager.INSTANCE;
         pathsManager.init(settings, params.projectsFolderPath, params.eclipsePath);
         P2RepositoryManager p2RepositoryManager = P2RepositoryManager.INSTANCE;
-        p2RepositoryManager.init(settings, params.eclipseVersion, null);
+        p2RepositoryManager.init(settings, params.eclipseVersion);
         if (log.isDebugEnabled()) {
             var featuresPaths = pathsManager.getFeaturesLocations().stream()
                 .map(it -> it.toAbsolutePath().toString())
@@ -118,7 +114,7 @@ public class EntryPoint {
                 DependencyGraph.DependencyNode root = dependencyGraph.getCurrentNode();
                 XmlReader.INSTANCE.parseXmlFile(result, productPath.getKey().toFile(), dependencyGraph);
                 dependencyGraph.setCurrentNode(root);
-                new DynamicImportsResolver(IMLConfigurationProducer.INSTANCE)
+                new DynamicImportsResolver()
                     .start(result, p2RepositoryManager.getLookupCache(), dependencyGraph);
                 dependencyGraph.setCurrentNode(root);
                 var resultPath = params.resultFilesPath;

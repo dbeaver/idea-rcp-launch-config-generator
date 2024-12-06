@@ -14,7 +14,6 @@ Before proceeding with building DBeaver, ensure that your system meets the follo
 - Clone repositories in the same folder
   - https://github.com/dbeaver/dbeaver-common
   - https://github.com/dbeaver/dbeaver
-  - https://github.com/dbeaver/osgi-commons
   - https://github.com/dbeaver/cloudbeaver (only if you need to make changes in Cloudbeaver)
   - https://github.com/dbeaver/idea-rcp-launch-config-generator
 - Execute the `generate_workspace` script in either the dbeaver or cloudbeaver repo, depending on the workspace you need.

@@ -16,9 +16,8 @@
  */
 package org.jkiss.tools.rcplaunchconfig.producers;
 
-import com.dbeaver.osgi.dependency.processing.BundleInfo;
-import com.dbeaver.osgi.dependency.processing.util.BundleValidator;
 import jakarta.annotation.Nonnull;
+import org.jkiss.tools.rcplaunchconfig.BundleInfo;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,6 +25,14 @@ import java.util.stream.Stream;
 
 public class DevPropertiesProducer {
 
+    public static final List<String> PACKAGES_FOR_DEV_PROPERTIES = List.of(
+        "org.jkiss",
+        "io.cloudbeaver",
+        "com.dbeaver",
+        "swtbot-simple",
+        "connections",
+        "unit"
+    );
     private static final String DEFAULT_CLASSPATH = "target/classes";
 
     public static @Nonnull Map<String, String> generateDevProperties(@Nonnull Collection<Set<BundleInfo>> bundles) {
@@ -42,7 +49,8 @@ public class DevPropertiesProducer {
     }
 
     public static boolean isBundleAcceptable(@Nonnull String bundleName) {
-        return BundleValidator.isBundleAcceptable(bundleName);
+        return !bundleName.startsWith("org.jkiss.bundle") &&
+            PACKAGES_FOR_DEV_PROPERTIES.stream().anyMatch(bundleName::startsWith);
     }
 
     private static @Nonnull String generateValue(@Nonnull List<String> bundleClassPath) {
