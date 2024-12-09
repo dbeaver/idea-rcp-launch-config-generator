@@ -11,6 +11,7 @@
 
   <modules>
     <module>../../dbeaver-common</module>
+    <module>../../dbeaver-common/root</module>
     <module>../../dbeaver-osgi-common</module>
     <module>../</module>
   </modules>
