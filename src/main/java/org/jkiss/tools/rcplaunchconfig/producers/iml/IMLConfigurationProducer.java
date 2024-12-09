@@ -26,10 +26,16 @@ import java.util.stream.Stream;
 
 
 public class IMLConfigurationProducer {
-    public static final Logger log = LoggerFactory.getLogger(IMLConfigurationProducer.class);
-
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
-    public static final String TEST_FOLDER = "src/test/java";
+
+    private static final Logger log = LoggerFactory.getLogger(IMLConfigurationProducer.class);
+    private static final String TEST_FOLDER = "src/test/java";
+
+    private static final Map<String, String> eclipseToIdeaJavaMappings = Map.of(
+        "JavaSE-11", "JDK_11",
+        "JavaSE-17", "JDK_17",
+        "JavaSE-8", "JDK_8"
+        );
     private final Map<Pair<String, VersionRange>, Set<Pair<BundleInfo, Version>>> bundlePackageImports = new ConcurrentHashMap<>();
 
     private final Set<String> generatedLibraries = new LinkedHashSet<>();
@@ -460,7 +466,15 @@ public class IMLConfigurationProducer {
         }
         StringBuilder builder = new StringBuilder();
         builder.append("<module type=\"JAVA_MODULE\" version=\"4\">\n");
-        builder.append(" <component name=\"NewModuleRootManager\">\n");
+        String requiredJava = null;
+        if (bundleInfo.getRequiredJava() != null) {
+            requiredJava = eclipseToIdeaJavaMappings.get(bundleInfo.getRequiredJava());
+        }
+        builder.append(" <component name=\"NewModuleRootManager\"");
+        if (requiredJava != null) {
+            builder.append(" LANGUAGE_LEVEL=\"").append(requiredJava).append("\"");
+        }
+        builder.append(">\n");
         Properties properties = readBuildConfiguration(bundleInfo.getPath());
         List<String> outputs = properties.get("output..") != null ? List.of(((String) properties.get("output..")).split(",")) : List.of();
         if (!outputs.isEmpty()) {
