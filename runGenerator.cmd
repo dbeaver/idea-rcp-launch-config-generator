@@ -25,7 +25,7 @@ if "%WORKING_DIR%"=="" (
 echo Build generator
 
 cd aggregate
-call mvn package -q
+call mvn install -q
 cd ..
 
 echo Run generator
