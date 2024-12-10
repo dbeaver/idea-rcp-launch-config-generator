@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class IMLConfigurationProducer {
+public class IMLConfigurationProducer implements IImportListener {
 
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
 
