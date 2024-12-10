@@ -1,15 +1,15 @@
 package org.jkiss.tools.rcplaunchconfig.producers.iml;
 
+import com.dbeaver.osgi.dependency.processing.*;
+import com.dbeaver.osgi.dependency.processing.inter.IImportListener;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
-import org.jkiss.tools.rcplaunchconfig.*;
-import org.jkiss.tools.rcplaunchconfig.p2.P2RepositoryManager;
-import org.jkiss.tools.rcplaunchconfig.p2.repository.RemoteP2BundleInfo;
+import com.dbeaver.osgi.dependency.processing.p2.P2RepositoryManager;
+import com.dbeaver.osgi.dependency.processing.p2.repository.RemoteP2BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
-import org.jkiss.tools.rcplaunchconfig.util.BundleUtils;
-import org.jkiss.tools.rcplaunchconfig.util.FileUtils;
-import org.jkiss.tools.rcplaunchconfig.util.Version;
-import org.jkiss.tools.rcplaunchconfig.util.VersionRange;
+import com.dbeaver.osgi.dependency.processing.util.FileUtils;
+import com.dbeaver.osgi.dependency.processing.util.Version;
+import com.dbeaver.osgi.dependency.processing.util.VersionRange;
 import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,12 +25,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class IMLConfigurationProducer {
+public class IMLConfigurationProducer implements IImportListener {
     public static final Logger log = LoggerFactory.getLogger(IMLConfigurationProducer.class);
 
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
     public static final String TEST_FOLDER = "src/test/java";
-    private final Map<Pair<String, VersionRange>, Set<BundleInfo>> bundlePackageImports = new ConcurrentHashMap<>();
+    private final Map<Pair<String, VersionRange>, Set<Pair<BundleInfo, Version>>> bundlePackageImports = new ConcurrentHashMap<>();
 
     private final Set<String> generatedLibraries = new LinkedHashSet<>();
     private final Set<Path> rootModules = new LinkedHashSet<>();
@@ -237,6 +237,14 @@ public class IMLConfigurationProducer {
                     .append("/target\"/>\n");
             }
         }
+        for (Path excludePath : PathsManager.INSTANCE.getExcludePaths()) {
+            if (excludePath.startsWith(presentModule)) {
+                productExcludes.append("        <excludeFolder url=\"")
+                    .append(getFormattedRelativePath(presentModule, false, false))
+                    .append("/").append(presentModule.relativize(excludePath).toString().replace("\\", "/"))
+                    .append("\"/>\n");
+            }
+        }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
             "<module type=\"JAVA_MODULE\" version=\"4\">\n" +
             "  <component name=\"NewModuleRootManager\">\n" +
@@ -254,7 +262,7 @@ public class IMLConfigurationProducer {
     /**
      * Add imported by package bundle to the list
      */
-    public void addRequiredBundleforPackage(@NotNull Pair<String, VersionRange> packageName, @NotNull BundleInfo bundleInfo) {
+    public void notifyAboutDependency(@NotNull Pair<String, VersionRange> packageName, @NotNull Pair<BundleInfo, Version> bundleInfo) {
         bundlePackageImports.computeIfAbsent(packageName, it -> new LinkedHashSet<>()).add(bundleInfo);
     }
 
@@ -383,8 +391,38 @@ public class IMLConfigurationProducer {
             }
             for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
                 if (bundlePackageImports.get(importPackage) != null) {
-                    for (BundleInfo info : bundlePackageImports.get(importPackage)) {
-                        appendLibraryInfo(builder, info, result, resolvedBundles, isLibrary);
+                    if (importPackage.getSecond() != null) {
+                        List<Pair<BundleInfo, Version>> bundleInfos = bundlePackageImports.get(importPackage)
+                            .stream()
+                            .sorted(Comparator.comparing(Pair::getSecond, Comparator.nullsLast(Comparator.naturalOrder())))
+                            .toList();
+                        boolean alreadyResolved = false;
+                        for (int i = bundleInfos.size() - 1; i >= 0; i--) {
+                            Pair<BundleInfo, Version> info = bundleInfos.get(i);
+                            if (resolvedBundles.contains(info)) {
+                                alreadyResolved = true;
+                                break;
+                            }
+                        }
+                        if (!alreadyResolved) {
+                            appendLibraryInfo(
+                                builder,
+                                bundleInfos.get(0).getFirst(),
+                                result,
+                                resolvedBundles,
+                                isLibrary
+                            );
+                        }
+                    } else {
+                        for (Pair<BundleInfo, Version> bundleInfoVersionPair : bundlePackageImports.get(importPackage)) {
+                            appendLibraryInfo(
+                                builder,
+                                bundleInfoVersionPair.getFirst(),
+                                result,
+                                resolvedBundles,
+                                isLibrary
+                            );
+                        }
                     }
                 }
             }
@@ -474,8 +512,55 @@ public class IMLConfigurationProducer {
         }
         for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
             if (bundlePackageImports.get(importPackage) != null) {
-                for (BundleInfo info : bundlePackageImports.get(importPackage)) {
-                    appendBundleInfo(bundleInfo, new Pair<>(info.getBundleName(), importPackage.getSecond()), builder, result, resolvedBundles);
+                if (importPackage.getSecond() != null) {
+                    List<Pair<BundleInfo, Version>> bundleInfos = bundlePackageImports.get(importPackage)
+                        .stream()
+                        .sorted(Comparator.comparing(Pair::getSecond, Comparator.nullsLast(Comparator.naturalOrder())))
+                        .toList();
+                    boolean alreadyResolved = false;
+
+                    for (Pair<BundleInfo, Version> info : bundlePackageImports.get(importPackage)) {
+                        Pair<String, Version> bundleAndVersion = new Pair<>(
+                            info.getFirst().getBundleName(),
+                            new Version(info.getFirst().getBundleVersion())
+                        );
+                        if (resolvedBundles.contains(bundleAndVersion)) {
+                            alreadyResolved = true;
+                        }
+                    }
+                    if (!alreadyResolved) {
+                        BundleInfo info = bundleInfos.get(0).getFirst();
+                        appendBundleInfo(
+                            bundleInfo,
+                            new Pair<>(info.getBundleName(), importPackage.getSecond()),
+                            builder,
+                            result,
+                            resolvedBundles
+                        );
+                        Pair<String, Version> bundleAndVersion = new Pair<>(
+                            info.getBundleName(),
+                            new Version(info.getBundleVersion())
+                        );
+                        resolvedBundles.add(bundleAndVersion);
+                    }
+                } else {
+                    for (Pair<BundleInfo, Version> info : bundlePackageImports.get(importPackage)) {
+                        if (resolvedBundles.contains(info)) {
+                            continue;
+                        }
+                        appendBundleInfo(
+                            bundleInfo,
+                            new Pair<>(info.getFirst().getBundleName(), importPackage.getSecond()),
+                            builder,
+                            result,
+                            resolvedBundles
+                        );
+                        Pair<String, Version> bundleAndVersion = new Pair<>(
+                            info.getFirst().getBundleName(),
+                            new Version(info.getFirst().getBundleVersion())
+                        );
+                        resolvedBundles.add(bundleAndVersion);
+                    }
                 }
             }
         }
