@@ -42,7 +42,7 @@ public class DevPropertiesProducer {
     }
 
     public static boolean isBundleAcceptable(@Nonnull String bundleName) {
-        return BundleValidator.isBundleAcceptable(bundleName);
+        return BundleValidator.isInternalBundle(bundleName);
     }
 
     private static @Nonnull String generateValue(@Nonnull List<String> bundleClassPath) {
