@@ -2,14 +2,14 @@ package org.jkiss.tools.rcplaunchconfig.producers.iml;
 
 import com.dbeaver.osgi.dependency.processing.*;
 import com.dbeaver.osgi.dependency.processing.inter.IImportListener;
-import org.jkiss.code.NotNull;
-import org.jkiss.code.Nullable;
 import com.dbeaver.osgi.dependency.processing.p2.P2RepositoryManager;
 import com.dbeaver.osgi.dependency.processing.p2.repository.RemoteP2BundleInfo;
-import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import com.dbeaver.osgi.dependency.processing.util.FileUtils;
 import com.dbeaver.osgi.dependency.processing.util.Version;
 import com.dbeaver.osgi.dependency.processing.util.VersionRange;
+import org.jkiss.code.NotNull;
+import org.jkiss.code.Nullable;
+import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,13 +24,15 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
+// TODO this class should be decomposed in the future
 public class IMLConfigurationProducer implements IImportListener {
 
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
 
     private static final Logger log = LoggerFactory.getLogger(IMLConfigurationProducer.class);
     private static final String TEST_FOLDER = "src/test/java";
+    private static final String[] RESOURCE_FOLDERS = new String[]{"src/main/resources", "src/test/resources"};
+
 
     private static final Map<String, String> eclipseToIdeaJavaMappings = Map.of(
         "JavaSE-11", "JDK_11",
@@ -43,7 +45,7 @@ public class IMLConfigurationProducer implements IImportListener {
     private final Set<Path> rootModules = new LinkedHashSet<>();
     private final Set<ModuleInfo> modules = new LinkedHashSet<>();
 
-    Set<Path> createdModules = new LinkedHashSet<>();
+    private final Set<Path> createdModules = new LinkedHashSet<>();
 
     private final Lock lock = new ReentrantLock();
 
@@ -67,9 +69,11 @@ public class IMLConfigurationProducer implements IImportListener {
                 }
                 if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
                     String moduleConfig = generateIMLBundleConfig(bundleInfo, result);
-                    modules.add(bundleInfo);
-                    Path imlFilePath = getImlModulePath(bundleInfo);
-                    createConfigFile(imlFilePath, moduleConfig);
+                    if (moduleConfig != null) {
+                        modules.add(bundleInfo);
+                        Path imlFilePath = getImlModulePath(bundleInfo);
+                        createConfigFile(imlFilePath, moduleConfig);
+                    }
                 }
             }
         }
@@ -77,10 +81,12 @@ public class IMLConfigurationProducer implements IImportListener {
         // Features
         for (FeatureInfo featureInfo : result.getResolvedFeatures().values()) {
             if (DevPropertiesProducer.isBundleAcceptable(featureInfo.getFeatureName())) {
-                String moduleConfig = generateIMLFeatureConfig(featureInfo, result);
-                modules.add(featureInfo);
-                Path imlFilePath = getImlModulePath(featureInfo);
-                createConfigFile(imlFilePath, moduleConfig);
+                String moduleConfig = generateIMLFeatureConfig(featureInfo);
+                if (moduleConfig != null) {
+                    modules.add(featureInfo);
+                    Path imlFilePath = getImlModulePath(featureInfo);
+                    createConfigFile(imlFilePath, moduleConfig);
+                }
             }
         }
 
@@ -93,6 +99,12 @@ public class IMLConfigurationProducer implements IImportListener {
         rootModules.addAll(generateRootModules());
     }
 
+    /**
+     * Generates workspace configuration files
+     * and transfers existing workspace files from designated folder
+     *
+     * @throws IOException issue during configuration creation/transfer
+     */
     public void generateImplConfiguration() throws IOException {
         String modulesConfig = generateModulesConfig();
         createConfigFile(getImplModuleConfigPath(), modulesConfig);
@@ -136,7 +148,9 @@ public class IMLConfigurationProducer implements IImportListener {
     private String generateLaunchConfig(Path productPath, Result result) {
         StringBuilder config = new StringBuilder();
         config.append("<component name=\"ProjectRunConfigurationManager\">\n");
-        config.append(String.format("  <configuration default=\"false\" name=\"Run " + result.getProductName() + " \" type=\"Application\" factoryName=\"Application\">\n"));
+        config.append(
+            "  <configuration default=\"false\" name=\"Run %s \" type=\"Application\" factoryName=\"Application\">\n"
+                .formatted(result.getProductName()));
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"17\" />\n");
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH_ENABLED\" value=\"true\" />\n");
         config.append("    <option name=\"MAIN_CLASS_NAME\" value=\"org.jkiss.dbeaver.launcher.DBeaverLauncher\" />\n");
@@ -201,7 +215,10 @@ public class IMLConfigurationProducer implements IImportListener {
     }
 
     private Set<Path> generateRootModules() throws IOException {
-        Set<Path> presentModules = PathsManager.INSTANCE.getModulesRoots().stream().filter(it -> it.toFile().exists()).collect(Collectors.toSet());
+        Set<Path> presentModules = PathsManager.INSTANCE.getModulesRoots()
+            .stream()
+            .filter(it -> it.toFile().exists())
+            .collect(Collectors.toSet());
         Set<Path> rootModules = new LinkedHashSet<>();
         Path imlModuleRoot = PathsManager.INSTANCE.getImlModulesPath();
         for (Path presentModule : presentModules) {
@@ -216,7 +233,7 @@ public class IMLConfigurationProducer implements IImportListener {
         return rootModules;
     }
 
-    public static boolean isMacOS() {
+    private static boolean isMacOS() {
         String osName = System.getProperty("os.name").toLowerCase();
         return osName.contains("mac");
     }
@@ -233,7 +250,7 @@ public class IMLConfigurationProducer implements IImportListener {
             "</module>";
     }
 
-    private String generateRootModule(@NotNull Path presentModule) {
+    private String generateRootModule(@NotNull Path presentModule) throws IOException {
         StringBuilder productExcludes = new StringBuilder();
         Map<Path, String> productsPathsAndWorkDirs = PathsManager.INSTANCE.getProductsPathsAndWorkDirs();
         for (Path productConfigPath : productsPathsAndWorkDirs.keySet()) {
@@ -250,6 +267,24 @@ public class IMLConfigurationProducer implements IImportListener {
                     .append(getFormattedRelativePath(presentModule, false, false))
                     .append("/").append(presentModule.relativize(excludePath).toString().replace("\\", "/"))
                     .append("\"/>\n");
+            }
+        }
+        for (Path additionalRepositoriesPath : PathsManager.INSTANCE.getAdditionalRepositoriesPaths()) {
+            try (Stream<Path> stream = Files.walk(additionalRepositoriesPath, 2)) {
+                List<Path> categoryXMLS = stream.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().equals("category.xml"))
+                    .toList();
+                for (Path categoryXML : categoryXMLS) {
+                    if (categoryXML.getParent().startsWith(presentModule)) {
+                        productExcludes.append("        <excludeFolder url=\"")
+                            .append(getFormattedRelativePath(presentModule, false, false))
+                            .append("/").append(presentModule.relativize(categoryXML.getParent())
+                                .resolve("target")
+                                .toString()
+                                .replace("\\", "/"))
+                            .append("\"/>\n");
+                    }
+                }
             }
         }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -329,8 +364,11 @@ public class IMLConfigurationProducer implements IImportListener {
         }
     }
 
-    private void processModulePath(StringBuilder builder, Path sourceFile, Path imlModulesPath)
-        throws IOException {
+    private void processModulePath(
+        StringBuilder builder,
+        Path sourceFile,
+        Path imlModulesPath
+    ) throws IOException {
         if (sourceFile.toFile().isDirectory()) {
             try (Stream<Path> walk = Files.walk(sourceFile)) {
                 for (Path path : walk.toList()) {
@@ -343,14 +381,16 @@ public class IMLConfigurationProducer implements IImportListener {
                             StandardCopyOption.REPLACE_EXISTING
                         );
                     } catch (DirectoryNotEmptyException | FileAlreadyExistsException ignore) {
-
+                        // No need to bother with that we replace all data
                     } catch (IOException e) {
                         log.error("Error transferring data", e);
                     }
                     if (!path.toFile().isDirectory()) {
                         builder.append("      <module fileurl=\"file://$PROJECT_DIR$/")
-                            .append(imlModulesPath.relativize(destination).toString().replace("\\", "/")).append("\"")
-                            .append(" filepath=\"$PROJECT_DIR$/").append(imlModulesPath.relativize(destination).toString().replace("\\", "/")).append("\"/>\n");
+                            .append(imlModulesPath.relativize(destination).toString().replace("\\", "/"))
+                            .append("\"")
+                            .append(" filepath=\"$PROJECT_DIR$/")
+                            .append(imlModulesPath.relativize(destination).toString().replace("\\", "/")).append("\"/>\n");
                     }
                 }
             }
@@ -370,6 +410,11 @@ public class IMLConfigurationProducer implements IImportListener {
         @NotNull Set<Pair<String, Version>> resolvedBundles,
         boolean isLibrary) {
         resolvedBundles.add(new Pair<>(bundleInfo.getBundleName(), new Version(bundleInfo.getBundleVersion())));
+        if (bundleInfo.getPath() == null) {
+            log.error("Error appending library info to non existing module %s, should not happen"
+                .formatted(bundleInfo.getBundleName()));
+            return;
+        }
         if (bundleInfo.getPath().toFile().isDirectory()) {
             List<String> classpathLibs = bundleInfo.getClasspathLibs();
             if (!classpathLibs.isEmpty()) {
@@ -377,7 +422,11 @@ public class IMLConfigurationProducer implements IImportListener {
                     appendClasspathLib(builder, bundleInfo, classpathLib, isLibrary);
                 }
             } else {
-                builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, isLibrary)).append("\"/>\n");
+                builder.append("      <root url=\"").append(getFormattedRelativePath(
+                    bundleInfo.getPath(),
+                    false,
+                    isLibrary
+                )).append("\"/>\n");
             }
         } else {
             builder.append("      <root url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), true, isLibrary)).append("\"/>\n");
@@ -388,12 +437,18 @@ public class IMLConfigurationProducer implements IImportListener {
         if (!bundleInfo.getReexportedBundles().isEmpty()) {
             for (String reexportedBundle : bundleInfo.getReexportedBundles()) {
                 Set<BundleInfo> bundlesByName = result.getBundlesByName(reexportedBundle);
-                Optional<Pair<String, VersionRange>> bundleRequirements = bundleInfo.getRequireBundles().stream().filter(it -> it.getFirst().equals(reexportedBundle)).findFirst();
+                Optional<Pair<String, VersionRange>> bundleRequirements = bundleInfo.getRequireBundles()
+                    .stream()
+                    .filter(it -> it.getFirst().equals(reexportedBundle))
+                    .findFirst();
                 if (bundleRequirements.isEmpty() || bundlesByName == null) {
                     log.warn("Missing reexported bundle " + reexportedBundle);
                     continue;
                 }
-                BundleInfo suitableBundle = bundlesByName.stream().filter(it -> VersionRange.isVersionsCompatible(bundleRequirements.get().getSecond(), new Version(it.getBundleVersion()))).findFirst().orElseThrow();
+                BundleInfo suitableBundle = bundlesByName.stream().filter(it -> VersionRange.isVersionsCompatible(
+                    bundleRequirements.get().getSecond(),
+                    new Version(it.getBundleVersion())
+                )).findFirst().orElseThrow();
                 appendLibraryInfo(builder, suitableBundle, result, resolvedBundles, isLibrary);
             }
             for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
@@ -440,6 +495,10 @@ public class IMLConfigurationProducer implements IImportListener {
                                     @NotNull BundleInfo bundleInfo,
                                     @NotNull String classpathLib,
                                     boolean isLibrary) {
+        if (bundleInfo.getPath() == null) {
+            log.error("Error appending classpath to non-existing module, should not happen");
+            return;
+        }
         builder.append("      <root url=\"")
             .append(getFormattedRelativePath(bundleInfo.getPath().resolve(classpathLib), true, isLibrary))
             .append("\"/>\n");
@@ -513,6 +572,9 @@ public class IMLConfigurationProducer implements IImportListener {
             }
             if (bundleInfo.getPath() != null) {
                 appendTestSources(bundleInfo.getPath(), builder);
+            }
+            if (bundleInfo.getPath() != null) {
+                appendResourceSources(bundleInfo.getPath(), builder);
             }
             builder.append("  </content>").append("\n");
         }
@@ -603,6 +665,17 @@ public class IMLConfigurationProducer implements IImportListener {
         return builder.toString();
     }
 
+    private void appendResourceSources(Path path, StringBuilder builder) {
+        for (String resourceFolder : RESOURCE_FOLDERS) {
+            Path testFolder = path.resolve(resourceFolder);
+            if (testFolder.toFile().exists()) {
+                builder.append("   <sourceFolder url=\"")
+                    .append(getFormattedRelativePath(path.resolve(testFolder), false, false))
+                    .append("\" type=\"java-resource\"/>").append("\n");
+            }
+        }
+    }
+
     private void appendTestSources(@NotNull Path bundlePath, StringBuilder builder) {
         Path testFolder = bundlePath.resolve(TEST_FOLDER);
         if (testFolder.toFile().exists()) {
@@ -613,8 +686,7 @@ public class IMLConfigurationProducer implements IImportListener {
     }
 
     @Nullable
-    private String generateIMLFeatureConfig(@NotNull FeatureInfo featureInfo, @NotNull Result result)
-        throws IOException {
+    private String generateIMLFeatureConfig(@NotNull FeatureInfo featureInfo) {
         if (featureInfo.getFeatureXmlFile() == null) {
             log.warn("Feature doesn't contain any data");
             return null;
@@ -657,7 +729,13 @@ public class IMLConfigurationProducer implements IImportListener {
             }
             return;
         }
-        BundleInfo bundle = bundleByName.stream().filter(it -> VersionRange.isVersionsCompatible(requireBundle.getSecond(), new Version(it.getBundleVersion()))).findFirst().orElseThrow();
+        BundleInfo bundle = bundleByName.stream()
+            .filter(it -> VersionRange.isVersionsCompatible(
+                requireBundle.getSecond(),
+                new Version(it.getBundleVersion())
+            ))
+            .findFirst()
+            .orElseThrow();
         if (resolvedBundles.contains(new Pair<>(requireBundle.getFirst(), new Version(bundle.getBundleVersion())))) {
             return;
         }
@@ -667,7 +745,13 @@ public class IMLConfigurationProducer implements IImportListener {
             builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireBundle.getFirst())
                 .append(isExported ? "\" exported=\"\"" : "\"").append("/>").append("\n");
         } else {
-            addModuleLibrary(new Pair<>(requireBundle.getFirst(), new Version(bundle.getBundleVersion())), builder, result, resolvedBundles, isExported);
+            addModuleLibrary(
+                new Pair<>(requireBundle.getFirst(), new Version(bundle.getBundleVersion())),
+                builder,
+                result,
+                resolvedBundles,
+                isExported
+            );
         }
     }
 
@@ -685,9 +769,12 @@ public class IMLConfigurationProducer implements IImportListener {
         }
         BundleInfo bundleByName;
         if (requiredLibrary.getSecond() != null) {
-            bundleByName = bundles.stream().filter(it -> new Version(it.getBundleVersion()).compareTo(requiredLibrary.getSecond()) == 0).findFirst().orElseThrow();
+            bundleByName = bundles.stream()
+                .filter(it -> new Version(it.getBundleVersion()).compareTo(requiredLibrary.getSecond()) == 0)
+                .findFirst()
+                .orElseThrow();
         } else {
-            bundleByName = bundles.stream().findFirst().get();
+            bundleByName = bundles.stream().findFirst().orElseThrow();
         }
         if (bundleByName.getPath() == null) {
             log.warn("Missing reexported bundle " + requiredLibrary);
@@ -729,7 +816,14 @@ public class IMLConfigurationProducer implements IImportListener {
         for (Pair<String, Version> libraryObject : libraryObjects) {
             Set<BundleInfo> sources = result.getBundlesByName(libraryObject.getFirst() + ".source");
             if (sources != null) {
-                appendLibraryInfo(builder, sources.stream().filter(it -> it.getBundleVersion().equals(bundleInfo.getBundleVersion())).findFirst().get(), result, libraryObjects, true);
+                appendLibraryInfo(
+                    builder,
+                    sources.stream().filter(it -> it.getBundleVersion()
+                        .equals(bundleInfo.getBundleVersion())).findFirst().orElseThrow(),
+                    result,
+                    libraryObjects,
+                    true
+                );
             }
         }
         builder.append("   </SOURCES>").append("\n");
@@ -750,8 +844,11 @@ public class IMLConfigurationProducer implements IImportListener {
         builder.append("     <JAVADOC />\n");
         builder.append("     <SOURCES>\n");
         for (Pair<String, Version> resolvedBundle : resolvedBundles) {
-            Collection<RemoteP2BundleInfo> sources = P2RepositoryManager.INSTANCE.getLookupCache().getRemoteBundlesByName(resolvedBundle.getFirst() + ".source");
-            Optional<RemoteP2BundleInfo> source = sources.stream().filter(it -> new Version(it.getBundleVersion()).compareTo(resolvedBundle.getSecond()) == 0).findFirst();
+            Collection<RemoteP2BundleInfo> sources = P2RepositoryManager.INSTANCE.getLookupCache()
+                .getRemoteBundlesByName(resolvedBundle.getFirst() + ".source");
+            Optional<RemoteP2BundleInfo> source = sources.stream()
+                .filter(it -> new Version(it.getBundleVersion()).compareTo(resolvedBundle.getSecond()) == 0)
+                .findFirst();
             if (source.isPresent()) {
                 source.get().resolveBundle();
                 appendLibraryInfo(builder, source.get(), result, new LinkedHashSet<>(), false);
@@ -792,6 +889,7 @@ public class IMLConfigurationProducer implements IImportListener {
     private Path getIdeaConfigsPath() {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/");
     }
+
     private Path getLibraryConfigPath() {
         return getIdeaConfigsPath().resolve("libraries/");
     }
