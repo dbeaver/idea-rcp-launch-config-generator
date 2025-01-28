@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
+import java.io.File;
+import java.nio.file.Path;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -12,12 +14,15 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.File;
-import java.nio.file.Path;
 
 public class DBeaverWorkspacePatcher {
     private static final Logger log = LoggerFactory.getLogger(DBeaverWorkspacePatcher.class);
 
+    /**
+     * Adds additional parameters to workspace
+     *
+     * @param path path to workspace.xml file
+     */
     public static void patchWorkspace(@NotNull Path path) {
         try {
             // Load the XML file
@@ -53,7 +58,7 @@ public class DBeaverWorkspacePatcher {
 
             System.out.println("XML file updated successfully.");
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Error updating workspace file", e);
         }
     }
 
@@ -134,7 +139,8 @@ public class DBeaverWorkspacePatcher {
                     int insertPosition = cdataContent.indexOf("}");
                     String newKey = "\n    \"update.copyright.on.save\": \"true\"\n";
                     log.info(cdataContent.substring(0, insertPosition - 1));
-                    cdataContent = cdataContent.substring(0, insertPosition - 1).trim() + ",\n" + newKey + "\n" + cdataContent.substring(insertPosition).trim();
+                    cdataContent = cdataContent.substring(0, insertPosition - 1).trim() + ",\n" + newKey +
+                            "\n" + cdataContent.substring(insertPosition).trim();
                     Node parentNode = cdataNode.getParentNode();
                     parentNode.removeChild(cdataNode);
                     CDATASection cdataSection = parentNode.getOwnerDocument().createCDATASection(cdataContent);
