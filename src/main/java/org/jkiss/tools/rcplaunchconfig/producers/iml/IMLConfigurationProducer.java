@@ -35,10 +35,11 @@ public class IMLConfigurationProducer implements IImportListener {
 
 
     private static final Map<String, String> eclipseToIdeaJavaMappings = Map.of(
-        "JavaSE-11", "JDK_11",
-        "JavaSE-17", "JDK_17",
-        "JavaSE-8", "JDK_8"
-        );
+            "JavaSE-8", "JDK_8",
+            "JavaSE-11", "JDK_11",
+            "JavaSE-17", "JDK_17",
+            "JavaSE-21", "JDK_21"
+    );
     private final Map<Pair<String, VersionRange>, Set<Pair<BundleInfo, Version>>> bundlePackageImports = new ConcurrentHashMap<>();
 
     private final Set<String> generatedLibraries = new LinkedHashSet<>();
@@ -112,6 +113,16 @@ public class IMLConfigurationProducer implements IImportListener {
         processAdditionalConfigFiles();
     }
 
+    /**
+     * Adds default configuration parameters for the workspace
+     */
+    public void patchWorkspaceParameters() {
+        Path workspace = getIdeaConfigsPath().resolve("workspace.xml");
+        if (Files.exists(workspace)) {
+            DBeaverWorkspacePatcher.patchWorkspace(workspace);
+        }
+    }
+
     private void processAdditionalConfigFiles() throws IOException {
         List<Path> ideaConfigurationFiles = PathsManager.INSTANCE.getIdeaConfigurationFiles();
         if (ideaConfigurationFiles != null) {
@@ -151,7 +162,7 @@ public class IMLConfigurationProducer implements IImportListener {
         config.append(
             "  <configuration default=\"false\" name=\"Run %s \" type=\"Application\" factoryName=\"Application\">\n"
                 .formatted(result.getProductName()));
-        config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"17\" />\n");
+        config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"21\" />\n");
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH_ENABLED\" value=\"true\" />\n");
         config.append("    <option name=\"MAIN_CLASS_NAME\" value=\"org.jkiss.dbeaver.launcher.DBeaverLauncher\" />\n");
         config.append("    <module name=\"org.jkiss.dbeaver.launcher\" />\n");

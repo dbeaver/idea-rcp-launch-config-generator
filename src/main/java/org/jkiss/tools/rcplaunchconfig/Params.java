@@ -31,6 +31,9 @@ public class Params {
     @Option(names = "-eclipse.version", description = "Eclipse version", required = true)
     public String eclipseVersion;
 
+    @Option(names = "-updateWorkspace", description = "Updates existing workspace .xml", required = false)
+    public boolean updateWorkspace;
+
     @Option(names = "-projectsFolder", description = "Path to projects folder", required = true)
     public Path projectsFolderPath;
 
