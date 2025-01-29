@@ -5,8 +5,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
-import java.io.File;
-import java.nio.file.Path;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -14,6 +12,8 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import java.io.File;
+import java.nio.file.Path;
 
 public class DBeaverWorkspacePatcher {
     private static final Logger log = LoggerFactory.getLogger(DBeaverWorkspacePatcher.class);
@@ -138,7 +138,6 @@ public class DBeaverWorkspacePatcher {
                 if (!cdataContent.contains("\"update.copyright.on.save\"")) {
                     int insertPosition = cdataContent.indexOf("}");
                     String newKey = "\n    \"update.copyright.on.save\": \"true\"\n";
-                    log.info(cdataContent.substring(0, insertPosition - 1));
                     cdataContent = cdataContent.substring(0, insertPosition - 1).trim() + ",\n" + newKey +
                             "\n" + cdataContent.substring(insertPosition).trim();
                     Node parentNode = cdataNode.getParentNode();
