@@ -20,6 +20,8 @@ import ch.qos.logback.classic.Level;
 import com.dbeaver.osgi.dependency.processing.ConfigFileManager;
 import com.dbeaver.osgi.dependency.processing.PathsManager;
 import com.dbeaver.osgi.dependency.processing.Result;
+import com.dbeaver.osgi.dependency.processing.p2.P2RepositoryManager;
+import com.dbeaver.osgi.dependency.processing.p2.repository.exception.RepositoryInitialisationError;
 import com.dbeaver.osgi.dependency.processing.resolvers.DynamicImportsResolver;
 import com.dbeaver.osgi.dependency.processing.resolvers.FeatureResolver;
 import com.dbeaver.osgi.dependency.processing.resolvers.PluginResolver;
@@ -30,12 +32,9 @@ import com.dbeaver.osgi.dependency.processing.util.FileUtils;
 import com.dbeaver.osgi.dependency.processing.xml.CategoryXMLFileParser;
 import com.dbeaver.osgi.dependency.processing.xml.XmlReader;
 import org.jkiss.code.NotNull;
-import com.dbeaver.osgi.dependency.processing.p2.P2RepositoryManager;
-import com.dbeaver.osgi.dependency.processing.p2.repository.exception.RepositoryInitialisationError;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
-
 import org.jkiss.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -217,6 +216,9 @@ public class EntryPoint {
         }
         log.info("Producing final IML configuration...");
         IMLConfigurationProducer.INSTANCE.generateImplConfiguration();
+        if (params.updateWorkspace) {
+            IMLConfigurationProducer.INSTANCE.patchWorkspaceParameters();
+        }
         log.info("Execution completed!");
     }
 
