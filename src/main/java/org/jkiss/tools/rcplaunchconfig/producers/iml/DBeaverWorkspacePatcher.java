@@ -44,7 +44,12 @@ public class DBeaverWorkspacePatcher {
             addOrUpdateComponent(doc, "OptimizeOnSaveOptions", new String[][]{
                     {"myRunOnSave", "true"}
             });
-
+            addOrUpdateComponent(doc, "UpdateCopyrightCheckinHandler", new String[][]{
+                {"UPDATE_COPYRIGHT", "true"}
+            });
+            addOrUpdateComponent(doc, "OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT", new String[][]{
+                {"REFORMAT_BEFORE_PROJECT_COMMIT", "true"}
+            });
             // Update PropertiesComponent
             updatePropertiesComponent(doc);
 
