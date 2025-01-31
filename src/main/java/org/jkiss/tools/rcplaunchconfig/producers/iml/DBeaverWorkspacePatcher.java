@@ -37,7 +37,7 @@ public class DBeaverWorkspacePatcher {
             // Add or update FormatOnSaveOptions component
             addOrUpdateComponent(doc, "FormatOnSaveOptions", new String[][]{
                     {"myFormatOnlyChangedLines", "true"},
-                    {"myRunOnSave", "true"}
+                {"myRunOnSave", "false"}
             });
 
             // Add or update OptimizeOnSaveOptions component
