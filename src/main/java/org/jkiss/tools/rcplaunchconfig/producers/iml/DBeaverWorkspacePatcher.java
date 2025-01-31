@@ -48,7 +48,7 @@ public class DBeaverWorkspacePatcher {
                 {"UPDATE_COPYRIGHT", "true"}
             });
             addOrUpdateComponent(doc, "OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT", new String[][]{
-                {"REFORMAT_BEFORE_PROJECT_COMMIT", "true"}
+                    {"REFORMAT_BEFORE_PROJECT_COMMIT", "false"}
             });
             // Update PropertiesComponent
             updatePropertiesComponent(doc);
