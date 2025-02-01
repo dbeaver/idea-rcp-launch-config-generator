@@ -465,10 +465,12 @@ public class IMLConfigurationProducer implements IImportListener {
             for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
                 if (bundlePackageImports.get(importPackage) != null) {
                     if (importPackage.getSecond() != null) {
-                        List<Pair<BundleInfo, Version>> bundleInfos = bundlePackageImports.get(importPackage)
-                            .stream()
-                            .sorted(Comparator.comparing(Pair::getSecond, Comparator.nullsLast(Comparator.naturalOrder())))
-                            .toList();
+                        List<Pair<BundleInfo, Version>> bundleInfos = new ArrayList<>(bundlePackageImports.get(
+                            importPackage));
+                        bundleInfos.sort(Comparator.comparing(
+                            Pair::getSecond,
+                            Comparator.nullsLast(Comparator.naturalOrder())
+                        ));
                         boolean alreadyResolved = false;
                         for (int i = bundleInfos.size() - 1; i >= 0; i--) {
                             Pair<BundleInfo, Version> info = bundleInfos.get(i);
