@@ -151,8 +151,13 @@ public class IMLConfigurationProducer implements IImportListener {
                     pathPairEntry.getKey(),
                     pathPairEntry.getValue()
                 );
-            createConfigFile(getXMLRunConfigurationPath()
-                .resolve("RUN_" + pathPairEntry.getValue().getProductName().replace(" ", "_") + ".xml"), config);
+            String name = pathPairEntry.getValue().getProductName().replace(" ", "_");
+            Path configFile = getXMLRunConfigurationPath()
+                .resolve("RUN_" + name + ".xml");
+            if (Files.exists(configFile) && !Files.readString(configFile).contains("folderName=\"generated\"")) {
+                configFile = configFile.getParent().resolve(name + "_generated" + ".xml");
+            }
+            createConfigFile(configFile, config);
         }
     }
 
@@ -160,7 +165,7 @@ public class IMLConfigurationProducer implements IImportListener {
         StringBuilder config = new StringBuilder();
         config.append("<component name=\"ProjectRunConfigurationManager\">\n");
         config.append(
-            "  <configuration default=\"false\" name=\"Run %s \" type=\"Application\" factoryName=\"Application\">\n"
+            "  <configuration default=\"false\" name=\"Run %s \" type=\"Application\" folderName=\"generated\" factoryName=\"Application\">\n"
                 .formatted(result.getProductName()));
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"21\" />\n");
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH_ENABLED\" value=\"true\" />\n");
