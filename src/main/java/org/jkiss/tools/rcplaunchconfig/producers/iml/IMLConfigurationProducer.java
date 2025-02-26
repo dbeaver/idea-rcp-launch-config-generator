@@ -154,7 +154,7 @@ public class IMLConfigurationProducer implements IImportListener {
             String name = pathPairEntry.getValue().getProductName().replace(" ", "_");
             Path configFile = getXMLRunConfigurationPath()
                 .resolve("RUN_" + name + ".xml");
-            if (Files.exists(configFile) && !Files.readString(configFile).contains("folderName=\"generated\"")) {
+            if (Files.exists(configFile) && !Files.readString(configFile).toLowerCase().contains("foldername=\"generated\"")) {
                 configFile = configFile.getParent().resolve(name + "_generated" + ".xml");
             }
             createConfigFile(configFile, config);
