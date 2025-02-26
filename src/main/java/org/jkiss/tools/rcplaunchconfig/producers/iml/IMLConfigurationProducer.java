@@ -165,7 +165,7 @@ public class IMLConfigurationProducer implements IImportListener {
         StringBuilder config = new StringBuilder();
         config.append("<component name=\"ProjectRunConfigurationManager\">\n");
         config.append(
-            "  <configuration default=\"false\" name=\"Run %s \" type=\"Application\" folderName=\"generated\" factoryName=\"Application\">\n"
+            "  <configuration default=\"false\" name=\"Run %s\" type=\"Application\" folderName=\"Generated\" factoryName=\"Application\">\n"
                 .formatted(result.getProductName()));
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"21\" />\n");
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH_ENABLED\" value=\"true\" />\n");
