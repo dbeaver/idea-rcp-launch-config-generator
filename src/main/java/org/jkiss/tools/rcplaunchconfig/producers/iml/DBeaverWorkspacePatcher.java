@@ -36,19 +36,19 @@ public class DBeaverWorkspacePatcher {
 
             // Add or update FormatOnSaveOptions component
             addOrUpdateComponent(doc, "FormatOnSaveOptions", new String[][]{
-                    {"myFormatOnlyChangedLines", "true"},
+                    {"myFormatOnlyChangedLines", "false"},
                     {"myRunOnSave", "false"}
             });
 
             // Add or update OptimizeOnSaveOptions component
             addOrUpdateComponent(doc, "OptimizeOnSaveOptions", new String[][]{
-                    {"myRunOnSave", "true"}
+                    {"myRunOnSave", "false"}
             });
             addOrUpdateComponent(doc, "UpdateCopyrightCheckinHandler", new String[][]{
                 {"UPDATE_COPYRIGHT", "true"}
             });
             addOrUpdateComponent(doc, "OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT", new String[][]{
-                    {"REFORMAT_BEFORE_PROJECT_COMMIT", "false"}
+                    {"REFORMAT_BEFORE_PROJECT_COMMIT", "true"}
             });
             addOrUpdateComponent(doc, "VcsManagerConfiguration", new String[][]{
                     {"REFORMAT_BEFORE_PROJECT_COMMIT", "false"}
