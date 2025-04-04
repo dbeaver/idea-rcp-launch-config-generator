@@ -23,14 +23,11 @@ if "%WORKING_DIR%"=="" (
 )
 
 echo Build generator
-
-cd aggregate
-call mvn install -q
-cd ..
+call \..\dbeaver-common\mvnw.cmd install -q -f "aggregate"
 
 echo Run generator
 :: Run the Maven commands with the specified options
-call mvn -f "pom.xml" package -T 1C -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -updateWorkspace -config %WORKING_DIR%osgi-app.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace/products/"
+call \..\dbeaver-common\mvnw.cmd -f "pom.xml" package -T 1C -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -updateWorkspace -config %WORKING_DIR%osgi-app.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace/products/"
 
 :end
 endlocal
