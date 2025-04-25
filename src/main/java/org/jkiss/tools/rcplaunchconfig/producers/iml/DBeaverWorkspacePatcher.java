@@ -34,28 +34,15 @@ public class DBeaverWorkspacePatcher {
             // Normalize the document
             doc.getDocumentElement().normalize();
 
-            // Add or update FormatOnSaveOptions component
-            addOrUpdateComponent(doc, "FormatOnSaveOptions", new String[][]{
-                    {"myFormatOnlyChangedLines", "false"},
-                    {"myRunOnSave", "false"}
+
+            addOrUpdateComponent(doc, "VcsManagerConfiguration", new String[][]{
+                {"OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT", "true"}
             });
 
-            // Add or update OptimizeOnSaveOptions component
-            addOrUpdateComponent(doc, "OptimizeOnSaveOptions", new String[][]{
-                    {"myRunOnSave", "false"}
-            });
             addOrUpdateComponent(doc, "UpdateCopyrightCheckinHandler", new String[][]{
                 {"UPDATE_COPYRIGHT", "true"}
             });
-            addOrUpdateComponent(doc, "OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT", new String[][]{
-                    {"REFORMAT_BEFORE_PROJECT_COMMIT", "true"}
-            });
-            addOrUpdateComponent(doc, "VcsManagerConfiguration", new String[][]{
-                    {"REFORMAT_BEFORE_PROJECT_COMMIT", "false"}
-            });
 
-            // Update PropertiesComponent
-            updatePropertiesComponent(doc);
 
             // Save the updated XML back to the file
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
