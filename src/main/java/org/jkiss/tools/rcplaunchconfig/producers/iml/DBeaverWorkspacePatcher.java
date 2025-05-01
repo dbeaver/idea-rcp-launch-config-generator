@@ -3,7 +3,9 @@ package org.jkiss.tools.rcplaunchconfig.producers.iml;
 import org.jkiss.code.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.*;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -103,45 +105,4 @@ public class DBeaverWorkspacePatcher {
         }
     }
 
-    private static void updatePropertiesComponent(Document doc) {
-        NodeList components = doc.getElementsByTagName("component");
-        Element propertiesComponent = null;
-
-        // Find the PropertiesComponent
-        for (int i = 0; i < components.getLength(); i++) {
-            Element component = (Element) components.item(i);
-            if (component.getAttribute("name").equals("PropertiesComponent")) {
-                propertiesComponent = component;
-                break;
-            }
-        }
-
-        if (propertiesComponent != null) {
-            // Find the CDATA section
-            Node cdataNode = null;
-            for (int i = 0; i < propertiesComponent.getChildNodes().getLength(); i++) {
-                Node node = propertiesComponent.getChildNodes().item(i);
-                if (node.getNodeType() == Node.CDATA_SECTION_NODE) {
-                    cdataNode = node;
-                    break;
-                }
-            }
-
-            if (cdataNode != null) {
-                String cdataContent = cdataNode.getNodeValue();
-
-                // Add the new key if not already present
-                if (!cdataContent.contains("\"update.copyright.on.save\"")) {
-                    int insertPosition = cdataContent.indexOf("}");
-                    String newKey = "\n    \"update.copyright.on.save\": \"true\"\n";
-                    cdataContent = cdataContent.substring(0, insertPosition - 1).trim() + ",\n" + newKey +
-                            "\n" + cdataContent.substring(insertPosition).trim();
-                    Node parentNode = cdataNode.getParentNode();
-                    parentNode.removeChild(cdataNode);
-                    CDATASection cdataSection = parentNode.getOwnerDocument().createCDATASection(cdataContent);
-                    parentNode.appendChild(cdataSection);
-                }
-            }
-        }
-    }
 }
