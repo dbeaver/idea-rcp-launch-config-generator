@@ -104,8 +104,8 @@ public class EntryPoint {
             );
         }
         List<ResultInfo> executionResults = forkJoinPool.submit(() -> pathsManager.getProductsPathsAndWorkDirs().entrySet().parallelStream().map((productPath) -> {
-            log.info("Starting generation for: %s" + productPath);
-            log.debug("Thread name %s used for %s".formatted(Thread.currentThread().getName(), productPath));
+            log.info("Starting generation for {}", productPath);
+            log.debug("Thread name {} used for {}", Thread.currentThread().getName(), productPath);
             try {
                 Result result = new Result();
                 result.setWorkDir(productPath.getValue());
@@ -125,15 +125,15 @@ public class EntryPoint {
                 try {
                     Files.createDirectories(resultPath.getParent());
                 } catch (Throwable throwable) {
-                    log.debug("Error creating target parent directories for %s".formatted(resultPath));
+                    log.debug("Error creating target parent directories for {}", resultPath);
                 }
                 try {
                     FileUtils.removeAllFromDir(resultPath);
                 } catch (Throwable e) {
-                    log.debug("Error deleting target folder for %s".formatted(resultPath), e);
+                    log.debug("Error deleting target folder for {}", resultPath, e);
                 }
-                log.info("Product generation for %s completed".formatted(result.getProductId()));
-                log.debug("Thread %s finished execution".formatted(Thread.currentThread().getName()));
+                log.info("Product generation for {} completed", result.getProductId());
+                log.debug("Thread {} finished execution", Thread.currentThread().getName());
                 dependencyGraph.printDependencyTree(root);
                 return new ResultInfo(productPath, result, resultPath);
             } catch (XMLStreamException | IOException e) {
@@ -168,7 +168,7 @@ public class EntryPoint {
                     }
                     {
 
-                        log.info("Starting to load test bundles for %s...".formatted(result.getProductName()));
+                        log.info("Starting to load test bundles for {}...", result.getProductName());
                         PluginResolver.resolveTestBundlesAndLibraries(result, result.getProductGraph());
                     }
                     {
