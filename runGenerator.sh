@@ -2,7 +2,7 @@
 
 set -e
 
-mvn_args="-Djdk.xml.maxGeneralEntitySizeLimit=2097152 -Djdk.xml.totalEntitySizeLimit=2097152"
+mvn_args="-T1C -Djdk.xml.maxGeneralEntitySizeLimit=2097152 -Djdk.xml.totalEntitySizeLimit=2097152"
 target_repo="$1"
 if [ -z "$target_repo" ]; then
   echo "target repository is not specified"
@@ -16,12 +16,12 @@ echo "Compiling workspace generator dependencies..."
 "$repositories_root_dir/dbeaver-common/mvnw" --version
 # shellcheck disable=SC2086
 "$repositories_root_dir/dbeaver-common/mvnw" install \
-    -T1C $mvn_args \
+    $mvn_args \
     -q \
     -f "$script_dir/aggregate"
 # shellcheck disable=SC2086
 "$repositories_root_dir/dbeaver-common/mvnw" package \
-    -T1C $mvn_args \
+    $mvn_args \
     -q \
     -f "$script_dir/pom.xml" \
     exec:java \
