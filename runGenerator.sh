@@ -13,7 +13,6 @@ script_dir="$(realpath "$(dirname "$0")")"
 repositories_root_dir="$(realpath "$script_dir/..")"
 
 echo "Compiling workspace generator dependencies..."
-"$repositories_root_dir/dbeaver-common/mvnw" --version
 # shellcheck disable=SC2086
 "$repositories_root_dir/dbeaver-common/mvnw" install \
     $mvn_args \
