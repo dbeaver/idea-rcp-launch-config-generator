@@ -1,23 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env sh
 
-cd "$(dirname "$0")"
+set -e
 
-while getopts f: flag
-do
-    case "${flag}" in
-        f) WORKING_DIR=${OPTARG};;
-    esac
-done
-echo "$WORKING_DIR"
-if [ -z "$WORKING_DIR" ]; then
-  echo "No folder containing rcp_gen specified"
+target_repo="$1"
+if [ -z "$target_repo" ]; then
+  echo "target repository is not specified"
   exit 1
 fi
-../dbeaver-common/mvnw install -q -f "aggregate"
-# Run the Maven commands with the specified options
-../dbeaver-common/mvnw -f "pom.xml" \
-    package \
-    -T 1C \
+
+script_dir="$(realpath "$(dirname "$0")")"
+repositories_root_dir="$(realpath "$script_dir/..")"
+
+echo "Compiling workspace generator dependencies..."
+
+"$repositories_root_dir/dbeaver-common/mvnw" install \
+    -T1C \
     -q \
+    -f "$script_dir/aggregate"
+
+"$repositories_root_dir/dbeaver-common/mvnw" package \
+    -T1C \
+    -q \
+    -f "$script_dir/pom.xml" \
     exec:java \
-    -Dexec.args="-eclipse.version \${eclipse-version} -updateWorkspace -config $WORKING_DIR/osgi-app.properties -projectsFolder $WORKING_DIR/../ -eclipse $WORKING_DIR/../dbeaver-workspace/dependencies -output $WORKING_DIR/../dbeaver-workspace/products/"
+    -Dexec.args="-eclipse.version \${eclipse-version} -updateWorkspace -config $target_repo/osgi-app.properties -projectsFolder $repositories_root_dir -eclipse $repositories_root_dir/dbeaver-workspace/dependencies -output $repositories_root_dir/dbeaver-workspace/products/"

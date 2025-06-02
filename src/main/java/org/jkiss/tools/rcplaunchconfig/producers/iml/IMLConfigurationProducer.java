@@ -427,8 +427,7 @@ public class IMLConfigurationProducer implements IImportListener {
         boolean isLibrary) {
         resolvedBundles.add(new Pair<>(bundleInfo.getBundleName(), new Version(bundleInfo.getBundleVersion())));
         if (bundleInfo.getPath() == null) {
-            log.error("Error appending library info to non existing module %s, should not happen"
-                .formatted(bundleInfo.getBundleName()));
+            log.error("Error appending library info to non existing module {}, should not happen", bundleInfo.getBundleName());
             return;
         }
         if (bundleInfo.getPath().toFile().isDirectory()) {
