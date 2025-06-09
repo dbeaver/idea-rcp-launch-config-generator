@@ -9,6 +9,7 @@ import com.dbeaver.osgi.dependency.processing.util.Version;
 import com.dbeaver.osgi.dependency.processing.util.VersionRange;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
+import org.jkiss.tools.rcplaunchconfig.maven.processors.MavenPomProcessor;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
@@ -63,6 +64,13 @@ public class IMLConfigurationProducer implements IImportListener {
         log.info("Generating IML configuration in " + PathsManager.INSTANCE.getImlModulesPath());
         // Bundles
         List<ModuleInfo> modules = new ArrayList<>();
+        for (Set<BundleInfo> value : result.getBundlesByNames().values()) {
+            for (BundleInfo bundleInfo : value) {
+                if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
+                    MavenPomProcessor.collectArtifacts(bundleInfo);
+                }
+            }
+        }
         for (Set<BundleInfo> bundles : result.getBundlesByNames().values()) {
             for (BundleInfo bundleInfo : bundles) {
                 if (this.modules.contains(bundleInfo)) {
@@ -604,6 +612,7 @@ public class IMLConfigurationProducer implements IImportListener {
         if (bundleInfo.getFragmentHost() != null) {
             appendBundleInfo(bundleInfo, bundleInfo.getFragmentHost(), builder, result, resolvedBundles);
         }
+        appendMavenDependencies(bundleInfo, builder);
         for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
             if (bundlePackageImports.get(importPackage) != null) {
                 if (importPackage.getSecond() != null) {
@@ -680,6 +689,25 @@ public class IMLConfigurationProducer implements IImportListener {
         builder.append(" </component>").append("\n");
         builder.append("</module>");
         return builder.toString();
+    }
+
+    private void appendMavenDependencies(BundleInfo info, StringBuilder builder) {
+        if (MavenPomProcessor.isMavenBundle(info.getPath())) {
+            List<String> dependencies = MavenPomProcessor.getDependencies(info.getPath());
+            for (String dependency : dependencies) {
+                builder.append("  <orderEntry type=\"module-library\">\n");
+                builder.append("    <library>\n");
+                builder.append("      <CLASSES>\n");
+                builder.append("        <root url=\"jar://$MODULE_DIR$/../../.m2/repository/")
+                    .append(dependency)
+                    .append("\"/>\n");
+                builder.append("      </CLASSES>\n");
+                builder.append("      <JAVADOC />\n");
+                builder.append("      <SOURCES />\n");
+                builder.append("    </library>\n");
+                builder.append("  </orderEntry>\n");
+            }
+        }
     }
 
     private void appendResourceSources(Path path, StringBuilder builder) {
