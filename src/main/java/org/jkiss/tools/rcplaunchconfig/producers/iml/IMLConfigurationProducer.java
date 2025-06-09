@@ -60,7 +60,7 @@ public class IMLConfigurationProducer implements IImportListener {
      * @throws IOException file access error
      */
     public void generateIMLFiles(@NotNull Result result, @Nullable Path productPath) throws IOException {
-        log.info("Generating IML configuration in " + PathsManager.INSTANCE.getImlModulesPath());
+        log.info("\t- Generating IML configuration " + productPath);
         // Bundles
         List<ModuleInfo> modules = new ArrayList<>();
         for (Set<BundleInfo> bundles : result.getBundlesByNames().values()) {
