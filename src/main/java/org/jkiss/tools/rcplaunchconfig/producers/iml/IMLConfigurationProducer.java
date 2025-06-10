@@ -38,7 +38,8 @@ public class IMLConfigurationProducer implements IImportListener {
             "JavaSE-8", "JDK_8",
             "JavaSE-11", "JDK_11",
             "JavaSE-17", "JDK_17",
-            "JavaSE-21", "JDK_21"
+            "JavaSE-21", "JDK_21",
+            "JavaSE-24", "JDK_24"
     );
     private final Map<Pair<String, VersionRange>, Set<Pair<BundleInfo, Version>>> bundlePackageImports = new ConcurrentHashMap<>();
 
@@ -60,7 +61,7 @@ public class IMLConfigurationProducer implements IImportListener {
      * @throws IOException file access error
      */
     public void generateIMLFiles(@NotNull Result result, @Nullable Path productPath) throws IOException {
-        log.info("Generating IML configuration in " + PathsManager.INSTANCE.getImlModulesPath());
+        log.info("\t- Generating IML configuration " + productPath);
         // Bundles
         List<ModuleInfo> modules = new ArrayList<>();
         for (Set<BundleInfo> bundles : result.getBundlesByNames().values()) {

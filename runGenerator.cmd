@@ -25,7 +25,7 @@ if "%WORKING_DIR%"=="" (
 )
 
 echo Build generator
-call %GENERATOR_DIR%..\dbeaver-common\mvnw.cmd install %MAVEN_ARGS% -q -f "%GENERATOR_DIR%aggregate"
+call %GENERATOR_DIR%..\dbeaver-common\mvnw.cmd clean install %MAVEN_ARGS% -q -f "%GENERATOR_DIR%aggregate"
 
 echo Run generator
 :: Run the Maven commands with the specified options
