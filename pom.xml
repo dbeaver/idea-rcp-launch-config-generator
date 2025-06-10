@@ -20,7 +20,7 @@
     <name>Eclipse Plugins Resolver</name>
 
     <properties>
-        <java.version>${java.version.drivers}</java.version>
+        <!-- <java.version>${java.version.drivers}</java.version> -->
     </properties>
 
     <build>
