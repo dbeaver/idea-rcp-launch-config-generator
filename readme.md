@@ -49,7 +49,7 @@ bundlesPaths=\
   dbeaver-common/modules;\
   dbeaver/plugins
 repositories=\
-  https://p2.dev.dbeaver.com/eclipse-repo/;\
+  https://repo.dbeaver.net/p2/ce/;\
   https://download.eclipse.org/releases/${eclipse-version}/;
 testLibraries=\
   org.junit;\

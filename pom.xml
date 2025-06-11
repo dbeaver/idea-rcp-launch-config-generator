@@ -20,8 +20,7 @@
     <name>Eclipse Plugins Resolver</name>
 
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <java.version>${java.version.drivers}</java.version>
     </properties>
 
     <build>
