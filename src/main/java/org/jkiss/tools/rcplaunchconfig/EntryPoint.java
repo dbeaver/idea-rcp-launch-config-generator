@@ -52,6 +52,7 @@ import javax.xml.stream.XMLStreamException;
 
 public class EntryPoint {
     private static final Logger log = LoggerFactory.getLogger(EntryPoint.class);
+    private static final boolean GENERATE_LAUNCH_CONFIGS = false;
 
     public static void main(String[] args) throws RepositoryInitialisationError {
         try {
@@ -153,7 +154,7 @@ public class EntryPoint {
                         );
                         FileUtils.writePropertiesFile(resultPath.resolve("config.ini"), configIni);
                     }
-                    {
+                    if (GENERATE_LAUNCH_CONFIGS) {
                         // debug launch
                         String launchConfig = ConfigIniProducer.generateProductLaunch(params, result);
                         Files.writeString(
