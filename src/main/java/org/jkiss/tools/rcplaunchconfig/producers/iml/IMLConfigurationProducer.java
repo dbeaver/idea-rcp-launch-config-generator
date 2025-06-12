@@ -9,8 +9,10 @@ import com.dbeaver.osgi.dependency.processing.util.Version;
 import com.dbeaver.osgi.dependency.processing.util.VersionRange;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
+import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.tools.rcplaunchconfig.maven.processors.MavenPomProcessor;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
+import org.jkiss.tools.rcplaunchconfig.registry.MavenLocalArtifactRegistry;
 import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -694,13 +696,16 @@ public class IMLConfigurationProducer implements IImportListener {
 
     private void appendMavenDependencies(BundleInfo info, StringBuilder builder) {
         if (MavenPomProcessor.isMavenBundle(info.getPath())) {
-            List<String> dependencies = MavenPomProcessor.getDependencies(info.getPath());
-            for (String dependency : dependencies) {
+            List<MavenDependency> dependencies = MavenPomProcessor.processDependencies(info.getPath());
+            for (MavenDependency dependency : dependencies) {
+                Path dependencyPath = MavenLocalArtifactRegistry.INSTANCE.getProvidedDependencyPath(dependency) == null ?
+                    MavenLocalArtifactRegistry.INSTANCE.getDowloadedDependencyPath(dependency) :
+                    MavenLocalArtifactRegistry.INSTANCE.getProvidedDependencyPath(dependency).getPath();
                 builder.append("  <orderEntry type=\"module-library\">\n");
                 builder.append("    <library>\n");
                 builder.append("      <CLASSES>\n");
                 builder.append("        <root url=\"jar://$MODULE_DIR$/../../.m2/repository/")
-                    .append(dependency)
+                    .append(dependencyPath)
                     .append("\"/>\n");
                 builder.append("      </CLASSES>\n");
                 builder.append("      <JAVADOC />\n");

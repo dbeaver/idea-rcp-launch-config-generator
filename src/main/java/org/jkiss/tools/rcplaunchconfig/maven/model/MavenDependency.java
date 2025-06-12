@@ -1,8 +1,15 @@
-package org.jkiss.tools.rcplaunchconfig.model;
+package org.jkiss.tools.rcplaunchconfig.maven.model;
 
 import java.util.Objects;
 
 public record MavenDependency(String group, String name, String version) {
+    public static MavenDependency fromCoordinates(String coordinates) {
+        String[] parts = coordinates.split(":");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Invalid Maven coordinates: " + coordinates);
+        }
+        return new MavenDependency(parts[0], parts[1], parts[2]);
+    }
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -16,6 +23,10 @@ public record MavenDependency(String group, String name, String version) {
             version,
             that.version
         );
+    }
+
+    public String getCoordinates() {
+        return group + ":" + name + ":" + version;
     }
 
     @Override
