@@ -108,7 +108,18 @@ public class IMLConfigurationProducer implements IImportListener {
         }
         log.info(modules.size() + " module IML configs associated for " + result.getProductName());
         this.modules.addAll(modules);
+        rootModules.addAll(generateMavenModules());
         rootModules.addAll(generateRootModules());
+    }
+
+    private Collection<? extends Path> generateMavenModules() throws IOException {
+        Set<Path> presentModules = PathsManager.INSTANCE.getMavenModules()
+            .stream()
+            .filter(it -> it.toFile().exists())
+            .collect(Collectors.toSet());
+        Path imlModuleRoot = PathsManager.INSTANCE.getImlModulesPath();
+        createModules(presentModules, imlModuleRoot, rootModules, true);
+        return presentModules;
     }
 
     /**
@@ -248,16 +259,20 @@ public class IMLConfigurationProducer implements IImportListener {
             .collect(Collectors.toSet());
         Set<Path> rootModules = new LinkedHashSet<>();
         Path imlModuleRoot = PathsManager.INSTANCE.getImlModulesPath();
-        for (Path presentModule : presentModules) {
-            String rootModuleConfig = generateRootModule(presentModule);
-            Path rootIml = imlModuleRoot.resolve(presentModule.getFileName() + ".iml");
-            rootModules.add(rootIml);
-            createConfigFile(rootIml, rootModuleConfig);
-        }
+        createModules(presentModules, imlModuleRoot, rootModules, false);
         Path rootIml = imlModuleRoot.resolve(imlModuleRoot.getFileName() + ".iml");
         createConfigFile(rootIml, generateImlRepositoryRootModule(imlModuleRoot));
         rootModules.add(rootIml);
         return rootModules;
+    }
+
+    private void createModules(Set<Path> presentModules, Path imlModuleRoot, Set<Path> rootModules, boolean isMaven) throws IOException {
+        for (Path presentModule : presentModules) {
+            String rootModuleConfig = generateNonOSGIModule(presentModule, isMaven);
+            Path rootIml = imlModuleRoot.resolve(presentModule.getFileName() + ".iml");
+            rootModules.add(rootIml);
+            createConfigFile(rootIml, rootModuleConfig);
+        }
     }
 
     private static boolean isMacOS() {
@@ -277,7 +292,7 @@ public class IMLConfigurationProducer implements IImportListener {
             "</module>";
     }
 
-    private String generateRootModule(@NotNull Path presentModule) throws IOException {
+    private String generateNonOSGIModule(@NotNull Path presentModule, boolean isMaven) throws IOException {
         StringBuilder productExcludes = new StringBuilder();
         Map<Path, String> productsPathsAndWorkDirs = PathsManager.INSTANCE.getProductsPathsAndWorkDirs();
         for (Path productConfigPath : productsPathsAndWorkDirs.keySet()) {
@@ -295,6 +310,10 @@ public class IMLConfigurationProducer implements IImportListener {
                     .append("/").append(presentModule.relativize(excludePath).toString().replace("\\", "/"))
                     .append("\"/>\n");
             }
+        }
+        StringBuilder productIncludes = new StringBuilder();
+        if (isMaven) {
+            appendMavenDependencies(presentModule, productIncludes);
         }
         for (Path additionalRepositoriesPath : PathsManager.INSTANCE.getAdditionalRepositoriesPaths()) {
             try (Stream<Path> stream = Files.walk(additionalRepositoriesPath, 2)) {
@@ -321,6 +340,8 @@ public class IMLConfigurationProducer implements IImportListener {
             "    <output-test url=\"file://$MODULE_DIR$/target/classes\" />\n" +
             "    <content url =\"" + getFormattedRelativePath(presentModule, false, false) + "\">\n" +
             productExcludes +
+            "\n" +
+            productIncludes +
             "    </content>\n" +
             "    <orderEntry type=\"inheritedJdk\" />\n" +
             "    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n" +
@@ -615,7 +636,6 @@ public class IMLConfigurationProducer implements IImportListener {
         if (bundleInfo.getFragmentHost() != null) {
             appendBundleInfo(bundleInfo, bundleInfo.getFragmentHost(), builder, result, resolvedBundles);
         }
-        appendMavenDependencies(bundleInfo, builder);
         for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
             if (bundlePackageImports.get(importPackage) != null) {
                 if (importPackage.getSecond() != null) {
@@ -694,9 +714,9 @@ public class IMLConfigurationProducer implements IImportListener {
         return builder.toString();
     }
 
-    private void appendMavenDependencies(BundleInfo info, StringBuilder builder) {
-        if (MavenPomProcessor.isMavenBundle(info.getPath())) {
-            List<MavenDependency> dependencies = MavenPomProcessor.processDependencies(info.getPath());
+    private void appendMavenDependencies(Path path, StringBuilder builder) {
+        if (MavenPomProcessor.isMavenBundle(path)) {
+            List<MavenDependency> dependencies = MavenPomProcessor.processDependencies(path);
             for (MavenDependency dependency : dependencies) {
                 Path dependencyPath = MavenLocalArtifactRegistry.INSTANCE.getProvidedDependencyPath(dependency) == null ?
                     MavenLocalArtifactRegistry.INSTANCE.getDowloadedDependencyPath(dependency) :
