@@ -11,8 +11,8 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.tools.rcplaunchconfig.maven.processors.MavenPomProcessor;
+import org.jkiss.tools.rcplaunchconfig.maven.registry.MavenLocalArtifactRegistry;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
-import org.jkiss.tools.rcplaunchconfig.registry.MavenLocalArtifactRegistry;
 import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -300,15 +300,15 @@ public class IMLConfigurationProducer implements IImportListener {
     private String generateNonOSGIModule(@NotNull Path presentModule, boolean isMaven) throws IOException {
         StringBuilder productExcludesAndIncludes = new StringBuilder();
         Map<Path, String> productsPathsAndWorkDirs = PathsManager.INSTANCE.getProductsPathsAndWorkDirs();
-//        if (isMaven) {
-//            productExcludesAndIncludes.append("   <sourceFolder url=\"")
-//                .append(getFormattedRelativePath(presentModule.resolve("src"), false, false))
-//                .append("\"/>").append("\n");
-//            productExcludesAndIncludes.append("   <excludeFolder url=\"")
-//                .append(getFormattedRelativePath(presentModule.resolve("target"), false, false))
-//                .append("\"/>").append("\n");
-//
-//        }
+        if (isMaven) {
+            productExcludesAndIncludes.append("        <sourceFolder url=\"")
+                .append(getFormattedRelativePath(presentModule.resolve("src/main/java"), false, false))
+                .append("\"/>").append("\n");
+            productExcludesAndIncludes.append("        <excludeFolder url=\"")
+                .append(getFormattedRelativePath(presentModule.resolve("target"), false, false))
+                .append("\"/>").append("\n");
+
+        }
         for (Path productConfigPath : productsPathsAndWorkDirs.keySet()) {
             if (productConfigPath.startsWith(presentModule)) {
                 productExcludesAndIncludes.append("        <excludeFolder url=\"")
@@ -325,7 +325,6 @@ public class IMLConfigurationProducer implements IImportListener {
                     .append("\"/>\n");
             }
         }
-        String productIncludes = "";
 
         for (Path additionalRepositoriesPath : PathsManager.INSTANCE.getAdditionalRepositoriesPaths()) {
             try (Stream<Path> stream = Files.walk(additionalRepositoriesPath, 2)) {
@@ -345,25 +344,38 @@ public class IMLConfigurationProducer implements IImportListener {
                 }
             }
         }
-        StringBuilder moduleImports = new StringBuilder();
         if (isMaven) {
+            StringBuilder moduleImports = new StringBuilder();
             appendMavenDependencies(presentModule, moduleImports);
+            return new StringBuilder().append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+                .append("<module type=\"JAVA_MODULE\" version=\"4\">\n")
+
+                .append("  <component name=\"NewModuleRootManager\" LANGUAGE_LEVEL=\"JDK_17\">\n")
+                .append("  <exclude-output/>")
+                .append("  <output url=\"")
+                .append(getFormattedRelativePath(presentModule.resolve("target/classes"), false, false))
+                .append("\"/>").append("\n")
+                .append("  <content url=\"").append(getFormattedRelativePath(presentModule, false, false)).append("\">\n")
+                .append(productExcludesAndIncludes)
+                .append("  </content>\n").append(moduleImports)
+                .append("  <orderEntry type=\"inheritedJdk\" />\n")
+                .append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n").append("  </component>\n").append("</module>")
+                .toString();
+        } else {
+            return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<module type=\"JAVA_MODULE\" version=\"4\">\n" +
+                "  <component name=\"NewModuleRootManager\">\n" +
+                "    <output url=\"file://$MODULE_DIR$/target/classes\" />\n" +
+                "    <output-test url=\"file://$MODULE_DIR$/target/classes\" />\n" +
+                "    <content url =\"" + getFormattedRelativePath(presentModule, false, false) + "\">\n" +
+                productExcludesAndIncludes +
+                "\n" +
+                "    </content>\n" +
+                "    <orderEntry type=\"inheritedJdk\" />\n" +
+                "    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n" +
+                "  </component>\n" +
+                "</module>";
         }
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-            "<module type=\"JAVA_MODULE\" version=\"4\">\n" +
-            "  <component name=\"NewModuleRootManager\">\n" +
-            "    <output url=\"file://$MODULE_DIR$/target/classes\" />\n" +
-            "    <output-test url=\"file://$MODULE_DIR$/target/classes\" />\n" +
-            "    <content url =\"" + getFormattedRelativePath(presentModule, false, false) + "\">\n" +
-            productExcludesAndIncludes +
-            "\n" +
-            productIncludes +
-            "    </content>\n" +
-            moduleImports +
-            "    <orderEntry type=\"inheritedJdk\" />\n" +
-            "    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n" +
-            "  </component>\n" +
-            "</module>";
     }
 
     /**

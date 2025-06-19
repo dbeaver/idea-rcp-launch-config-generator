@@ -1,6 +1,5 @@
-package org.jkiss.tools.rcplaunchconfig.registry;
+package org.jkiss.tools.rcplaunchconfig.maven.registry;
 
-import com.dbeaver.osgi.dependency.processing.BundleInfo;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 
 import java.nio.file.Path;

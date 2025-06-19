@@ -41,6 +41,8 @@ public class MavenArtifactDownloader {
     private static final RemoteRepository DEFAULT_REPO_REMOTE = new RemoteRepository.Builder("central", "default", "https://repo1.maven.org/maven2/").build();
     private static final Set<String> DEFAULT_SCOPES = Set.of(JavaScopes.COMPILE, JavaScopes.RUNTIME, JavaScopes.TEST);
 
+    private static final Set<String> IMPORT_SCOPE = Set.of("import");
+
     private static final RepositorySystem system;
 
     static {
@@ -58,11 +60,11 @@ public class MavenArtifactDownloader {
      * resolve
      *
      * @param mavenDependencies eg: org.apache.logging.log4j:log4j-core:2.19.0
-     *
+     * @param isBOM   if true, the dependencies are treated as a BOM (Bill of Materials) and will use the import scope
      * @return jar files absolute path
      **/
-    public static List<Pair<MavenDependency, Path>> resolve(List<MavenDependency> mavenDependencies) throws DependencyResolutionException, NoLocalRepositoryManagerException {
-        return resolve(mavenDependencies, DEFAULT_SCOPES, DEFAULT_REPO_LOCAL, List.of(DEFAULT_REPO_REMOTE));
+    public static List<Pair<MavenDependency, Path>> resolve(List<MavenDependency> mavenDependencies, boolean isBOM) throws DependencyResolutionException, NoLocalRepositoryManagerException {
+        return resolve(mavenDependencies, isBOM ? DEFAULT_SCOPES : IMPORT_SCOPE, DEFAULT_REPO_LOCAL, List.of(DEFAULT_REPO_REMOTE), isBOM);
     }
 
     /**
@@ -78,7 +80,8 @@ public class MavenArtifactDownloader {
         @NotNull List<MavenDependency> mavenDependencies,
         @NotNull Set<String> scopes,
         String localRepo,
-        List<RemoteRepository> remoteRepos
+        List<RemoteRepository> remoteRepos,
+        boolean isBOM
     ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
         if (mavenDependencies.isEmpty()) {
             return Collections.emptyList();
@@ -95,9 +98,7 @@ public class MavenArtifactDownloader {
 
         RepositorySystemSession session = buildSession(localRepo);
 
-        List<Dependency> dependencies = mavenDependencies.stream().map(MavenDependency::getCoordinates)
-            .map(DefaultArtifact::new).map(artifact -> new Dependency(artifact, null)).toList();
-        CollectRequest collectRequest = new CollectRequest(dependencies, null, remoteRepos);
+        CollectRequest collectRequest = getCollectRequest(mavenDependencies, remoteRepos, isBOM);
 
         DependencyRequest request = new DependencyRequest(collectRequest, DependencyFilterUtils.classpathFilter(scopes));
         DependencyResult result = system.resolveDependencies(session, request);
@@ -118,6 +119,34 @@ public class MavenArtifactDownloader {
             }
         }
         return resolvedDependencies;
+    }
+
+    @NotNull
+    private static CollectRequest getCollectRequest(
+        @NotNull List<MavenDependency> mavenDependencies,
+        List<RemoteRepository> remoteRepos,
+        boolean isBOM
+    ) {
+        List<Dependency> dependencies = new ArrayList<>();
+        for (MavenDependency mavenDependency : mavenDependencies) {
+            String coordinates = mavenDependency.getCoordinates();
+            Dependency dependency;
+            if (!isBOM) {
+                DefaultArtifact artifact = new DefaultArtifact(coordinates);
+                dependency = new Dependency(artifact, null);
+                dependencies.add(dependency);
+            } else {
+                // For BOM, we use the import scope
+                DefaultArtifact artifact = new DefaultArtifact(
+                    mavenDependency.group(),
+                    mavenDependency.name(),
+                    "pom",
+                    mavenDependency.version());
+                dependency = new Dependency(artifact, "import");
+            }
+            dependencies.add(dependency);
+        }
+        return new CollectRequest(dependencies, null, remoteRepos);
     }
 
     private static RepositorySystemSession buildSession(String localRepo) {

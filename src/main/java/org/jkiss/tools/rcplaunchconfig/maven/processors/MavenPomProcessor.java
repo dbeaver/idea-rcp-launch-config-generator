@@ -4,7 +4,7 @@ import org.eclipse.aether.repository.NoLocalRepositoryManagerException;
 import org.eclipse.aether.resolution.DependencyResolutionException;
 import org.jkiss.tools.rcplaunchconfig.maven.download.MavenArtifactDownloader;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
-import org.jkiss.tools.rcplaunchconfig.registry.MavenLocalArtifactRegistry;
+import org.jkiss.tools.rcplaunchconfig.maven.registry.MavenLocalArtifactRegistry;
 import org.jkiss.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,44 +12,23 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 public class MavenPomProcessor {
     private static final Logger log = LoggerFactory.getLogger(MavenPomProcessor.class);
+    private static final String PARENT_TAG = "parent";
+    private static final String RELATIVE_PATH_TAG = "relativePath";
 
     private Map<String, Path> coordinatesToPath = new HashMap<>();
-
-    /**
-     * check pom.xml if packaging is not eclipse-plugin return true
-     */
-    public static boolean isMavenModule(Path bundlePath) {
-        Path pomPath = bundlePath.resolve("pom.xml");
-        if (!Files.exists(pomPath)) {
-            log.info("pom.xml not found in the current directory.");
-            return false;
-        }
-
-        try (var inputStream = Files.newInputStream(pomPath)) {
-            // Parse the pom.xml file.
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(inputStream);
-            doc.getDocumentElement().normalize();
-
-            // Extract main artifact details.
-            String packaging = getTagValue(doc, "packaging");
-            return !"eclipse-plugin".equals(packaging);
-        } catch (Exception e) {
-            log.error("Error processing pom.xml", e);
-            return false;
-        }
-    }
 
     /**
      * Processes the pom.xml in the current directory.
@@ -85,14 +64,14 @@ public class MavenPomProcessor {
             String artifactId = getTagValue(doc, "artifactId");
             String version = getTagValue(doc, "version");
             if (groupId == null || groupId.isEmpty()) {
-                NodeList parentNodes = doc.getElementsByTagName("parent");
+                NodeList parentNodes = doc.getElementsByTagName(PARENT_TAG);
                 if (parentNodes != null && parentNodes.getLength() > 0) {
                     Element parentElement = (Element) parentNodes.item(0);
                     groupId = getTagValue(parentElement, "groupId");
                 }
             }
             if (version == null || version.isEmpty()) {
-                NodeList parentNodes = doc.getElementsByTagName("parent");
+                NodeList parentNodes = doc.getElementsByTagName(PARENT_TAG);
                 if (parentNodes != null && parentNodes.getLength() > 0) {
                     Element parentElement = (Element) parentNodes.item(0);
                     version = getTagValue(parentElement, "version");
@@ -151,13 +130,13 @@ public class MavenPomProcessor {
                 String groupId = getTagValue(dependencyElement, "groupId");
                 String artifactId = getTagValue(dependencyElement, "artifactId");
                 String unresolvedVersion = getTagValue(dependencyElement, "version");
-                String version = resolveVersion(doc, artifactId, groupId, unresolvedVersion, new HashSet<>(), path.toFile());
+                String version = resolveVersion(doc, groupId, artifactId, unresolvedVersion, new HashSet<>(), path.toFile());
                 if (groupId != null && artifactId != null && (version != null && !version.startsWith("${"))) {
                     dependencyList.add(new MavenDependency(groupId, artifactId, version));
                 }
             }
             // if version not found check parent
-            tryToDownloadNonProvidedDependencies(dependencyList);
+            tryToDownloadNonProvidedDependencies(dependencyList, false);
             return dependencyList;
         } catch (Exception e) {
             log.error("Error processing pom.xml", e);
@@ -165,10 +144,18 @@ public class MavenPomProcessor {
         }
     }
 
-    public static String resolveVersion(Document doc, String groupID, String artifactID, String version, Set<String> visitedPomPaths, File currentPomFile) {
+    public static String resolveVersion(
+        Document doc,
+        String groupID,
+        String artifactID,
+        String version,
+        Set<String> visitedPomPaths,
+        File currentPomFile
+    )
+    throws IOException, ParserConfigurationException, SAXException {
         if (version == null) {
             // Try to get version from <parent>
-            return getDependencyManagementVersion(doc, groupID, artifactID);
+            return resolveDependencyManagementVersionRecursive(doc, groupID, artifactID, currentPomFile, visitedPomPaths);
         }
 
         if (version.startsWith("${") && version.endsWith("}")) {
@@ -216,7 +203,14 @@ public class MavenPomProcessor {
         return getParentTagValue(doc, propertyName, currentPomFile, visitedPomPaths);
     }
 
-    public static String getDependencyManagementVersion(Document doc, String groupId, String artifactId) {
+    public static String getDependencyManagementVersion(
+        Document doc,
+        String groupId,
+        String artifactId,
+        Set<String> visitedPomPaths,
+        File currentPomFile
+    )
+    throws IOException, ParserConfigurationException, SAXException {
         NodeList depMgmtList = doc.getElementsByTagName("dependencyManagement");
         for (int i = 0; i < depMgmtList.getLength(); i++) {
             Element depMgmt = (Element) depMgmtList.item(i);
@@ -227,7 +221,7 @@ public class MavenPomProcessor {
                 String aid = getTagValue(dependency, "artifactId");
 
                 if (groupId.equals(gid) && artifactId.equals(aid)) {
-                    return getTagValue(dependency, "version");
+                    return resolveVersion(doc, groupId, artifactId, getTagValue(dependency, "version"), visitedPomPaths, currentPomFile);
                 }
             }
         }
@@ -240,19 +234,24 @@ public class MavenPomProcessor {
         String groupId,
         String artifactId,
         File currentPomFile,
-        Set<String> visitedPomPaths) {
+        Set<String> visitedPomPaths
+    ) throws IOException, ParserConfigurationException, SAXException {
 
         // Check local dependencyManagement
-        String version = getDependencyManagementVersion(doc, groupId, artifactId);
+        String version = getDependencyManagementVersion(doc, groupId, artifactId, visitedPomPaths, currentPomFile);
         if (version != null) {
             return version;
         }
+        String versionFromBoms = tryToGetVersionFromBoms(doc, groupId, artifactId, currentPomFile);
+        if (versionFromBoms != null) {
+            return versionFromBoms;
+        }
 
         // Check parent if not found
-        NodeList parentNodes = doc.getElementsByTagName("parent");
+        NodeList parentNodes = doc.getElementsByTagName(PARENT_TAG);
         if (parentNodes.getLength() > 0) {
             Element parent = (Element) parentNodes.item(0);
-            String relativePath = getTagValue(parent, "relativePath");
+            String relativePath = getTagValue(parent, RELATIVE_PATH_TAG);
             if (relativePath == null || relativePath.isBlank()) {
                 relativePath = "../pom.xml"; // default
             }
@@ -260,7 +259,10 @@ public class MavenPomProcessor {
                 relativePath = relativePath + "/pom.xml";
             }
 
-            File parentPom = new File(currentPomFile.isDirectory() ? currentPomFile : currentPomFile.getParentFile(), relativePath).getAbsoluteFile();
+            File parentPom = new File(
+                currentPomFile.isDirectory() ? currentPomFile : currentPomFile.getParentFile(),
+                relativePath
+            ).getAbsoluteFile();
 
             if (!parentPom.exists() || visitedPomPaths.contains(parentPom.getAbsolutePath())) {
                 return null;
@@ -284,11 +286,83 @@ public class MavenPomProcessor {
         return null;
     }
 
+    private static String tryToGetVersionFromBoms(
+        Document doc,
+        String groupId,
+        String artifactId,
+        File currentPomFile
+    ) throws IOException, ParserConfigurationException, SAXException {
+        List<MavenDependency> mavenDependencies = listBOMDependencies(doc, new HashSet<>(), currentPomFile);
+        String version = null;
+        for (MavenDependency bomDependency : mavenDependencies) {
+            if (!MavenLocalArtifactRegistry.INSTANCE.isProvidedOrDownloaded(bomDependency)) {
+                try {
+                    List<Pair<MavenDependency, Path>> resolvedDependencies = MavenArtifactDownloader.resolve(List.of(bomDependency), true);
+                    for (Pair<MavenDependency, Path> resolvedDependency : resolvedDependencies) {
+                        MavenLocalArtifactRegistry.INSTANCE.addLocalThirdPartyDependency(
+                            resolvedDependency.getFirst(),
+                            resolvedDependency.getSecond()
+                        );
+                    }
+                } catch (DependencyResolutionException | NoLocalRepositoryManagerException e) {
+                    log.error("Failed to resolve BOM dependency: {}", bomDependency, e);
+                }
+            }
+            Path dowloadedDependencyPath = MavenLocalArtifactRegistry.INSTANCE.getDowloadedDependencyPath(bomDependency);
+            try (var inputStream = Files.newInputStream(dowloadedDependencyPath)) {
+                // Parse the pom.xml file.
+                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                DocumentBuilder builder = factory.newDocumentBuilder();
+                Document bomDoc = builder.parse(inputStream);
+                doc.getDocumentElement().normalize();
+                String dependencyManagementVersion = getDependencyManagementVersion(
+                    bomDoc,
+                    groupId,
+                    artifactId,
+                    new HashSet<>(),
+                    dowloadedDependencyPath.toFile()
+                );
+                if (dependencyManagementVersion != null) {
+                    version = dependencyManagementVersion;
+                }
+            }
+        }
+        return version;
+    }
+
+    private static List<MavenDependency> listBOMDependencies(
+        Document doc,
+        Set<String> visitedPomPaths,
+        File currentPomFile
+    )
+    throws IOException, ParserConfigurationException, SAXException {
+        List<MavenDependency> bomDependencies = new ArrayList<>();
+        // Check BOM (dependencyManagement with type "pom")
+        NodeList bomList = doc.getElementsByTagName("dependencyManagement");
+        for (int i = 0; i < bomList.getLength(); i++) {
+            Element bomElement = (Element) bomList.item(i);
+            NodeList dependencies = bomElement.getElementsByTagName("dependency");
+            for (int j = 0; j < dependencies.getLength(); j++) {
+                Element dependency = (Element) dependencies.item(j);
+                if (getTagValue(dependency, "type") == null || !"pom".equals(getTagValue(dependency, "type"))) {
+                    continue; // Only consider BOMs
+                }
+                // TODO potentially resolve local BOMS
+                String gid = getTagValue(dependency, "groupId");
+                String aid = getTagValue(dependency, "artifactId");
+                String bomVersion = getTagValue(dependency, "version");
+                bomVersion = resolveVersion(doc, aid, gid, bomVersion, visitedPomPaths, currentPomFile);
+                bomDependencies.add(new MavenDependency(gid, aid, bomVersion));
+            }
+        }
+        return bomDependencies;
+    }
+
     public static String getParentTagValue(Document doc, String tag, File currentPomFile, Set<String> visitedPomPaths) {
-        NodeList parentNodes = doc.getElementsByTagName("parent");
+        NodeList parentNodes = doc.getElementsByTagName(PARENT_TAG);
         if (parentNodes.getLength() > 0) {
             Element parent = (Element) parentNodes.item(0);
-            String relativePath = getTagValue(parent, "relativePath");
+            String relativePath = getTagValue(parent, RELATIVE_PATH_TAG);
             if (relativePath == null || relativePath.isBlank()) {
                 relativePath = "../pom.xml"; // default
             }
@@ -327,12 +401,12 @@ public class MavenPomProcessor {
         return null;
     }
 
-    private static void tryToDownloadNonProvidedDependencies(List<MavenDependency> dependencyList)
+    private static void tryToDownloadNonProvidedDependencies(List<MavenDependency> dependencyList, boolean isBOM)
     throws DependencyResolutionException, NoLocalRepositoryManagerException {
         List<MavenDependency> dependenciesToDownload = dependencyList.stream()
             .filter(it -> !MavenLocalArtifactRegistry.INSTANCE.isProvidedOrDownloaded(it))
             .toList();
-        List<Pair<MavenDependency, Path>> resolvedDependencies = MavenArtifactDownloader.resolve(dependenciesToDownload);
+        List<Pair<MavenDependency, Path>> resolvedDependencies = MavenArtifactDownloader.resolve(dependenciesToDownload, isBOM);
         for (Pair<MavenDependency, Path> resolvedDependency : resolvedDependencies) {
             MavenLocalArtifactRegistry.INSTANCE.addLocalThirdPartyDependency(
                 resolvedDependency.getFirst(),
