@@ -8,11 +8,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class MavenLocalArtifactRegistry {
-    private final Map<MavenDependency, BundleInfo> providedDependencies = new HashMap<>();
+    private final Map<MavenDependency, Path> providedDependencies = new HashMap<>();
     private final Map<MavenDependency, Path> localThirdPartyDependencies = new HashMap<>();
     public static final MavenLocalArtifactRegistry INSTANCE = new MavenLocalArtifactRegistry();
 
-    public void addProvidedDependency(MavenDependency dependency, BundleInfo path) {
+    public void addProvidedDependency(MavenDependency dependency, Path path) {
         providedDependencies.put(dependency, path);
     }
 
@@ -21,7 +21,7 @@ public class MavenLocalArtifactRegistry {
     }
 
 
-    public BundleInfo getProvidedDependencyPath(MavenDependency dependency) {
+    public Path getProvidedDependencyPath(MavenDependency dependency) {
         return providedDependencies.get(dependency);
     }
 
