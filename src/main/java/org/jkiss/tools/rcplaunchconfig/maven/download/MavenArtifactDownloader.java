@@ -29,15 +29,18 @@ import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.utils.Pair;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class MavenArtifactDownloader {
 
     private static final String DEFAULT_REPO_LOCAL = String.format("%s/.m2/repository", System.getProperty("user.home"));
-    private static final RemoteRepository DEFAULT_REPO_REMOTE = new RemoteRepository.Builder("central", "default", "https://repo1.maven.org/maven2/").build();
+    private static final List<RemoteRepository> REPOS = List.of(
+        new RemoteRepository.Builder("central", "default", "https://repo1.maven.org/maven2/").build(),
+        new RemoteRepository.Builder("spring-milestones", "default", "https://repo.spring.io/milestone").build(),
+        new RemoteRepository.Builder("spring-releases", "default", "https://repo.spring.io/release").build(),
+        new RemoteRepository.Builder("central", "default", "https://repo1.maven.org/maven2/").build()
+    );
+
     private static final Set<String> DEFAULT_SCOPES = Set.of(JavaScopes.COMPILE, JavaScopes.RUNTIME, JavaScopes.TEST);
 
     private static final Set<String> IMPORT_SCOPE = Set.of("import");
@@ -59,20 +62,21 @@ public class MavenArtifactDownloader {
      * resolve
      *
      * @param mavenDependencies eg: org.apache.logging.log4j:log4j-core:2.19.0
-     * @param isBOM   if true, the dependencies are treated as a BOM (Bill of Materials) and will use the import scope
+     * @param isBOM             if true, the dependencies are treated as a BOM (Bill of Materials) and will use the import scope
      * @return jar files absolute path
      **/
-    public static List<Pair<MavenDependency, Path>> resolve(List<MavenDependency> mavenDependencies, boolean isBOM) throws DependencyResolutionException, NoLocalRepositoryManagerException {
-        return resolve(mavenDependencies, isBOM ? DEFAULT_SCOPES : IMPORT_SCOPE, DEFAULT_REPO_LOCAL, List.of(DEFAULT_REPO_REMOTE), isBOM);
+    public static List<Pair<MavenDependency, Path>> resolve(List<MavenDependency> mavenDependencies, boolean isBOM)
+    throws DependencyResolutionException, NoLocalRepositoryManagerException {
+        return resolve(mavenDependencies, isBOM ? DEFAULT_SCOPES : IMPORT_SCOPE, DEFAULT_REPO_LOCAL, REPOS, isBOM);
     }
 
     /**
      * resolve
      *
-     * @param mavenDependencies      eg: org.apache.logging.log4j:log4j-core:2.19.0
-     * @param scopes      default to DEFAULT_SCOPES if null or empty
-     * @param localRepo   default to DEFAULT_REPO_LOCAL if null
-     * @param remoteRepos default to DEFAULT_REPO_REMOTE if null or empty
+     * @param mavenDependencies eg: org.apache.logging.log4j:log4j-core:2.19.0
+     * @param scopes            default to DEFAULT_SCOPES if null or empty
+     * @param localRepo         default to DEFAULT_REPO_LOCAL if null
+     * @param remoteRepos       default to DEFAULT_REPO_REMOTE if null or empty
      * @return jar files absolute path
      **/
     public static List<Pair<MavenDependency, Path>> resolve(
@@ -92,31 +96,47 @@ public class MavenArtifactDownloader {
             localRepo = DEFAULT_REPO_LOCAL;
         }
         if (remoteRepos == null || remoteRepos.isEmpty()) {
-            remoteRepos = List.of(DEFAULT_REPO_REMOTE);
+            remoteRepos = REPOS;
         }
 
         RepositorySystemSession session = buildSession(localRepo);
 
         CollectRequest collectRequest = getCollectRequest(mavenDependencies, remoteRepos, isBOM);
 
-        DependencyRequest request = new DependencyRequest();
-        request.setCollectRequest(collectRequest);
+        DependencyRequest request = new DependencyRequest(
+            collectRequest,
+            null
+        );
         DependencyResult result = system.resolveDependencies(session, request);
         PreorderNodeListGenerator nodeListGenerator = new PreorderNodeListGenerator();
         result.getRoot().accept(nodeListGenerator);
         List<Pair<MavenDependency, Path>> resolvedDependencies = new ArrayList<>();
+
         for (ArtifactResult artifactResult : result.getArtifactResults()) {
 
             if (artifactResult.isResolved()) {
-                MavenDependency mavenDependency = mavenDependencies.stream()
-                    .filter(it -> it.getCoordinates().equals(artifactResult.getArtifact().getGroupId() + ":" +
-                        artifactResult.getArtifact().getArtifactId() + ":" + artifactResult.getArtifact().getVersion()))
-                    .findFirst().orElse(null);
-                resolvedDependencies.add(new Pair<>(
-                    mavenDependency,
-                    Path.of(artifactResult.getArtifact().getFile().getAbsolutePath())
-                ));
+                Optional<MavenDependency> existingDependency = mavenDependencies.stream().filter(
+                    dep -> dep.getCoordinates().equals(artifactResult.getArtifact().getGroupId() + ":" +
+                        artifactResult.getArtifact().getArtifactId() + ":" + artifactResult.getArtifact().getVersion())
+                ).findFirst();
+                if (existingDependency.isPresent()) {
+                    resolvedDependencies.add(new Pair<>(
+                        existingDependency.get(),
+                        Path.of(artifactResult.getArtifact().getFile().getAbsolutePath())
+                    ));
+                } else {
+                    resolvedDependencies.add(new Pair<>(
+                        new MavenDependency(
+                            artifactResult.getArtifact().getGroupId(),
+                            artifactResult.getArtifact().getArtifactId(),
+                            artifactResult.getArtifact().getVersion()
+                        ),
+                        Path.of(artifactResult.getArtifact().getFile().getAbsolutePath())
+                    ));
+                }
 
+            } else {
+                System.out.println("UNRESOLVED: " + artifactResult.getArtifact() + " - " + artifactResult.getExceptions());
             }
         }
         return resolvedDependencies;
@@ -142,7 +162,8 @@ public class MavenArtifactDownloader {
                     mavenDependency.group(),
                     mavenDependency.name(),
                     "pom",
-                    mavenDependency.version());
+                    mavenDependency.version()
+                );
                 dependency = new Dependency(artifact, "import");
             }
             dependencies.add(dependency);

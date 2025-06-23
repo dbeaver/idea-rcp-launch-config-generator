@@ -768,7 +768,7 @@ public class IMLConfigurationProducer implements IImportListener {
             boolean isThirdParty = dependencyPath.toRealPath().startsWith(getMavenRepositoryPath());
             processedDependencies.add(dependencyPath);
             if (isThirdParty) {
-                builder.append("  <orderEntry type=\"" + "module-library" + "\">\n");
+                builder.append("  <orderEntry type=\"" + "module-library" + "\" exported=\"\">\n");
                 builder.append("    <library>\n");
                 builder.append("      <CLASSES>\n");
                 builder.append("        <root url=\"")
