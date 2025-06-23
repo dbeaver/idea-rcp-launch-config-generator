@@ -23,7 +23,6 @@ import org.eclipse.aether.transport.classpath.ClasspathTransporterFactory;
 import org.eclipse.aether.transport.file.FileTransporterFactory;
 import org.eclipse.aether.transport.http.HttpTransporterFactory;
 import org.eclipse.aether.util.artifact.JavaScopes;
-import org.eclipse.aether.util.filter.DependencyFilterUtils;
 import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
 import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
@@ -100,12 +99,14 @@ public class MavenArtifactDownloader {
 
         CollectRequest collectRequest = getCollectRequest(mavenDependencies, remoteRepos, isBOM);
 
-        DependencyRequest request = new DependencyRequest(collectRequest, DependencyFilterUtils.classpathFilter(scopes));
+        DependencyRequest request = new DependencyRequest();
+        request.setCollectRequest(collectRequest);
         DependencyResult result = system.resolveDependencies(session, request);
         PreorderNodeListGenerator nodeListGenerator = new PreorderNodeListGenerator();
         result.getRoot().accept(nodeListGenerator);
         List<Pair<MavenDependency, Path>> resolvedDependencies = new ArrayList<>();
         for (ArtifactResult artifactResult : result.getArtifactResults()) {
+
             if (artifactResult.isResolved()) {
                 MavenDependency mavenDependency = mavenDependencies.stream()
                     .filter(it -> it.getCoordinates().equals(artifactResult.getArtifact().getGroupId() + ":" +

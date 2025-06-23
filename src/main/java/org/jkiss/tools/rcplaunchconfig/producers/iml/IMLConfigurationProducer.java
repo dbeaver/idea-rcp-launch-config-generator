@@ -121,10 +121,10 @@ public class IMLConfigurationProducer implements IImportListener {
             .filter(it -> it.toFile().exists())
             .collect(Collectors.toSet());
         presentModules.forEach(MavenPomProcessor::collectArtifacts);
-
+        Set<Path> rootModules = new LinkedHashSet<>();
         Path imlModuleRoot = PathsManager.INSTANCE.getImlModulesPath();
         createModules(presentModules, imlModuleRoot, rootModules, true);
-        return presentModules;
+        return rootModules;
     }
 
     /**
@@ -264,8 +264,8 @@ public class IMLConfigurationProducer implements IImportListener {
             .collect(Collectors.toSet());
         Set<Path> rootModules = new LinkedHashSet<>();
         Path imlModuleRoot = PathsManager.INSTANCE.getImlModulesPath();
-        createModules(presentModules, imlModuleRoot, rootModules, false);
         Path rootIml = imlModuleRoot.resolve(imlModuleRoot.getFileName() + ".iml");
+        createModules(presentModules, imlModuleRoot, rootModules, false);
         createConfigFile(rootIml, generateImlRepositoryRootModule(imlModuleRoot));
         rootModules.add(rootIml);
         return rootModules;
@@ -304,10 +304,11 @@ public class IMLConfigurationProducer implements IImportListener {
             productExcludesAndIncludes.append("        <sourceFolder url=\"")
                 .append(getFormattedRelativePath(presentModule.resolve("src/main/java"), false, false))
                 .append("\"/>").append("\n");
-            productExcludesAndIncludes.append("        <excludeFolder url=\"")
-                .append(getFormattedRelativePath(presentModule.resolve("target"), false, false))
+            productExcludesAndIncludes.append("        <sourceFolder url=\"")
+                .append(getFormattedRelativePath(presentModule.resolve("src"), false, false))
                 .append("\"/>").append("\n");
-
+            productExcludesAndIncludes.append("        <excludeFolder url=\"")
+                .append(getFormattedRelativePath(presentModule.resolve("target"), false, false)).append("\"/>").append("\n");
         }
         for (Path productConfigPath : productsPathsAndWorkDirs.keySet()) {
             if (productConfigPath.startsWith(presentModule)) {
@@ -754,13 +755,18 @@ public class IMLConfigurationProducer implements IImportListener {
         return builder.toString();
     }
 
-    private void appendMavenDependencies(Path path, StringBuilder builder) throws IOException {
+    private void appendMavenDependencies(@NotNull Path path, @NotNull StringBuilder builder) throws IOException {
         List<MavenDependency> dependencies = MavenPomProcessor.processDependencies(path);
+        Set<Path> processedDependencies = new HashSet<>();
         for (MavenDependency dependency : dependencies) {
             Path dependencyPath = MavenLocalArtifactRegistry.INSTANCE.getProvidedDependencyPath(dependency) == null ?
                 MavenLocalArtifactRegistry.INSTANCE.getDowloadedDependencyPath(dependency) :
                 MavenLocalArtifactRegistry.INSTANCE.getProvidedDependencyPath(dependency);
+            if (processedDependencies.contains(dependencyPath)) {
+                continue; // Skip already processed dependencies
+            }
             boolean isThirdParty = dependencyPath.toRealPath().startsWith(getMavenRepositoryPath());
+            processedDependencies.add(dependencyPath);
             if (isThirdParty) {
                 builder.append("  <orderEntry type=\"" + "module-library" + "\">\n");
                 builder.append("    <library>\n");

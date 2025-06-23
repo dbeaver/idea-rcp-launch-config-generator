@@ -28,8 +28,12 @@ public class MavenLocalArtifactRegistry {
         return localThirdPartyDependencies.get(dependency);
     }
 
-    public boolean isProvidedOrDownloaded(MavenDependency dependency) {
-        return providedDependencies.containsKey(dependency) || localThirdPartyDependencies.containsKey(dependency);
+    public boolean isProvided(MavenDependency dependency) {
+        return providedDependencies.containsKey(dependency);
+    }
+
+    public boolean isLocalThirdParty(MavenDependency dependency) {
+        return localThirdPartyDependencies.containsKey(dependency);
     }
 
     private MavenLocalArtifactRegistry() {
