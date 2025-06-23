@@ -136,6 +136,7 @@ public class EntryPoint {
                     throw new RuntimeException(e);
                 }
             }).collect(Collectors.toList())).join();
+
             forkJoinPool.submit(() -> executionResults.parallelStream().forEach((executionResult) -> {
                 try {
                     Path resultPath = executionResult.resultPath();
