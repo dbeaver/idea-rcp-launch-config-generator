@@ -25,6 +25,7 @@ import org.eclipse.aether.transport.http.HttpTransporterFactory;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
 import org.jkiss.code.NotNull;
+import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.utils.Pair;
 
@@ -65,8 +66,8 @@ public class MavenArtifactDownloader {
      * @param isBOM             if true, the dependencies are treated as a BOM (Bill of Materials) and will use the import scope
      * @return jar files absolute path
      **/
-    public static List<Pair<MavenDependency, Path>> resolve(List<MavenDependency> mavenDependencies, boolean isBOM)
-    throws DependencyResolutionException, NoLocalRepositoryManagerException {
+    public static List<Pair<MavenDependency, Path>> resolve(@NotNull List<MavenDependency> mavenDependencies, boolean isBOM
+    ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
         return resolve(mavenDependencies, isBOM ? DEFAULT_SCOPES : IMPORT_SCOPE, DEFAULT_REPO_LOCAL, REPOS, isBOM);
     }
 
@@ -82,10 +83,10 @@ public class MavenArtifactDownloader {
     public static List<Pair<MavenDependency, Path>> resolve(
         @NotNull List<MavenDependency> mavenDependencies,
         @NotNull Set<String> scopes,
-        String localRepo,
-        List<RemoteRepository> remoteRepos,
+        @Nullable String localRepo,
+        @Nullable List<RemoteRepository> remoteRepos,
         boolean isBOM
-    ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
+    ) throws DependencyResolutionException {
         if (mavenDependencies.isEmpty()) {
             return Collections.emptyList();
         }
@@ -145,7 +146,7 @@ public class MavenArtifactDownloader {
     @NotNull
     private static CollectRequest getCollectRequest(
         @NotNull List<MavenDependency> mavenDependencies,
-        List<RemoteRepository> remoteRepos,
+        @NotNull List<RemoteRepository> remoteRepos,
         boolean isBOM
     ) {
         List<Dependency> dependencies = new ArrayList<>();
@@ -171,7 +172,7 @@ public class MavenArtifactDownloader {
         return new CollectRequest(dependencies, null, remoteRepos);
     }
 
-    private static RepositorySystemSession buildSession(String localRepo) {
+    private static RepositorySystemSession buildSession(@NotNull String localRepo) {
         DefaultRepositorySystemSession session = MavenRepositorySystemUtils.newSession();
         session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, new LocalRepository(localRepo)));
         session.setCache(new DefaultRepositoryCache());
