@@ -21,6 +21,7 @@
 
     <properties>
         <java.version>${java.version.drivers}</java.version>
+        <maven-resolver-impl.version>1.9.23</maven-resolver-impl.version>
     </properties>
 
     <build>
@@ -57,13 +58,13 @@
         <dependency>
             <groupId>org.apache.maven.resolver</groupId>
             <artifactId>maven-resolver-api</artifactId>
-            <version>1.9.22</version>
+            <version>${maven-resolver-impl.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.maven.resolver</groupId>
             <artifactId>maven-resolver-impl</artifactId>
-            <version>1.9.22</version>
+            <version>${maven-resolver-impl.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -75,29 +76,25 @@
         <dependency>
             <groupId>org.apache.maven.resolver</groupId>
             <artifactId>maven-resolver-connector-basic</artifactId>
-            <version>1.9.10</version>
+            <version>${maven-resolver-impl.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven.resolver</groupId>
             <artifactId>maven-resolver-transport-http</artifactId>
-            <version>1.9.10</version>
+            <version>${maven-resolver-impl.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven.resolver</groupId>
             <artifactId>maven-resolver-transport-file</artifactId>
-            <version>1.9.10</version>
+            <version>${maven-resolver-impl.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven.resolver</groupId>
             <artifactId>maven-resolver-transport-classpath</artifactId>
-            <version>1.9.10</version>
+            <version>${maven-resolver-impl.version}</version>
         </dependency>
 
-        <dependency>
-            <groupId>org.eclipse.aether</groupId>
-            <artifactId>aether-spi</artifactId>
-            <version>0.9.0.M2</version>
-        </dependency>
+
     </dependencies>
 
 </project>

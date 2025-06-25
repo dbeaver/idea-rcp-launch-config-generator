@@ -28,15 +28,17 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.*;
 
 public class MavenArtifactDownloader {
+    private static final Logger log = LoggerFactory.getLogger(MavenArtifactDownloader.class);
 
     private static final String DEFAULT_REPO_LOCAL = String.format("%s/.m2/repository", System.getProperty("user.home"));
     private static final List<RemoteRepository> REPOS = List.of(
-        new RemoteRepository.Builder("central", "default", "https://repo1.maven.org/maven2/").build(),
         new RemoteRepository.Builder("spring-milestones", "default", "https://repo.spring.io/milestone").build(),
         new RemoteRepository.Builder("spring-releases", "default", "https://repo.spring.io/release").build(),
         new RemoteRepository.Builder("central", "default", "https://repo1.maven.org/maven2/").build()
@@ -101,7 +103,6 @@ public class MavenArtifactDownloader {
         }
 
         RepositorySystemSession session = buildSession(localRepo);
-
         CollectRequest collectRequest = getCollectRequest(mavenDependencies, remoteRepos, isBOM);
 
         DependencyRequest request = new DependencyRequest(
@@ -110,11 +111,21 @@ public class MavenArtifactDownloader {
         );
         DependencyResult result = system.resolveDependencies(session, request);
         PreorderNodeListGenerator nodeListGenerator = new PreorderNodeListGenerator();
-        result.getRoot().accept(nodeListGenerator);
+        result.getRoot().accept(new org.eclipse.aether.graph.DependencyVisitor() {
+            @Override
+            public boolean visitEnter(org.eclipse.aether.graph.DependencyNode node) {
+                log.info("  Processing maven dependency: {}", node.getArtifact());
+                return true;
+            }
+
+            @Override
+            public boolean visitLeave(org.eclipse.aether.graph.DependencyNode node) {
+                return true;
+            }
+        });
         List<Pair<MavenDependency, Path>> resolvedDependencies = new ArrayList<>();
 
         for (ArtifactResult artifactResult : result.getArtifactResults()) {
-
             if (artifactResult.isResolved()) {
                 Optional<MavenDependency> existingDependency = mavenDependencies.stream().filter(
                     dep -> dep.getCoordinates().equals(artifactResult.getArtifact().getGroupId() + ":" +
@@ -135,9 +146,8 @@ public class MavenArtifactDownloader {
                         Path.of(artifactResult.getArtifact().getFile().getAbsolutePath())
                     ));
                 }
-
             } else {
-                System.out.println("UNRESOLVED: " + artifactResult.getArtifact() + " - " + artifactResult.getExceptions());
+                log.error("UNRESOLVED: " + artifactResult.getArtifact() + " - " + artifactResult.getExceptions());
             }
         }
         return resolvedDependencies;
@@ -155,8 +165,7 @@ public class MavenArtifactDownloader {
             Dependency dependency;
             if (!isBOM) {
                 DefaultArtifact artifact = new DefaultArtifact(coordinates);
-                dependency = new Dependency(artifact, null);
-                dependencies.add(dependency);
+                dependency = new Dependency(artifact, "compile");
             } else {
                 // For BOM, we use the import scope
                 DefaultArtifact artifact = new DefaultArtifact(
@@ -169,13 +178,18 @@ public class MavenArtifactDownloader {
             }
             dependencies.add(dependency);
         }
+
         return new CollectRequest(dependencies, null, remoteRepos);
     }
 
+    @NotNull
     private static RepositorySystemSession buildSession(@NotNull String localRepo) {
         DefaultRepositorySystemSession session = MavenRepositorySystemUtils.newSession();
         session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, new LocalRepository(localRepo)));
         session.setCache(new DefaultRepositoryCache());
+        Properties systemProps = new Properties();
+        systemProps.setProperty("java.version", "17");
+        session.setSystemProperties(systemProps);
         return session;
     }
 }
