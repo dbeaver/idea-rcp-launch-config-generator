@@ -20,7 +20,7 @@
     <name>Eclipse Plugins Resolver</name>
 
     <properties>
-        <java.version>${java.version.drivers}</java.version>
+         <!-- <java.version>${java.version.drivers}</java.version> -->
         <maven-resolver-impl.version>1.9.23</maven-resolver-impl.version>
     </properties>
 
