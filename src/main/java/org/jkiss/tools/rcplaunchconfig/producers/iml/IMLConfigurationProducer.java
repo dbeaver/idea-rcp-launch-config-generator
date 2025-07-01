@@ -115,7 +115,11 @@ public class IMLConfigurationProducer implements IImportListener {
         rootModules.addAll(generateRootModules());
     }
 
-    private Collection<? extends Path> generateMavenModules() throws IOException {
+    @NotNull
+    private Set<? extends Path> generateMavenModules() throws IOException {
+        if (PathsManager.INSTANCE.getMavenModules() == null) {
+            return Collections.emptySet();
+        }
         Set<Path> presentModules = PathsManager.INSTANCE.getMavenModules()
             .stream()
             .filter(it -> it.toFile().exists())
