@@ -114,7 +114,7 @@ public class MavenArtifactDownloader {
         result.getRoot().accept(new org.eclipse.aether.graph.DependencyVisitor() {
             @Override
             public boolean visitEnter(org.eclipse.aether.graph.DependencyNode node) {
-                log.info("  Processing maven dependency: {}", node.getArtifact());
+                //log.info("  Processing maven dependency: {}", node.getArtifact());
                 return true;
             }
 
