@@ -16,18 +16,17 @@
  */
 package org.jkiss.tools.rcplaunchconfig.producers;
 
+import com.dbeaver.osgi.dependency.processing.BundleInfo;
 import com.dbeaver.osgi.dependency.processing.PathsManager;
 import com.dbeaver.osgi.dependency.processing.Result;
-import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
-import com.dbeaver.osgi.dependency.processing.BundleInfo;
 import com.dbeaver.osgi.dependency.processing.p2.P2RepositoryManager;
 import com.dbeaver.osgi.dependency.processing.p2.repository.RemoteP2BundleInfo;
 import com.dbeaver.osgi.dependency.processing.util.FileUtils;
+import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 import org.jkiss.tools.rcplaunchconfig.Params;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -149,7 +148,7 @@ public class ConfigIniProducer {
                 "    <stringAttribute key=\"org.eclipse.jdt.launching.JRE_CONTAINER\" value=\"org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-17\"/>\n" +
                 "    <stringAttribute key=\"org.eclipse.jdt.launching.PROGRAM_ARGUMENTS\" value=\"-os ${target.os} -ws ${target.ws} -arch ${target.arch} -nl ${target.nl} -consoleLog -showsplash\"/>\n" +
                 "    <stringAttribute key=\"org.eclipse.jdt.launching.SOURCE_PATH_PROVIDER\" value=\"org.eclipse.pde.ui.workbenchClasspathProvider\"/>\n" +
-                "    <stringAttribute key=\"org.eclipse.jdt.launching.VM_ARGUMENTS\" value=\"-XX:+IgnoreUnrecognizedVMOptions -Dfile.encoding=UTF-8 --add-modules=ALL-SYSTEM -Xms64m -Xmx1024m\"/>\n" +
+                "    <stringAttribute key=\"org.eclipse.jdt.launching.VM_ARGUMENTS\" value=\"-XX:+IgnoreUnrecognizedVMOptions -Dfile.encoding=UTF-8 --add-modules=ALL-DEFAULT -Xms64m -Xmx1024m\"/>\n" +
                 "    <stringAttribute key=\"pde.version\" value=\"3.3\"/>\n" +
                 "    <booleanAttribute key=\"show_selected_only\" value=\"false\"/>\n" +
                 "    <booleanAttribute key=\"tracing\" value=\"false\"/>\n" +
