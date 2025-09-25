@@ -766,6 +766,9 @@ public class IMLConfigurationProducer implements IImportListener {
             Path dependencyPath = MavenLocalArtifactRegistry.INSTANCE.getProvidedDependencyPath(dependency) == null ?
                 MavenLocalArtifactRegistry.INSTANCE.getDowloadedDependencyPath(dependency) :
                 MavenLocalArtifactRegistry.INSTANCE.getProvidedDependencyPath(dependency);
+            if (dependencyPath == null) {
+                continue;
+            }
             if (processedDependencies.contains(dependencyPath)) {
                 continue; // Skip already processed dependencies
             }
