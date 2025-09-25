@@ -16,7 +16,7 @@
  */
 package org.jkiss.tools.rcplaunchconfig;
 
-import jakarta.annotation.Nonnull;
+import org.jkiss.code.NotNull;
 import picocli.CommandLine;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ParseResult;
@@ -53,7 +53,7 @@ public class Params {
     public boolean debug;
 
 
-    public @Nonnull ParseResult init(String[] args) {
+    public @NotNull ParseResult init(String[] args) {
         return new CommandLine(this)
             .parseArgs(args);
     }

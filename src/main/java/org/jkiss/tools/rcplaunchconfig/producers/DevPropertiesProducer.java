@@ -18,7 +18,7 @@ package org.jkiss.tools.rcplaunchconfig.producers;
 
 import com.dbeaver.osgi.dependency.processing.BundleInfo;
 import com.dbeaver.osgi.dependency.processing.util.BundleValidator;
-import jakarta.annotation.Nonnull;
+import org.jkiss.code.NotNull;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -28,7 +28,7 @@ public class DevPropertiesProducer {
 
     private static final String DEFAULT_CLASSPATH = "target/classes";
 
-    public static @Nonnull Map<String, String> generateDevProperties(@Nonnull Collection<Set<BundleInfo>> bundles) {
+    public static @NotNull Map<String, String> generateDevProperties(@NotNull Collection<Set<BundleInfo>> bundles) {
         Map<String, String> result = new LinkedHashMap<>();
         for (var bundleInfos : bundles) {
             for (BundleInfo bundleInfo : bundleInfos) {
@@ -41,11 +41,11 @@ public class DevPropertiesProducer {
         return result;
     }
 
-    public static boolean isBundleAcceptable(@Nonnull String bundleName) {
+    public static boolean isBundleAcceptable(@NotNull String bundleName) {
         return BundleValidator.isInternalBundle(bundleName);
     }
 
-    private static @Nonnull String generateValue(@Nonnull List<String> bundleClassPath) {
+    private static @NotNull String generateValue(@NotNull List<String> bundleClassPath) {
         return Stream.concat(Stream.of(DEFAULT_CLASSPATH), bundleClassPath.stream())
             .collect(Collectors.joining(","));
     }

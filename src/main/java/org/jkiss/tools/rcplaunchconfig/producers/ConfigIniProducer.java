@@ -22,8 +22,8 @@ import com.dbeaver.osgi.dependency.processing.Result;
 import com.dbeaver.osgi.dependency.processing.p2.P2RepositoryManager;
 import com.dbeaver.osgi.dependency.processing.p2.repository.RemoteP2BundleInfo;
 import com.dbeaver.osgi.dependency.processing.util.FileUtils;
-import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
+import org.jkiss.code.NotNull;
+import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.Params;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +44,7 @@ public class ConfigIniProducer {
 
     public static Map<String, String> generateConfigIni(
         @Nullable Path osgiSplashPath,
-        @Nonnull Collection<Set<BundleInfo>> bundles
+        @NotNull Collection<Set<BundleInfo>> bundles
     ) throws IOException {
         Map<String, String> result = new LinkedHashMap<>();
         if (osgiSplashPath != null) {
@@ -58,7 +58,7 @@ public class ConfigIniProducer {
         return result;
     }
 
-    private static @Nonnull String getOsgiBundlesValue(@Nonnull Collection<Set<BundleInfo>> bundles) {
+    private static @NotNull String getOsgiBundlesValue(@NotNull Collection<Set<BundleInfo>> bundles) {
         return bundles.stream()
             .flatMap(Collection::stream)
             .filter(it -> it.getPath() != null)
@@ -66,7 +66,7 @@ public class ConfigIniProducer {
             .collect(Collectors.joining(","));
     }
 
-    private static @Nonnull String getBundleReference(@Nonnull BundleInfo bundleInfo) {
+    private static @NotNull String getBundleReference(@NotNull BundleInfo bundleInfo) {
         var stringBuilder = new StringBuilder();
         stringBuilder.append("reference:");
         stringBuilder.append(getNormalizeFileReference(bundleInfo.getPath()));
@@ -78,7 +78,7 @@ public class ConfigIniProducer {
         return stringBuilder.toString();
     }
 
-    private static @Nonnull String getBundleStartLevel(@Nonnull BundleInfo bundleInfo) {
+    private static @NotNull String getBundleStartLevel(@NotNull BundleInfo bundleInfo) {
         if (bundleInfo.getStartLevel() != null) {
             return "@" + bundleInfo.getStartLevel() + ":start";
         } else {
@@ -86,7 +86,7 @@ public class ConfigIniProducer {
         }
     }
 
-    private static @Nonnull String getOsgiFrameworkValue() throws IOException {
+    private static @NotNull String getOsgiFrameworkValue() throws IOException {
         var eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
         var file = FileUtils.findFirstChildByPackageName(eclipsePluginsPath, OSGI_FRAMEWORK_BUNDLE_NAME);
         if (file == null) {
@@ -109,11 +109,11 @@ public class ConfigIniProducer {
         return file.getCanonicalPath();
     }
 
-    private static @Nonnull String getNormalizeFileReference(@Nonnull Path path) {
+    private static @NotNull String getNormalizeFileReference(@NotNull Path path) {
         return getNormalizeFileReference(path.toString());
     }
 
-    private static @Nonnull String getNormalizeFileReference(@Nonnull String path) {
+    private static @NotNull String getNormalizeFileReference(@NotNull String path) {
         return "file:" + path.replace('\\', '/');
     }
 
