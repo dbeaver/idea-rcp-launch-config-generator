@@ -243,7 +243,7 @@ public class IMLConfigurationProducer implements IImportListener {
         config.append(getFormattedRelativePath(productPath, false, true, true)).append("&quot; ");
         config.append("-dev &quot;");
         config.append(getFormattedRelativePath(productPath, false, true, true)).append("/dev.properties").append("&quot; ");
-        config.append("-nl en -consoleLog -showsplash ");
+        config.append("-nl en -consoleLog -showsplash -launcher ").append(System.getenv("JAVA_HOME")).append("/bin/java\n");
         if (result.getArguments().getProgramARGS() != null) {
             for (String programARG : result.getArguments().getProgramARGS()) {
                 config.append(programARG).append(" ");
