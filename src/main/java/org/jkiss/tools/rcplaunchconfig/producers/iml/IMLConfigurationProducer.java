@@ -209,7 +209,7 @@ public class IMLConfigurationProducer implements IImportListener {
                 config.append(programARG).append(" ");
             }
         }
-        Map<String, String> associatedVMParameters = PathsManager.INSTANCE.getAssociatedEnvParameters(result.getProductUID());
+        Map<String, String> associatedVMParameters = PathsManager.INSTANCE.getAssociatedVMParameters(result.getProductUID());
         if (associatedVMParameters != null) {
             for (Map.Entry<String, String> parameterEntry : associatedVMParameters.entrySet()) {
                 config.append("-").append(parameterEntry.getKey()).append("=").append(parameterEntry.getValue()).append(" ");
@@ -223,7 +223,7 @@ public class IMLConfigurationProducer implements IImportListener {
             }
         }
         config.append("\"/>\n");
-        Map<String, String> associatedParameters = PathsManager.INSTANCE.getAssociatedParameters(result.getProductUID());
+        Map<String, String> associatedParameters = PathsManager.INSTANCE.getAssociatedEnvParameters(result.getProductUID());
         if (associatedParameters != null) {
             config.append("    <envs>").append("\n");
             for (Map.Entry<String, String> parameterEntry : associatedParameters.entrySet()) {
