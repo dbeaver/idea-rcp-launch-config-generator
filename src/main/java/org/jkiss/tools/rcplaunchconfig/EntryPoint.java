@@ -19,6 +19,7 @@ package org.jkiss.tools.rcplaunchconfig;
 import ch.qos.logback.classic.Level;
 import com.dbeaver.osgi.dependency.processing.ConfigFileManager;
 import com.dbeaver.osgi.dependency.processing.PathsManager;
+import com.dbeaver.osgi.dependency.processing.PropertyConfig;
 import com.dbeaver.osgi.dependency.processing.Result;
 import com.dbeaver.osgi.dependency.processing.p2.P2RepositoryManager;
 import com.dbeaver.osgi.dependency.processing.p2.repository.exception.RepositoryInitialisationError;
@@ -45,6 +46,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -76,10 +78,15 @@ public class EntryPoint {
         try (ForkJoinPool forkJoinPool = createForkJoinPool(params)) {
             log.info("Dependency folder location: " + params.eclipsePath);
 
-            var settings = ConfigFileManager.readSettingsFile(params.configFilePath);
+            Properties settings = ConfigFileManager.readSettingsFile(params.configFilePath);
 
             var pathsManager = PathsManager.INSTANCE;
             pathsManager.init(settings, params.projectsFolderPath, params.eclipsePath);
+            Path envPath = params.configFilePath.getParent().resolve("additionalProperties.json");
+            if (Files.exists(envPath)) {
+                List<PropertyConfig> additionalProperties = ConfigFileManager.processAdditionalProperties(envPath);
+                pathsManager.associateAdditionalProperties(additionalProperties);
+            }
             P2RepositoryManager p2RepositoryManager = P2RepositoryManager.INSTANCE;
             p2RepositoryManager.init(settings, params.eclipseVersion, null);
             if (log.isDebugEnabled()) {

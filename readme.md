@@ -80,4 +80,28 @@ optionalFeatureRepositories=\
 | optionalFeatureRepositories | Repositories containing information about optional features which are not included in product launch by default(optional) |
 | excludeOutputs              | Additional folders to exclude from root module indexing                                                                   |
 
+## Product specific properties
+For each product, can be specified additional properties, such as VM arguments, program arguments, environment variables by using 
+
+| Parameter               | Description                                                                                                                                                      |
+|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| overrideDataFolder      | Override default data folder location (default is workspace location)  in the format product:path                                                                |                                 |
+| runBeforeProductsLaunch | Comma-separated list of IDEA configs to be launched before the main product in the format product:path                                                           |                              |
+| associateEnvProperties  | Comma-separated list of properties with environment variables to be associated with the product in the format product=propertyNames                              |
+| associateVMProperties   | Comma-separated list of properties with VM parameters to be associated with the product in the format product=propertyNames                                      |
+Additional parameters can be specified in additionalProperties.json
+in the following format:
+```json
+[
+  {
+    "uids": [""], // can be empty or contain list of uids of products to which this property should be applied
+    "type": "env", // can be "ENV" or "CLI"
+    "name": "property_unique_name",
+    "properties": {
+        "propertyName": "propertyValue",
+        "anotherPropertyName": "anotherPropertyValue"
+    }
+  }
+]
+```
 Note: Technically this tool should work with any Eclipse RCP, not just dbeaver or cloudbeaver.

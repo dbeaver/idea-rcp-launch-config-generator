@@ -209,6 +209,12 @@ public class IMLConfigurationProducer implements IImportListener {
                 config.append(programARG).append(" ");
             }
         }
+        Map<String, String> associatedVMParameters = PathsManager.INSTANCE.getAssociatedVMParameters(result.getProductUID());
+        if (associatedVMParameters != null) {
+            for (Map.Entry<String, String> parameterEntry : associatedVMParameters.entrySet()) {
+                config.append("-").append(parameterEntry.getKey()).append("=").append(parameterEntry.getValue()).append(" ");
+            }
+        }
         if (isMacOS()) {
             if (result.getArguments().getVmARGSMac() != null) {
                 for (String s : result.getArguments().getVmARGSMac()) {
@@ -217,7 +223,7 @@ public class IMLConfigurationProducer implements IImportListener {
             }
         }
         config.append("\"/>\n");
-        Map<String, String> associatedParameters = PathsManager.INSTANCE.getAssociatedParameters(result.getProductUID());
+        Map<String, String> associatedParameters = PathsManager.INSTANCE.getAssociatedEnvParameters(result.getProductUID());
         if (associatedParameters != null) {
             config.append("    <envs>").append("\n");
             for (Map.Entry<String, String> parameterEntry : associatedParameters.entrySet()) {
@@ -228,8 +234,20 @@ public class IMLConfigurationProducer implements IImportListener {
         config.append("    <option name=\"WORKING_DIRECTORY\" value=").append(result.getWorkDir() != null ? "\""
             + result.getWorkDir() + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
         config.append("    <shortenClasspath name=\"ARGS_FILE\" />\n");
-        config.append("    <method v=\"2\" />\n")
-            .append("  </configuration>\n")
+        Set<String> runBeforeConfigs = PathsManager.INSTANCE.getRunBeforeConfigs(result.getProductUID());
+        if (runBeforeConfigs != null && !runBeforeConfigs.isEmpty()) {
+            config.append("    <method v=\"2\">\n");
+            for (String runBeforeConfig : runBeforeConfigs) {
+                config.append(
+                    ("      <option name=\"RunConfigurationTask\" enabled=\"true\""
+                        + " run_configuration_name=\"%s\" run_configuration_type=\"MavenRunConfiguration\"/>\n").formatted(
+                        runBeforeConfig));
+            }
+            config.append("    </method>\n");
+        } else {
+            config.append("    <method v=\"2\" />\n");
+        }
+        config.append("  </configuration>\n")
             .append("</component>");
         return config.toString();
     }
@@ -237,6 +255,11 @@ public class IMLConfigurationProducer implements IImportListener {
     private void buildProgramParameters(StringBuilder config, Path productPath, Result result) {
         config.append("    <option name=\"PROGRAM_PARAMETERS\" value=\"-name ");
         config.append(result.getProductName()).append(" ");
+        Path customData = PathsManager.INSTANCE.getOverridenDataFolderLocation(result.getProductUID());
+        if (PathsManager.INSTANCE.getOverridenDataFolderLocation(result.getProductUID()) != null) {
+            config.append("-data &quot;");
+            config.append(getFormattedRelativePath(customData, false, true, true)).append("&quot; ");
+        }
         config.append("-product ");
         config.append(result.getProductId()).append(" ");
         config.append("-configuration &quot;");
