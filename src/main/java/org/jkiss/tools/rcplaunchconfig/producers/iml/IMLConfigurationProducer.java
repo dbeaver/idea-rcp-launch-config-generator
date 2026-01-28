@@ -359,13 +359,14 @@ public class IMLConfigurationProducer implements IImportListener {
         StringBuilder productExcludesAndIncludes = new StringBuilder();
         Map<Path, String> productsPathsAndWorkDirs = PathsManager.INSTANCE.getProductsPathsAndWorkDirs();
         if (isMaven) {
-            appendSource(productExcludesAndIncludes, presentModule, "src/main/java", false, null);
-            if (!hasMavenMainSources(presentModule)) {
+            if (hasMavenMainSources(presentModule)) {
+                appendSource(productExcludesAndIncludes, presentModule, "src/main/java", false, null);
+                appendSource(productExcludesAndIncludes, presentModule, "src/main/resources", false, "java-resource");
+                appendSource(productExcludesAndIncludes, presentModule, "src/test/java", true, null);
+                appendSource(productExcludesAndIncludes, presentModule, "src/test/resources", true, "java-test-resource");
+            } else {
                 appendSource(productExcludesAndIncludes, presentModule, "src", false, null);
             }
-            appendSource(productExcludesAndIncludes, presentModule, "src/main/resources", false, "java-resource");
-            appendSource(productExcludesAndIncludes, presentModule, "src/test/java", true, null);
-            appendSource(productExcludesAndIncludes, presentModule, "src/test/resources", true, "java-test-resource");
 
             productExcludesAndIncludes.append("        <excludeFolder url=\"")
                 .append(getFormattedRelativePath(presentModule.resolve("target"), false, false)).append("\"/>").append("\n");
@@ -410,10 +411,9 @@ public class IMLConfigurationProducer implements IImportListener {
             appendMavenDependencies(presentModule, moduleImports);
             return new StringBuilder().append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                 .append("<module type=\"JAVA_MODULE\" version=\"4\">\n")
-
                 .append("  <component name=\"NewModuleRootManager\" LANGUAGE_LEVEL=\"JDK_17\">\n")
                 .append("  <exclude-output/>\n")
-                .append("  <output      url=\"")
+                .append("  <output url=\"")
                 .append(getFormattedRelativePath(presentModule.resolve("target/classes"), false, false))
                 .append("\"/>").append("\n")
                 .append("  <output-test url=\"")
