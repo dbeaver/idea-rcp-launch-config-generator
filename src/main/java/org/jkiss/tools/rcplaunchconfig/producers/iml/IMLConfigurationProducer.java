@@ -324,16 +324,50 @@ public class IMLConfigurationProducer implements IImportListener {
             "</module>";
     }
 
+    private void appendSource(
+        @NotNull StringBuilder sb,
+        @NotNull Path module,
+        String relativePath,
+        boolean isTest,
+        @Nullable String type
+    ) {
+        Path p = module.resolve(relativePath);
+        if (!Files.isDirectory(p)) {
+            log.debug("Source folder {} not found, skipping", p);
+            return;
+        }
+
+        sb.append("        <sourceFolder url=\"")
+            .append(getFormattedRelativePath(p, false, false))
+            .append("\"");
+
+        sb.append(" isTestSource=\"").append(isTest).append("\"");
+
+        if (type != null) {
+            sb.append(" type=\"").append(type).append("\"");
+        }
+
+        sb.append(" />\n");
+    }
+
+    private boolean hasMavenMainSources(@NotNull Path module) {
+        return Files.isDirectory(module.resolve("src/main/java"))
+            || Files.isDirectory(module.resolve("src/main/resources"));
+    }
+
     private String generateNonOSGIModule(@NotNull Path presentModule, boolean isMaven) throws IOException {
         StringBuilder productExcludesAndIncludes = new StringBuilder();
         Map<Path, String> productsPathsAndWorkDirs = PathsManager.INSTANCE.getProductsPathsAndWorkDirs();
         if (isMaven) {
-            productExcludesAndIncludes.append("        <sourceFolder url=\"")
-                .append(getFormattedRelativePath(presentModule.resolve("src/main/java"), false, false))
-                .append("\"/>").append("\n");
-            productExcludesAndIncludes.append("        <sourceFolder url=\"")
-                .append(getFormattedRelativePath(presentModule.resolve("src"), false, false))
-                .append("\"/>").append("\n");
+            if (hasMavenMainSources(presentModule)) {
+                appendSource(productExcludesAndIncludes, presentModule, "src/main/java", false, null);
+                appendSource(productExcludesAndIncludes, presentModule, "src/main/resources", false, "java-resource");
+                appendSource(productExcludesAndIncludes, presentModule, "src/test/java", true, null);
+                appendSource(productExcludesAndIncludes, presentModule, "src/test/resources", true, "java-test-resource");
+            } else {
+                appendSource(productExcludesAndIncludes, presentModule, "src", false, null);
+            }
+
             productExcludesAndIncludes.append("        <excludeFolder url=\"")
                 .append(getFormattedRelativePath(presentModule.resolve("target"), false, false)).append("\"/>").append("\n");
         }
@@ -377,11 +411,13 @@ public class IMLConfigurationProducer implements IImportListener {
             appendMavenDependencies(presentModule, moduleImports);
             return new StringBuilder().append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                 .append("<module type=\"JAVA_MODULE\" version=\"4\">\n")
-
                 .append("  <component name=\"NewModuleRootManager\" LANGUAGE_LEVEL=\"JDK_17\">\n")
-                .append("  <exclude-output/>")
+                .append("  <exclude-output/>\n")
                 .append("  <output url=\"")
                 .append(getFormattedRelativePath(presentModule.resolve("target/classes"), false, false))
+                .append("\"/>").append("\n")
+                .append("  <output-test url=\"")
+                .append(getFormattedRelativePath(presentModule.resolve("target/test-classes"), false, false))
                 .append("\"/>").append("\n")
                 .append("  <content url=\"").append(getFormattedRelativePath(presentModule, false, false)).append("\">\n")
                 .append(productExcludesAndIncludes)
