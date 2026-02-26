@@ -1,6 +1,7 @@
 package org.jkiss.tools.rcplaunchconfig.maven.model;
 
 import org.jkiss.code.NotNull;
+import org.jkiss.code.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +13,7 @@ public final class MavenDependency {
     private final String version;
     private final List<MavenDependency> exclusions = new ArrayList<>();
 
-    public MavenDependency(@NotNull String group, @NotNull String name, String version) {
+    public MavenDependency(@NotNull String group, @NotNull String name, @Nullable String version) {
         this.group = group;
         this.name = name;
         this.version = version;
@@ -55,18 +56,22 @@ public final class MavenDependency {
         return Objects.hash(group, name, version);
     }
 
+    @NotNull
     public String getGroup() {
         return group;
     }
 
+    @NotNull
     public String getName() {
         return name;
     }
 
+    @Nullable
     public String getVersion() {
         return version;
     }
 
+    @NotNull
     public List<MavenDependency> getExclusions() {
         return exclusions;
     }
