@@ -128,7 +128,7 @@ public class MavenArtifactDownloader {
             if (artifactResult.isResolved()) {
                 Optional<MavenDependency> existingDependency = mavenDependencies.stream().filter(
                     dep -> dep.getCoordinates().equals(artifactResult.getArtifact().getGroupId() + ":" +
-                        artifactResult.getArtifact().getArtifactId() + ":" + artifactResult.getArtifact().getVersion() )
+                        artifactResult.getArtifact().getArtifactId() + ":" + artifactResult.getArtifact().getVersion())
                 ).findFirst();
                 if (existingDependency.isPresent()) {
                     resolvedDependencies.add(new Pair<>(
