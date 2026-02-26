@@ -81,6 +81,7 @@ public class MavenPomProcessor {
                 }
             }
             MavenDependency artifact = new MavenDependency(groupId, artifactId, version);
+            addExclusions(doc.getDocumentElement(), artifact);
             MavenLocalArtifactRegistry.INSTANCE.addProvidedDependency(artifact, mavenPath);
 
             return true;
@@ -119,7 +120,9 @@ public class MavenPomProcessor {
                 }
                 String version = resolveVersion(doc, groupId, artifactId, unresolvedVersion, new LinkedHashSet<>(), path.toFile());
                 if (version != null && !version.startsWith("${")) {
-                    dependencyList.add(new MavenDependency(groupId, artifactId, version));
+                    MavenDependency mavenDependency = new MavenDependency(groupId, artifactId, version);
+                    addExclusions(dependencyElement, mavenDependency);
+                    dependencyList.add(mavenDependency);
                 }
             }
             // if version not found check parent
@@ -128,6 +131,31 @@ public class MavenPomProcessor {
         } catch (Exception e) {
             log.error("Error processing pom.xml", e);
             return List.of();
+        }
+    }
+
+    private static void addExclusions(@NotNull Element dependencyElement, @NotNull MavenDependency mainDependency) {
+        NodeList exclusionsNodes =
+            dependencyElement.getElementsByTagName("exclusions");
+
+        if (exclusionsNodes.getLength() == 0) {
+            return;
+        }
+        Element exclusionsElement = (Element) exclusionsNodes.item(0);
+
+        NodeList exclusionNodes =
+            exclusionsElement.getElementsByTagName("exclusion");
+
+        for (int i = 0; i < exclusionNodes.getLength(); i++) {
+
+            Element exclusionElement =
+                (Element) exclusionNodes.item(i);
+
+            String groupId = getTagValue(exclusionElement, "groupId");
+            String artifactId = getTagValue(exclusionElement, "artifactId");
+
+            MavenDependency exclusion = new MavenDependency(groupId, artifactId, null);
+            mainDependency.addExclusion(exclusion);
         }
     }
 
