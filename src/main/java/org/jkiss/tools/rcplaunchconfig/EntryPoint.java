@@ -106,6 +106,7 @@ public class EntryPoint {
                     bundlesPaths
                 );
             }
+            DBeaverCopyrightConfigurationGenerator.generateXml();
             List<ResultInfo> executionResults = forkJoinPool.submit(() -> pathsManager.getProductsPathsAndWorkDirs().entrySet().parallelStream().map((productPath) -> {
                 log.info("Starting generation for {}", productPath);
                 log.debug("Thread name {} used for {}", Thread.currentThread().getName(), productPath);
