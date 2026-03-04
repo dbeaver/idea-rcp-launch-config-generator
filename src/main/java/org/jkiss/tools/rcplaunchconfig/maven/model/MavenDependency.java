@@ -4,7 +4,6 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public record MavenDependency(
@@ -28,20 +27,4 @@ public record MavenDependency(
     public String getCoordinates() {
         return group + ":" + name + ":" + version;
     }
-
-    @NotNull
-    public List<MavenDependency> getExclusions() {
-        return Collections.unmodifiableList(exclusions);
-    }
-
-    @NotNull
-    @Override
-    public String toString() {
-        return "MavenDependency[" +
-            "group=" + group + ", " +
-            "name=" + name + ", " +
-            "version=" + version + ", " +
-            "exclusions=" + exclusions + ']';
-    }
-
 }

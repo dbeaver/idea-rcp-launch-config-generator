@@ -161,7 +161,7 @@ public class MavenArtifactDownloader {
     ) {
         List<Dependency> dependencies = new ArrayList<>();
         for (MavenDependency mavenDependency : mavenDependencies) {
-            List<Exclusion> exclusions = mavenDependency.getExclusions().stream()
+            List<Exclusion> exclusions = mavenDependency.exclusions().stream()
                 .map(it -> new Exclusion(it.group(), it.name(), "*", "*")).toList();
             String coordinates = mavenDependency.getCoordinates();
             Dependency dependency;
