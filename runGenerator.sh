@@ -12,19 +12,21 @@ fi
 script_dir="$(realpath "$(dirname "$0")")"
 repositories_root_dir="$(realpath "$script_dir/..")"
 
+if [ -f "$repositories_root_dir/checkstyle-nullability-annotations" ]; then
+  echo "Build checkstyle-nullability-annotations"
+  # shellcheck disable=SC2086
+  "$repositories_root_dir/dbeaver-common/mvnw" package \
+      $mvn_args \
+      -q -DskipTests=true \
+      -f "$repositories_root_dir/checkstyle-nullability-annotations/pom.xml"
+fi
+
 echo "Build workspace generator"
 # shellcheck disable=SC2086
 "$repositories_root_dir/dbeaver-common/mvnw" clean install \
     $mvn_args \
     -q \
     -f "$script_dir/aggregate"
-
-echo "Build checkstyle-nullability-annotations"
-# shellcheck disable=SC2086
-"$repositories_root_dir/dbeaver-common/mvnw" package \
-    $mvn_args \
-    -q -DskipTests=true \
-    -f "$repositories_root_dir/checkstyle-nullability-annotations/pom.xml"
 
 echo "Run workspace generator"
 # shellcheck disable=SC2086
