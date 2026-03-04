@@ -140,7 +140,8 @@ public class MavenArtifactDownloader {
                         new MavenDependency(
                             artifactResult.getArtifact().getGroupId(),
                             artifactResult.getArtifact().getArtifactId(),
-                            artifactResult.getArtifact().getVersion()
+                            artifactResult.getArtifact().getVersion(),
+                            List.of()
                         ),
                         Path.of(artifactResult.getArtifact().getFile().getAbsolutePath())
                     ));

@@ -4,31 +4,18 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public final class MavenDependency {
-    private final String group;
-    private final String name;
-    private final String version;
-    private final List<MavenDependency> exclusions = new ArrayList<>();
-
-    public MavenDependency(@NotNull String group, @NotNull String name, @Nullable String version) {
-        this.group = group;
-        this.name = name;
-        this.version = version;
-    }
+public record MavenDependency(@NotNull String group, @NotNull String name, @Nullable String version, @NotNull List<MavenDependency> exclusions) {
 
     public static MavenDependency fromCoordinates(String coordinates) {
         String[] parts = coordinates.split(":");
         if (parts.length != 3) {
             throw new IllegalArgumentException("Invalid Maven coordinates: " + coordinates);
         }
-        return new MavenDependency(parts[0], parts[1], parts[2]);
-    }
-
-    public void addExclusion(@NotNull MavenDependency exclusion) {
-        exclusions.add(exclusion);
+        return new MavenDependency(parts[0], parts[1], parts[2], new ArrayList<>());
     }
 
     @Override
@@ -73,9 +60,10 @@ public final class MavenDependency {
 
     @NotNull
     public List<MavenDependency> getExclusions() {
-        return exclusions;
+        return Collections.unmodifiableList(exclusions);
     }
 
+    @NotNull
     @Override
     public String toString() {
         return "MavenDependency[" +
