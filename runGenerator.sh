@@ -19,14 +19,14 @@ echo "Build workspace generator"
     -q \
     -f "$script_dir/aggregate"
 
-echo "Build checkstyle-nullability-annotations..."
+echo "Build checkstyle-nullability-annotations"
 # shellcheck disable=SC2086
 "$repositories_root_dir/dbeaver-common/mvnw" package \
     $mvn_args \
-    -q \
+    -q -DskipTests=true \
     -f "$repositories_root_dir/checkstyle-nullability-annotations/pom.xml"
 
-echo "Run workspace generator..."
+echo "Run workspace generator"
 # shellcheck disable=SC2086
 "$repositories_root_dir/dbeaver-common/mvnw" package \
     $mvn_args \

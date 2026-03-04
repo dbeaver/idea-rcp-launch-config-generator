@@ -27,15 +27,10 @@ if "%WORKING_DIR%"=="" (
 echo Build workspace generator
 call %GENERATOR_DIR%..\dbeaver-common\mvnw.cmd clean install %MAVEN_ARGS% -q -f "%GENERATOR_DIR%aggregate"
 
-call %GENERATOR_DIR%..\dbeaver-common\mvnw.cmd package %MAVEN_ARGS% -q -f "%GENERATOR_DIR%aggregate"
-
-"$repositories_root_dir/dbeaver-common/mvnw" package \
-    $mvn_args \
-    -q \
-    -f "%WORKING_DIR%..\dbeaver-workspace\checkstyle-nullability-annotations\pom.xml"
+echo Build checkstyle-nullability-annotations
+call %GENERATOR_DIR%..\dbeaver-common\mvnw.cmd package %MAVEN_ARGS% -q -DskipTests=true -f "%WORKING_DIR%..\checkstyle-nullability-annotations\pom.xml"
 
 echo Run workspace generator
-:: Run the Maven commands with the specified options
 call %GENERATOR_DIR%..\dbeaver-common\mvnw.cmd -f "%GENERATOR_DIR%pom.xml" package %MAVEN_ARGS% -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -updateWorkspace -config %WORKING_DIR%osgi-app.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace\products"
 
 :end
