@@ -6,7 +6,6 @@ import org.jkiss.code.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 public record MavenDependency(
     @NotNull String group,
@@ -26,44 +25,8 @@ public record MavenDependency(
         return new MavenDependency(parts[0], parts[1], parts[2], new ArrayList<>());
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MavenDependency that = (MavenDependency) o;
-        return Objects.equals(group, that.group) && Objects.equals(name, that.name) && Objects.equals(
-            version,
-            that.version
-        );
-    }
-
-
     public String getCoordinates() {
         return group + ":" + name + ":" + version;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(group, name, version);
-    }
-
-    @NotNull
-    public String getGroup() {
-        return group;
-    }
-
-    @NotNull
-    public String getName() {
-        return name;
-    }
-
-    @Nullable
-    public String getVersion() {
-        return version;
     }
 
     @NotNull
