@@ -161,11 +161,13 @@ public class MavenArtifactDownloader {
     ) {
         List<Dependency> dependencies = new ArrayList<>();
         for (MavenDependency mavenDependency : mavenDependencies) {
+            List<Exclusion> exclusions = mavenDependency.getExclusions().stream()
+                .map(it -> new Exclusion(it.getGroup(), it.getName(), "*", "*")).toList();
             String coordinates = mavenDependency.getCoordinates();
             Dependency dependency;
             if (!isBOM) {
                 DefaultArtifact artifact = new DefaultArtifact(coordinates);
-                dependency = new Dependency(artifact, "compile");
+                dependency = new Dependency(artifact, "compile", false, exclusions);
             } else {
                 // For BOM, we use the import scope
                 DefaultArtifact artifact = new DefaultArtifact(
@@ -174,11 +176,9 @@ public class MavenArtifactDownloader {
                     "pom",
                     mavenDependency.getVersion()
                 );
-                dependency = new Dependency(artifact, "import");
+                dependency = new Dependency(artifact, "import", false, exclusions);
             }
 
-            dependency = dependency.setExclusions(mavenDependency.getExclusions().stream()
-                .map(it -> new Exclusion(it.getGroup(), it.getName(), "*", "*")).toList());
             dependencies.add(dependency);
         }
 

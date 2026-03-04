@@ -8,7 +8,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public record MavenDependency(@NotNull String group, @NotNull String name, @Nullable String version, @NotNull List<MavenDependency> exclusions) {
+public record MavenDependency(
+    @NotNull String group,
+    @NotNull String name,
+    @Nullable String version,
+    @NotNull List<MavenDependency> exclusions
+) {
+    public MavenDependency {
+        exclusions = List.copyOf(exclusions);
+    }
 
     public static MavenDependency fromCoordinates(String coordinates) {
         String[] parts = coordinates.split(":");
