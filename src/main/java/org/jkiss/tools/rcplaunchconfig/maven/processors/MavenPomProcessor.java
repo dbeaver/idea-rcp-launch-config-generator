@@ -80,7 +80,8 @@ public class MavenPomProcessor {
                     version = getTagValue(parentElement, "version");
                 }
             }
-            MavenDependency artifact = new MavenDependency(groupId, artifactId, version);
+            List<MavenDependency> exclusions = listExclusions(doc.getDocumentElement());
+            MavenDependency artifact = new MavenDependency(groupId, artifactId, version, exclusions);
             MavenLocalArtifactRegistry.INSTANCE.addProvidedDependency(artifact, mavenPath);
 
             return true;
@@ -119,7 +120,9 @@ public class MavenPomProcessor {
                 }
                 String version = resolveVersion(doc, groupId, artifactId, unresolvedVersion, new LinkedHashSet<>(), path.toFile());
                 if (version != null && !version.startsWith("${")) {
-                    dependencyList.add(new MavenDependency(groupId, artifactId, version));
+                    List<MavenDependency> exclusions = listExclusions(dependencyElement);
+                    MavenDependency mavenDependency = new MavenDependency(groupId, artifactId, version, exclusions);
+                    dependencyList.add(mavenDependency);
                 }
             }
             // if version not found check parent
@@ -129,6 +132,24 @@ public class MavenPomProcessor {
             log.error("Error processing pom.xml", e);
             return List.of();
         }
+    }
+
+    @NotNull
+    private static List<MavenDependency> listExclusions(@NotNull Element dependencyElement) {
+        NodeList exclusionsNodes = dependencyElement.getElementsByTagName("exclusions");
+        if (exclusionsNodes.getLength() == 0) {
+            return List.of();
+        }
+        Element exclusionsElement = (Element) exclusionsNodes.item(0);
+        NodeList exclusionNodes = exclusionsElement.getElementsByTagName("exclusion");
+        List<MavenDependency> exclusions = new ArrayList<>();
+        for (int i = 0; i < exclusionNodes.getLength(); i++) {
+            Element exclusionElement = (Element) exclusionNodes.item(i);
+            String groupId = getTagValue(exclusionElement, "groupId");
+            String artifactId = getTagValue(exclusionElement, "artifactId");
+            exclusions.add(new MavenDependency(groupId, artifactId, null, List.of()));
+        }
+        return exclusions;
     }
 
     @Nullable
@@ -412,7 +433,7 @@ public class MavenPomProcessor {
                     continue;
                 }
                 bomVersion = resolveVersion(doc, aid, gid, bomVersion, visitedPomPaths, currentPomFile);
-                bomDependencies.add(new MavenDependency(gid, aid, bomVersion));
+                bomDependencies.add(new MavenDependency(gid, aid, bomVersion, List.of()));
             }
         }
         return bomDependencies;

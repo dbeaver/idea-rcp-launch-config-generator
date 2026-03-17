@@ -9,6 +9,7 @@ import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory;
 import org.eclipse.aether.graph.Dependency;
+import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.impl.DefaultServiceLocator;
 import org.eclipse.aether.repository.LocalRepository;
 import org.eclipse.aether.repository.NoLocalRepositoryManagerException;
@@ -23,7 +24,6 @@ import org.eclipse.aether.transport.classpath.ClasspathTransporterFactory;
 import org.eclipse.aether.transport.file.FileTransporterFactory;
 import org.eclipse.aether.transport.http.HttpTransporterFactory;
 import org.eclipse.aether.util.artifact.JavaScopes;
-import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
@@ -110,7 +110,6 @@ public class MavenArtifactDownloader {
             null
         );
         DependencyResult result = system.resolveDependencies(session, request);
-        PreorderNodeListGenerator nodeListGenerator = new PreorderNodeListGenerator();
         result.getRoot().accept(new org.eclipse.aether.graph.DependencyVisitor() {
             @Override
             public boolean visitEnter(org.eclipse.aether.graph.DependencyNode node) {
@@ -141,7 +140,8 @@ public class MavenArtifactDownloader {
                         new MavenDependency(
                             artifactResult.getArtifact().getGroupId(),
                             artifactResult.getArtifact().getArtifactId(),
-                            artifactResult.getArtifact().getVersion()
+                            artifactResult.getArtifact().getVersion(),
+                            List.of()
                         ),
                         Path.of(artifactResult.getArtifact().getFile().getAbsolutePath())
                     ));
@@ -161,11 +161,13 @@ public class MavenArtifactDownloader {
     ) {
         List<Dependency> dependencies = new ArrayList<>();
         for (MavenDependency mavenDependency : mavenDependencies) {
+            List<Exclusion> exclusions = mavenDependency.exclusions().stream()
+                .map(it -> new Exclusion(it.group(), it.name(), "*", "*")).toList();
             String coordinates = mavenDependency.getCoordinates();
             Dependency dependency;
             if (!isBOM) {
                 DefaultArtifact artifact = new DefaultArtifact(coordinates);
-                dependency = new Dependency(artifact, "compile");
+                dependency = new Dependency(artifact, "compile", false, exclusions);
             } else {
                 // For BOM, we use the import scope
                 DefaultArtifact artifact = new DefaultArtifact(
@@ -174,8 +176,9 @@ public class MavenArtifactDownloader {
                     "pom",
                     mavenDependency.version()
                 );
-                dependency = new Dependency(artifact, "import");
+                dependency = new Dependency(artifact, "import", false, exclusions);
             }
+
             dependencies.add(dependency);
         }
 
