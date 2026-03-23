@@ -53,8 +53,7 @@ public class DBeaverCopyrightConfigurationGenerator {
         Path projectPath = PathsManager.INSTANCE.getImlModulesPath();
 
         for (Path repo : PathsManager.INSTANCE.getOpenSourceReposPaths()) {
-            String relativePath = transformPath(projectPath, repo);
-            allCopyrights.add(new PathCopyright(relativePath, CE_COPYRIGHT_PROFILE));
+            allCopyrights.add(new PathCopyright(repo.normalize().toAbsolutePath().toString(), CE_COPYRIGHT_PROFILE));
         }
 
         List<Path> allBundlesPath = new ArrayList<>(PathsManager.INSTANCE.getBundlesLocations());
@@ -64,11 +63,10 @@ public class DBeaverCopyrightConfigurationGenerator {
             boolean useCE = PathsManager.INSTANCE.getOpenSourceReposPaths()
                 .stream()
                 .anyMatch(path::startsWith);
-            String projectRelativePath = transformPath(projectPath, path);
             String profile = useCE ? CE_COPYRIGHT_PROFILE : EE_COPYRIGHT_PROFILE;
-            log.info("Adding copyright for {}, : profile {}", projectRelativePath, profile);
+            log.info("Adding copyright for {}, : profile {}", path, profile);
             allCopyrights.add(
-                new PathCopyright(projectRelativePath, profile)
+                new PathCopyright(path.normalize().toAbsolutePath().toString(), profile)
             );
         }
         try {
