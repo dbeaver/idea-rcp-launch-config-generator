@@ -53,8 +53,11 @@ public class DBeaverCopyrightConfigurationGenerator {
         Path projectPath = PathsManager.INSTANCE.getImlModulesPath();
 
         for (Path repo : PathsManager.INSTANCE.getOpenSourceReposPaths()) {
-            String relativePath = transformPath(projectPath, repo);
-            allCopyrights.add(new PathCopyright(relativePath, CE_COPYRIGHT_PROFILE));
+            allCopyrights.add(new PathCopyright(
+                repo.normalize().toAbsolutePath().toString()
+                    .replace("\\", "/")
+                , CE_COPYRIGHT_PROFILE
+            ));
         }
 
         List<Path> allBundlesPath = new ArrayList<>(PathsManager.INSTANCE.getBundlesLocations());
@@ -64,11 +67,10 @@ public class DBeaverCopyrightConfigurationGenerator {
             boolean useCE = PathsManager.INSTANCE.getOpenSourceReposPaths()
                 .stream()
                 .anyMatch(path::startsWith);
-            String projectRelativePath = transformPath(projectPath, path);
             String profile = useCE ? CE_COPYRIGHT_PROFILE : EE_COPYRIGHT_PROFILE;
-            log.info("Adding copyright for {}, : profile {}", projectRelativePath, profile);
+            log.info("Adding copyright for {}, : profile {}", path, profile);
             allCopyrights.add(
-                new PathCopyright(projectRelativePath, profile)
+                new PathCopyright(path.normalize().toAbsolutePath().toString().replace("\\", "/"), profile)
             );
         }
         try {
@@ -114,7 +116,7 @@ public class DBeaverCopyrightConfigurationGenerator {
             if (!Files.exists(ideaConfFolder)) {
                 Files.createDirectories(ideaConfFolder);
             }
-            Files.writeString(projectPath.resolve(FILE_NAME), writer.toString(), StandardCharsets.UTF_8);
+            Files.writeString(ideaConfFolder.resolve(FILE_NAME), writer.toString(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate copyright settings", e);
         }
@@ -122,8 +124,7 @@ public class DBeaverCopyrightConfigurationGenerator {
 
     @NotNull
     private static String transformPath(@NotNull Path projectPath, @NotNull Path repo) {
-        String relativePath = projectPath.relativize(repo).toString();
-        return "$PROJECT_DIR$/" + relativePath;
+        return projectPath.relativize(repo).toAbsolutePath().toString();
     }
 
 }
