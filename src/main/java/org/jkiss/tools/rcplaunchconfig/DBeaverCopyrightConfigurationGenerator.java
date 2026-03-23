@@ -114,7 +114,7 @@ public class DBeaverCopyrightConfigurationGenerator {
             if (!Files.exists(ideaConfFolder)) {
                 Files.createDirectories(ideaConfFolder);
             }
-            Files.writeString(projectPath.resolve(FILE_NAME), writer.toString(), StandardCharsets.UTF_8);
+            Files.writeString(ideaConfFolder.resolve(FILE_NAME), writer.toString(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate copyright settings", e);
         }
@@ -122,8 +122,7 @@ public class DBeaverCopyrightConfigurationGenerator {
 
     @NotNull
     private static String transformPath(@NotNull Path projectPath, @NotNull Path repo) {
-        String relativePath = projectPath.relativize(repo).toString();
-        return "$PROJECT_DIR$/" + relativePath;
+        return projectPath.relativize(repo).toAbsolutePath().toString();
     }
 
 }
