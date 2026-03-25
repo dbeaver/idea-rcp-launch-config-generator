@@ -12,7 +12,7 @@ fi
 script_dir="$(realpath "$(dirname "$0")")"
 repositories_root_dir="$(realpath "$script_dir/..")"
 
-if [ -f "$repositories_root_dir/checkstyle-nullability-annotations" ]; then
+if [ -d "$repositories_root_dir/checkstyle-nullability-annotations" ]; then
   echo "Build checkstyle-nullability-annotations"
   # shellcheck disable=SC2086
   "$repositories_root_dir/dbeaver-common/mvnw" package \
