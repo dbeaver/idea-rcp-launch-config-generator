@@ -80,8 +80,7 @@ public class MavenPomProcessor {
                     version = getTagValue(parentElement, "version");
                 }
             }
-            List<MavenDependency> exclusions = listExclusions(doc.getDocumentElement());
-            MavenDependency artifact = new MavenDependency(groupId, artifactId, version, exclusions);
+            MavenDependency artifact = new MavenDependency(groupId, artifactId, version, List.of());
             MavenLocalArtifactRegistry.INSTANCE.addProvidedDependency(artifact, mavenPath);
 
             return true;
