@@ -1,6 +1,23 @@
+/*
+ * DBeaver - Universal Database Manager
+ * Copyright (C) 2010-2026 DBeaver Corp and others
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.jkiss.tools.rcplaunchconfig.maven.processors;
 
 import org.eclipse.aether.repository.NoLocalRepositoryManagerException;
+import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.DependencyResolutionException;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
@@ -31,7 +48,6 @@ public class MavenPomProcessor {
     private static final Logger log = LoggerFactory.getLogger(MavenPomProcessor.class);
     private static final String PARENT_TAG = "parent";
     private static final String RELATIVE_PATH_TAG = "relativePath";
-
 
     /**
      * Processes the pom.xml in the current directory.
@@ -369,42 +385,84 @@ public class MavenPomProcessor {
         @NotNull File currentPomFile,
         @NotNull LinkedHashSet<String> visitedPomPaths
     ) throws IOException, ParserConfigurationException, SAXException {
+        return tryToGetVersionFromBoms(doc, groupId, artifactId, currentPomFile, visitedPomPaths, new LinkedHashSet<>());
+    }
+
+    private static String tryToGetVersionFromBoms(
+        @NotNull Document doc,
+        @NotNull String groupId,
+        @NotNull String artifactId,
+        @NotNull File currentPomFile,
+        @NotNull LinkedHashSet<String> visitedPomPaths,
+        @NotNull LinkedHashSet<String> visitedBomCoordinates
+    ) throws IOException, ParserConfigurationException, SAXException {
         List<MavenDependency> mavenDependencies = listBOMDependencies(doc, visitedPomPaths, currentPomFile);
-        String version = null;
         for (MavenDependency bomDependency : mavenDependencies) {
-            if (!MavenLocalArtifactRegistry.INSTANCE.isLocalThirdParty(bomDependency)) {
-                try {
-                    List<Pair<MavenDependency, Path>> resolvedDependencies = MavenArtifactDownloader.resolve(List.of(bomDependency), true);
-                    for (Pair<MavenDependency, Path> resolvedDependency : resolvedDependencies) {
-                        MavenLocalArtifactRegistry.INSTANCE.addLocalThirdPartyDependency(
-                            resolvedDependency.getFirst(),
-                            resolvedDependency.getSecond()
-                        );
-                    }
-                } catch (DependencyResolutionException | NoLocalRepositoryManagerException e) {
-                    log.error("Failed to resolve BOM dependency: {}", bomDependency, e);
-                }
+            if (!visitedBomCoordinates.add(bomDependency.getCoordinates())) {
+                continue;
             }
-            Path dowloadedDependencyPath = MavenLocalArtifactRegistry.INSTANCE.getDowloadedDependencyPath(bomDependency);
-            try (var inputStream = Files.newInputStream(dowloadedDependencyPath)) {
-                // Parse the pom.xml file.
-                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                DocumentBuilder builder = factory.newDocumentBuilder();
-                Document bomDoc = builder.parse(inputStream);
-                doc.getDocumentElement().normalize();
-                String dependencyManagementVersion = getDependencyManagementVersion(
-                    bomDoc,
-                    groupId,
-                    artifactId,
-                    new LinkedHashSet<>(),
-                    dowloadedDependencyPath.toFile()
-                );
-                if (dependencyManagementVersion != null) {
-                    version = dependencyManagementVersion;
-                }
+
+            Path downloadedDependencyPath = resolveBomDependency(bomDependency);
+            if (downloadedDependencyPath == null) {
+                continue;
+            }
+
+            Document bomDoc = parseDocument(downloadedDependencyPath);
+            String dependencyManagementVersion = getDependencyManagementVersion(
+                bomDoc,
+                groupId,
+                artifactId,
+                new LinkedHashSet<>(),
+                downloadedDependencyPath.toFile()
+            );
+            if (dependencyManagementVersion != null) {
+                return dependencyManagementVersion;
+            }
+
+            String versionFromImportedBoms = tryToGetVersionFromBoms(
+                bomDoc,
+                groupId,
+                artifactId,
+                downloadedDependencyPath.toFile(),
+                visitedPomPaths,
+                visitedBomCoordinates
+            );
+            if (versionFromImportedBoms != null) {
+                return versionFromImportedBoms;
             }
         }
-        return version;
+        return null;
+    }
+
+    @Nullable
+    private static Path resolveBomDependency(@NotNull MavenDependency bomDependency) {
+        if (!MavenLocalArtifactRegistry.INSTANCE.isLocalThirdParty(bomDependency)) {
+            try {
+                Pair<MavenDependency, Path> resolvedDependency = MavenArtifactDownloader.resolvePom(bomDependency);
+                MavenLocalArtifactRegistry.INSTANCE.addLocalThirdPartyDependency(
+                    resolvedDependency.getFirst(),
+                    resolvedDependency.getSecond()
+                );
+            } catch (ArtifactResolutionException e) {
+                log.error("Failed to resolve BOM dependency: {}", bomDependency, e);
+            }
+        }
+        Path downloadedDependencyPath = MavenLocalArtifactRegistry.INSTANCE.getDowloadedDependencyPath(bomDependency);
+        if (downloadedDependencyPath == null) {
+            log.warn("Could not locate resolved BOM dependency: {}", bomDependency);
+        }
+        return downloadedDependencyPath;
+    }
+
+    @NotNull
+    private static Document parseDocument(@NotNull Path pomPath) throws IOException, ParserConfigurationException, SAXException {
+        try (var inputStream = Files.newInputStream(pomPath)) {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document doc = builder.parse(inputStream);
+            doc.getDocumentElement().normalize();
+            return doc;
+        }
     }
 
     private static List<MavenDependency> listBOMDependencies(
@@ -420,7 +478,7 @@ public class MavenPomProcessor {
             NodeList dependencies = bomElement.getElementsByTagName("dependency");
             for (int j = 0; j < dependencies.getLength(); j++) {
                 Element dependency = (Element) dependencies.item(j);
-                if (getTagValue(dependency, "type") == null || !"pom".equals(getTagValue(dependency, "type"))) {
+                if (!"pom".equals(getTagValue(dependency, "type")) || !"import".equals(getTagValue(dependency, "scope"))) {
                     continue; // Only consider BOMs
                 }
                 // TODO potentially resolve local BOMS
@@ -431,7 +489,7 @@ public class MavenPomProcessor {
                     log.warn("Skipping BOM dependency with missing groupId, artifactId or version: {}:{}:{}", gid, aid, bomVersion);
                     continue;
                 }
-                bomVersion = resolveVersion(doc, aid, gid, bomVersion, visitedPomPaths, currentPomFile);
+                bomVersion = resolveVersion(doc, gid, aid, bomVersion, visitedPomPaths, currentPomFile);
                 bomDependencies.add(new MavenDependency(gid, aid, bomVersion, List.of()));
             }
         }

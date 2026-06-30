@@ -1,3 +1,19 @@
+/*
+ * DBeaver - Universal Database Manager
+ * Copyright (C) 2010-2026 DBeaver Corp and others
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.jkiss.tools.rcplaunchconfig.maven.download;
 
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
@@ -14,10 +30,7 @@ import org.eclipse.aether.impl.DefaultServiceLocator;
 import org.eclipse.aether.repository.LocalRepository;
 import org.eclipse.aether.repository.NoLocalRepositoryManagerException;
 import org.eclipse.aether.repository.RemoteRepository;
-import org.eclipse.aether.resolution.ArtifactResult;
-import org.eclipse.aether.resolution.DependencyRequest;
-import org.eclipse.aether.resolution.DependencyResolutionException;
-import org.eclipse.aether.resolution.DependencyResult;
+import org.eclipse.aether.resolution.*;
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.aether.spi.connector.transport.TransporterFactory;
 import org.eclipse.aether.transport.classpath.ClasspathTransporterFactory;
@@ -71,6 +84,23 @@ public class MavenArtifactDownloader {
     public static List<Pair<MavenDependency, Path>> resolve(@NotNull List<MavenDependency> mavenDependencies, boolean isBOM
     ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
         return resolve(mavenDependencies, isBOM ? DEFAULT_SCOPES : IMPORT_SCOPE, DEFAULT_REPO_LOCAL, REPOS, isBOM);
+    }
+
+    @NotNull
+    public static Pair<MavenDependency, Path> resolvePom(@NotNull MavenDependency mavenDependency) throws ArtifactResolutionException {
+        RepositorySystemSession session = buildSession(DEFAULT_REPO_LOCAL);
+
+        ArtifactRequest request = new ArtifactRequest();
+        request.setArtifact(new DefaultArtifact(
+            mavenDependency.group(),
+            mavenDependency.name(),
+            "pom",
+            mavenDependency.version()
+        ));
+        request.setRepositories(REPOS);
+
+        ArtifactResult result = system.resolveArtifact(session, request);
+        return new Pair<>(mavenDependency, Path.of(result.getArtifact().getFile().getAbsolutePath()));
     }
 
     /**
