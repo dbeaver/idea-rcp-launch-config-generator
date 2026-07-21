@@ -850,8 +850,11 @@ public class IMLConfigurationProducer implements IImportListener {
             }
             boolean isThirdParty = dependencyPath.toRealPath().startsWith(getMavenRepositoryPath());
             processedDependencies.add(dependencyPath);
+            String scopeAttribute = getIdeaScopeAttribute(dependency.scope());
+            // Prevent test dependencies from leaking into dependent modules
+            String exportedAttribute = dependency.isTestScope() ? "" : " exported=\"\"";
             if (isThirdParty) {
-                builder.append("  <orderEntry type=\"" + "module-library" + "\" exported=\"\">\n");
+                builder.append("  <orderEntry type=\"module-library\"").append(scopeAttribute).append(exportedAttribute).append(">\n");
                 builder.append("    <library>\n");
                 builder.append("      <CLASSES>\n");
                 builder.append("        <root url=\"")
@@ -864,9 +867,22 @@ public class IMLConfigurationProducer implements IImportListener {
                 builder.append("  </orderEntry>\n");
             } else {
                 builder.append("  <orderEntry type = \"module\" module-name=\"").append(dependencyPath.getFileName())
-                    .append("\" exported=\"\"").append("/>").append("\n");
+                    .append("\"").append(scopeAttribute).append(exportedAttribute).append("/>").append("\n");
             }
         }
+    }
+
+    @NotNull
+    private static String getIdeaScopeAttribute(@Nullable String mavenScope) {
+        if (mavenScope == null) {
+            return "";
+        }
+        return switch (mavenScope) {
+            case MavenDependency.SCOPE_TEST -> " scope=\"TEST\"";
+            case MavenDependency.SCOPE_RUNTIME -> " scope=\"RUNTIME\"";
+            case MavenDependency.SCOPE_PROVIDED -> " scope=\"PROVIDED\"";
+            default -> "";
+        };
     }
 
     @NotNull

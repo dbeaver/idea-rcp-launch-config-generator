@@ -10,10 +10,24 @@ public record MavenDependency(
     @NotNull String group,
     @NotNull String name,
     @Nullable String version,
-    @NotNull List<MavenDependency> exclusions
+    @NotNull List<MavenDependency> exclusions,
+    @Nullable String scope
 ) {
+    public static final String SCOPE_TEST = "test";
+    public static final String SCOPE_RUNTIME = "runtime";
+    public static final String SCOPE_PROVIDED = "provided";
+
     public MavenDependency {
         exclusions = List.copyOf(exclusions);
+    }
+
+    public MavenDependency(
+        @NotNull String group,
+        @NotNull String name,
+        @Nullable String version,
+        @NotNull List<MavenDependency> exclusions
+    ) {
+        this(group, name, version, exclusions, null);
     }
 
     public static MavenDependency fromCoordinates(String coordinates) {
@@ -26,5 +40,14 @@ public record MavenDependency(
 
     public String getCoordinates() {
         return group + ":" + name + ":" + version;
+    }
+
+    public boolean isTestScope() {
+        return SCOPE_TEST.equals(scope);
+    }
+
+    @NotNull
+    public MavenDependency withScope(@Nullable String newScope) {
+        return new MavenDependency(group, name, version, exclusions, newScope);
     }
 }
