@@ -32,6 +32,13 @@ export GITHUB_TOKEN=<token>
 ./checkout-ticket-branches.sh https://github.com/dbeaver/pro/issues/12345
 ```
 
+On Windows, use `checkout-ticket-branches.cmd`:
+
+```cmd
+set GITHUB_TOKEN=<token>
+checkout-ticket-branches.cmd https://github.com/dbeaver/pro/issues/12345
+```
+
 The repositories root defaults to the parent folder of this repository. It can be overridden with the second argument:
 
 ```sh
