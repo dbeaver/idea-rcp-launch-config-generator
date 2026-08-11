@@ -30,9 +30,13 @@ if exist "%REPOSITORIES_ROOT_DIR%\dbeaver-common\mvnw.cmd" (
 set "BRANCHES_FILE=%TEMP%\checkout-ticket-branches-%RANDOM%%RANDOM%.txt"
 call "%MVN_CMD%" -q ^
     -f "%SCRIPT_DIR%pom.xml" ^
-    package exec:java ^
-    -Dexec.mainClass=org.jkiss.tools.rcplaunchconfig.github.GitHubTicketBranchResolver ^
-    -Dexec.args="%TICKET_URL%" > "%BRANCHES_FILE%"
+    compile
+if errorlevel 1 goto :cleanupFailed
+
+java ^
+    -cp "%SCRIPT_DIR%target\classes" ^
+    org.jkiss.tools.rcplaunchconfig.github.GitHubTicketBranchResolver ^
+    "%TICKET_URL%" > "%BRANCHES_FILE%"
 if errorlevel 1 goto :cleanupFailed
 
 for %%I in ("%BRANCHES_FILE%") do if %%~zI==0 (

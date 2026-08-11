@@ -84,9 +84,12 @@ checkout_branch() {
 branches="$(
   "$mvn_cmd" -q \
     -f "$script_dir/pom.xml" \
-    package exec:java \
-    -Dexec.mainClass=org.jkiss.tools.rcplaunchconfig.github.GitHubTicketBranchResolver \
-    -Dexec.args="$ticket_url"
+    compile >&2
+
+  java \
+    -cp "$script_dir/target/classes" \
+    org.jkiss.tools.rcplaunchconfig.github.GitHubTicketBranchResolver \
+    "$ticket_url"
 )"
 
 if [ -z "$branches" ]; then
