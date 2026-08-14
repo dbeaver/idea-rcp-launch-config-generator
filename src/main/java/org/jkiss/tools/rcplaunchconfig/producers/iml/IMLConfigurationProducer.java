@@ -248,7 +248,7 @@ public class IMLConfigurationProducer implements IImportListener {
             config.append("    </envs>").append("\n");
         }
         config.append("    <option name=\"WORKING_DIRECTORY\" value=").append(result.getWorkDir() != null ? "\""
-            + result.getWorkDir() + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
+            + formatIdeaPath(result.getWorkDir()) + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
         config.append("    <shortenClasspath name=\"ARGS_FILE\" />\n");
         Set<String> runBeforeConfigs = PathsManager.INSTANCE.getRunBeforeConfigs(result.getProductUID());
         if (runBeforeConfigs != null && !runBeforeConfigs.isEmpty()) {
@@ -673,6 +673,10 @@ public class IMLConfigurationProducer implements IImportListener {
         }
         String prefix = type + (useProjectDir ? "$PROJECT_DIR$/../../" : "$MODULE_DIR$/../../");
         return prefix + getRelativizedPath(pathToFormat).toString().replace("\\", "/") + (jar ? "!/" : "");
+    }
+
+    private String formatIdeaPath(@NotNull String path) {
+        return path.replace('\\', '/');
     }
 
     private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean useProjectDir) {
