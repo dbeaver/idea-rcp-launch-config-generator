@@ -248,7 +248,7 @@ public class IMLConfigurationProducer implements IImportListener {
             config.append("    </envs>").append("\n");
         }
         config.append("    <option name=\"WORKING_DIRECTORY\" value=").append(result.getWorkDir() != null ? "\""
-            + formatIdeaPath(result.getWorkDir()) + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
+            + getWorkingDirectory(result.getWorkDir()) + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
         config.append("    <shortenClasspath name=\"ARGS_FILE\" />\n");
         Set<String> runBeforeConfigs = PathsManager.INSTANCE.getRunBeforeConfigs(result.getProductUID());
         if (runBeforeConfigs != null && !runBeforeConfigs.isEmpty()) {
@@ -327,6 +327,22 @@ public class IMLConfigurationProducer implements IImportListener {
     private static boolean isMacOS() {
         String osName = System.getProperty("os.name").toLowerCase();
         return osName.contains("mac");
+    }
+
+    private static String getWorkingDirectory(@NotNull String path) {
+        return isWSL() ? formatIdeaPath(path) : path;
+    }
+
+    private static boolean isWSL() {
+        return Files.exists(Path.of("/proc/version")) && readProcVersion().toLowerCase().contains("microsoft");
+    }
+
+    private static String readProcVersion() {
+        try {
+            return Files.readString(Path.of("/proc/version"));
+        } catch (IOException e) {
+            return "";
+        }
     }
 
     private String generateImlRepositoryRootModule(@NotNull Path imlRoot) {
@@ -675,7 +691,7 @@ public class IMLConfigurationProducer implements IImportListener {
         return prefix + getRelativizedPath(pathToFormat).toString().replace("\\", "/") + (jar ? "!/" : "");
     }
 
-    private String formatIdeaPath(@NotNull String path) {
+    private static String formatIdeaPath(@NotNull String path) {
         return path.replace('\\', '/');
     }
 
