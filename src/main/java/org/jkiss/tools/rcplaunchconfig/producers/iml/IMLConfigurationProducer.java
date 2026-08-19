@@ -681,10 +681,10 @@ public class IMLConfigurationProducer implements IImportListener {
             .append("\"/>\n");
     }
 
-    private String getFormattedRelativePath(@NotNull Path pathToFormat,
-                                            boolean jar,
-                                            boolean useProjectDir,
-                                            boolean launchConfig) {
+    private @NotNull String getFormattedRelativePath(@NotNull Path pathToFormat,
+                                                     boolean jar,
+                                                     boolean useProjectDir,
+                                                     boolean launchConfig) {
         String type = jar ? "jar:" : "file:";
         if (launchConfig && WSL) {
             return type + formatIdeaPath(pathToFormat.toAbsolutePath().normalize().toString()) + (jar ? "!/" : "");
@@ -696,12 +696,12 @@ public class IMLConfigurationProducer implements IImportListener {
         return prefix + getRelativizedPath(pathToFormat).toString().replace("\\", "/") + (jar ? "!/" : "");
     }
 
-    private static @NotNull String formatIdeaPath(@NotNull String path) {
-        return path.replace('\\', '/');
+    private @NotNull String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean useProjectDir) {
+        return getFormattedRelativePath(pathToFormat, jar, useProjectDir, false);
     }
 
-    private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean useProjectDir) {
-        return getFormattedRelativePath(pathToFormat, jar, useProjectDir, false);
+    private static @NotNull String formatIdeaPath(@NotNull String path) {
+        return path.replace('\\', '/');
     }
 
     private String getFormattedRelativeMavenPath(@NotNull Path pathToFormat) {
