@@ -5,6 +5,8 @@
         </encoder>
     </appender>
 
+    <logger name="org.eclipse.aether.internal.impl.DefaultArtifactResolver" level="WARN"/>
+
     <root level="debug">
         <appender-ref ref="CONSOLE"/>
     </root>

@@ -83,7 +83,30 @@ public class MavenArtifactDownloader {
      **/
     public static List<Pair<MavenDependency, Path>> resolve(@NotNull List<MavenDependency> mavenDependencies, boolean isBOM
     ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
-        return resolve(mavenDependencies, isBOM ? DEFAULT_SCOPES : IMPORT_SCOPE, DEFAULT_REPO_LOCAL, REPOS, isBOM);
+        return resolve(mavenDependencies, List.of(), isBOM);
+    }
+
+    /**
+     * resolve
+     *
+     * @param mavenDependencies       eg: org.apache.logging.log4j:log4j-core:2.19.0
+     * @param managedMavenDependencies dependencies from dependencyManagement to constrain transitive versions
+     * @param isBOM                   if true, the dependencies are treated as a BOM (Bill of Materials) and will use the import scope
+     * @return jar files absolute path
+     **/
+    public static List<Pair<MavenDependency, Path>> resolve(
+        @NotNull List<MavenDependency> mavenDependencies,
+        @NotNull List<MavenDependency> managedMavenDependencies,
+        boolean isBOM
+    ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
+        return resolve(
+            mavenDependencies,
+            managedMavenDependencies,
+            isBOM ? IMPORT_SCOPE : DEFAULT_SCOPES,
+            DEFAULT_REPO_LOCAL,
+            REPOS,
+            isBOM
+        );
     }
 
     @NotNull
@@ -114,6 +137,7 @@ public class MavenArtifactDownloader {
      **/
     public static List<Pair<MavenDependency, Path>> resolve(
         @NotNull List<MavenDependency> mavenDependencies,
+        @NotNull List<MavenDependency> managedMavenDependencies,
         @NotNull Set<String> scopes,
         @Nullable String localRepo,
         @Nullable List<RemoteRepository> remoteRepos,
@@ -133,7 +157,7 @@ public class MavenArtifactDownloader {
         }
 
         RepositorySystemSession session = buildSession(localRepo);
-        CollectRequest collectRequest = getCollectRequest(mavenDependencies, remoteRepos, isBOM);
+        CollectRequest collectRequest = getCollectRequest(mavenDependencies, managedMavenDependencies, remoteRepos, isBOM);
 
         DependencyRequest request = new DependencyRequest(
             collectRequest,
@@ -186,6 +210,7 @@ public class MavenArtifactDownloader {
     @NotNull
     private static CollectRequest getCollectRequest(
         @NotNull List<MavenDependency> mavenDependencies,
+        @NotNull List<MavenDependency> managedMavenDependencies,
         @NotNull List<RemoteRepository> remoteRepos,
         boolean isBOM
     ) {
@@ -212,7 +237,18 @@ public class MavenArtifactDownloader {
             dependencies.add(dependency);
         }
 
-        return new CollectRequest(dependencies, null, remoteRepos);
+        CollectRequest collectRequest = new CollectRequest(dependencies, null, remoteRepos);
+        if (!managedMavenDependencies.isEmpty()) {
+            List<Dependency> managedDependencies = managedMavenDependencies.stream()
+                .filter(dependency -> dependency.version() != null)
+                .map(dependency -> new Dependency(
+                    new DefaultArtifact(dependency.group(), dependency.name(), "jar", dependency.version()),
+                    "compile"
+                ))
+                .toList();
+            collectRequest.setManagedDependencies(managedDependencies);
+        }
+        return collectRequest;
     }
 
     @NotNull
