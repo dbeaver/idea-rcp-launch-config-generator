@@ -45,6 +45,12 @@ import java.util.stream.Stream;
 
 // TODO this class should be decomposed in the future
 public class IMLConfigurationProducer implements IImportListener {
+    private static final boolean WSL;
+
+    static {
+        WSL = Files.exists(Path.of("/proc/version"))
+            && readProcVersion().toLowerCase().contains("microsoft");
+    }
 
     public static final IMLConfigurationProducer INSTANCE = new IMLConfigurationProducer();
 
@@ -249,7 +255,7 @@ public class IMLConfigurationProducer implements IImportListener {
             config.append("    </envs>").append("\n");
         }
         config.append("    <option name=\"WORKING_DIRECTORY\" value=").append(result.getWorkDir() != null ? "\""
-            + result.getWorkDir() + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
+            + getWorkingDirectory(result.getWorkDir()) + "\"" : "\"$MODULE_WORKING_DIR$\"").append("/>\n");
         config.append("    <shortenClasspath name=\"ARGS_FILE\" />\n");
         Set<String> runBeforeConfigs = PathsManager.INSTANCE.getRunBeforeConfigs(result.getProductUID());
         if (runBeforeConfigs != null && !runBeforeConfigs.isEmpty()) {
@@ -330,7 +336,19 @@ public class IMLConfigurationProducer implements IImportListener {
         return osName.contains("mac");
     }
 
-    private String generateImlRepositoryRootModule(@NotNull Path imlRoot) {
+    private static @NotNull String getWorkingDirectory(@NotNull String path) {
+        return WSL ? formatIdeaPath(path) : path;
+    }
+
+    private static @NotNull String readProcVersion() {
+        try {
+            return Files.readString(Path.of("/proc/version"));
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    private @NotNull String generateImlRepositoryRootModule(@NotNull Path imlRoot) {
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
             "<module type=\"WEB_MODULE\" version=\"4\">\n" +
             "  <component name=\"NewModuleRootManager\" inherit-compiler-output=\"true\">\n" +
@@ -666,11 +684,14 @@ public class IMLConfigurationProducer implements IImportListener {
             .append("\"/>\n");
     }
 
-    private String getFormattedRelativePath(@NotNull Path pathToFormat,
-                                            boolean jar,
-                                            boolean useProjectDir,
-                                            boolean launchConfig) {
+    private @NotNull String getFormattedRelativePath(@NotNull Path pathToFormat,
+                                                     boolean jar,
+                                                     boolean useProjectDir,
+                                                     boolean launchConfig) {
         String type = jar ? "jar:" : "file:";
+        if (launchConfig && WSL) {
+            return type + formatIdeaPath(pathToFormat.toAbsolutePath().normalize().toString()) + (jar ? "!/" : "");
+        }
         if (!launchConfig) {
             type += "//";
         }
@@ -678,8 +699,12 @@ public class IMLConfigurationProducer implements IImportListener {
         return prefix + getRelativizedPath(pathToFormat).toString().replace("\\", "/") + (jar ? "!/" : "");
     }
 
-    private String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean useProjectDir) {
+    private @NotNull String getFormattedRelativePath(@NotNull Path pathToFormat, boolean jar, boolean useProjectDir) {
         return getFormattedRelativePath(pathToFormat, jar, useProjectDir, false);
+    }
+
+    private static @NotNull String formatIdeaPath(@NotNull String path) {
+        return path.replace('\\', '/');
     }
 
     private String getFormattedRelativeMavenPath(@NotNull Path pathToFormat) {
