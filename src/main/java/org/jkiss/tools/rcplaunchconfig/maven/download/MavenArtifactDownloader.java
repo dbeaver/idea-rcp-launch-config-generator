@@ -52,9 +52,9 @@ public class MavenArtifactDownloader {
 
     private static final String DEFAULT_REPO_LOCAL = String.format("%s/.m2/repository", System.getProperty("user.home"));
     private static final List<RemoteRepository> REPOS = List.of(
-        new RemoteRepository.Builder("spring-milestones", "default", "https://repo.spring.io/milestone").build(),
-        new RemoteRepository.Builder("spring-releases", "default", "https://repo.spring.io/release").build(),
         new RemoteRepository.Builder("central", "default", "https://repo1.maven.org/maven2/").build()
+//        new RemoteRepository.Builder("spring-milestones", "default", "https://repo.spring.io/milestone").build(),
+//        new RemoteRepository.Builder("spring-releases", "default", "https://repo.spring.io/release").build()
     );
 
     private static final Set<String> DEFAULT_SCOPES = Set.of(JavaScopes.COMPILE, JavaScopes.RUNTIME, JavaScopes.TEST);
