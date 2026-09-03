@@ -21,10 +21,13 @@ import org.eclipse.aether.DefaultRepositoryCache;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory;
 import org.eclipse.aether.graph.Dependency;
+import org.eclipse.aether.graph.DependencyNode;
+import org.eclipse.aether.graph.DependencyVisitor;
 import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.impl.DefaultServiceLocator;
 import org.eclipse.aether.repository.LocalRepository;
@@ -164,47 +167,63 @@ public class MavenArtifactDownloader {
             null
         );
         DependencyResult result = system.resolveDependencies(session, request);
-        result.getRoot().accept(new org.eclipse.aether.graph.DependencyVisitor() {
-            @Override
-            public boolean visitEnter(org.eclipse.aether.graph.DependencyNode node) {
-                //log.info("  Processing maven dependency: {}", node.getArtifact());
-                return true;
-            }
-
-            @Override
-            public boolean visitLeave(org.eclipse.aether.graph.DependencyNode node) {
-                return true;
-            }
-        });
+        Map<String, String> derivedScopes = collectDerivedScopes(result);
         List<Pair<MavenDependency, Path>> resolvedDependencies = new ArrayList<>();
 
         for (ArtifactResult artifactResult : result.getArtifactResults()) {
             if (artifactResult.isResolved()) {
-                Optional<MavenDependency> existingDependency = mavenDependencies.stream().filter(
-                    dep -> dep.getCoordinates().equals(artifactResult.getArtifact().getGroupId() + ":" +
-                        artifactResult.getArtifact().getArtifactId() + ":" + artifactResult.getArtifact().getVersion())
-                ).findFirst();
-                if (existingDependency.isPresent()) {
-                    resolvedDependencies.add(new Pair<>(
-                        existingDependency.get(),
-                        Path.of(artifactResult.getArtifact().getFile().getAbsolutePath())
+                Artifact artifact = artifactResult.getArtifact();
+                String coordinates = getCoordinates(artifact);
+                MavenDependency dependency = mavenDependencies.stream()
+                    .filter(dep -> dep.getCoordinates().equals(coordinates))
+                    .findFirst()
+                    .orElseGet(() -> new MavenDependency(
+                        artifact.getGroupId(),
+                        artifact.getArtifactId(),
+                        artifact.getVersion(),
+                        List.of()
                     ));
-                } else {
-                    resolvedDependencies.add(new Pair<>(
-                        new MavenDependency(
-                            artifactResult.getArtifact().getGroupId(),
-                            artifactResult.getArtifact().getArtifactId(),
-                            artifactResult.getArtifact().getVersion(),
-                            List.of()
-                        ),
-                        Path.of(artifactResult.getArtifact().getFile().getAbsolutePath())
-                    ));
-                }
+                resolvedDependencies.add(new Pair<>(
+                    dependency.withScope(derivedScopes.get(coordinates)),
+                    Path.of(artifact.getFile().getAbsolutePath())
+                ));
             } else {
                 log.error("UNRESOLVED: " + artifactResult.getArtifact() + " - " + artifactResult.getExceptions());
             }
         }
         return resolvedDependencies;
+    }
+
+    // effective scopes come from the collected graph, not from the pom: the resolver derives
+    // transitive scopes and keeps a single winner per artifact
+    @NotNull
+    private static Map<String, String> collectDerivedScopes(@NotNull DependencyResult result) {
+        Map<String, String> scopes = new HashMap<>();
+        DependencyNode root = result.getRoot();
+        if (root == null) {
+            return scopes;
+        }
+        root.accept(new DependencyVisitor() {
+            @Override
+            public boolean visitEnter(DependencyNode node) {
+                Dependency dependency = node.getDependency();
+                if (dependency != null && dependency.getScope() != null && !dependency.getScope().isEmpty()) {
+                    scopes.putIfAbsent(getCoordinates(dependency.getArtifact()), dependency.getScope());
+                }
+                return true;
+            }
+
+            @Override
+            public boolean visitLeave(DependencyNode node) {
+                return true;
+            }
+        });
+        return scopes;
+    }
+
+    @NotNull
+    private static String getCoordinates(@NotNull Artifact artifact) {
+        return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
     }
 
     @NotNull
@@ -222,7 +241,8 @@ public class MavenArtifactDownloader {
             Dependency dependency;
             if (!isBOM) {
                 DefaultArtifact artifact = new DefaultArtifact(coordinates);
-                dependency = new Dependency(artifact, "compile", false, exclusions);
+                String scope = mavenDependency.scope() == null ? JavaScopes.COMPILE : mavenDependency.scope();
+                dependency = new Dependency(artifact, scope, false, exclusions);
             } else {
                 // For BOM, we use the import scope
                 DefaultArtifact artifact = new DefaultArtifact(

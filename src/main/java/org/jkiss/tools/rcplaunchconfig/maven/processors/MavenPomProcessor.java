@@ -121,8 +121,7 @@ public class MavenPomProcessor {
             doc.getDocumentElement().normalize();
             List<MavenDependency> managedDependencies = listManagedDependencies(doc, path.toFile());
             List<Element> dependencies = listProjectDependencies(doc);
-            List<MavenDependency> mainDependencies = new ArrayList<>();
-            List<MavenDependency> testDependencies = new ArrayList<>();
+            List<MavenDependency> dependencyList = new ArrayList<>();
             for (Element dependencyElement : dependencies) {
                 String groupId = getTagValue(dependencyElement, "groupId");
                 String artifactId = getTagValue(dependencyElement, "artifactId");
@@ -140,19 +139,11 @@ public class MavenPomProcessor {
                     if ("pom".equals(type) && "import".equals(scope)) {
                         continue;
                     }
-                    MavenDependency mavenDependency = new MavenDependency(groupId, artifactId, version, exclusions, scope);
-                    if (mavenDependency.isTestScope()) {
-                        testDependencies.add(mavenDependency);
-                    } else {
-                        mainDependencies.add(mavenDependency);
-                    }
+                    dependencyList.add(new MavenDependency(groupId, artifactId, version, exclusions, scope));
                 }
             }
-            // main scopes resolved first so their versions win over test transitives on classpath
-            tryToDownloadNonProvidedDependencies(mainDependencies, null, managedDependencies);
-            tryToDownloadNonProvidedDependencies(testDependencies, MavenDependency.SCOPE_TEST, managedDependencies);
-            List<MavenDependency> dependencyList = new ArrayList<>(mainDependencies);
-            dependencyList.addAll(testDependencies);
+            // if version not found check parent
+            tryToDownloadNonProvidedDependencies(dependencyList, managedDependencies);
             return dependencyList;
         } catch (Exception e) {
             log.error("Error processing pom.xml", e);
@@ -728,7 +719,6 @@ public class MavenPomProcessor {
 
     private static void tryToDownloadNonProvidedDependencies(
         @NotNull List<MavenDependency> dependencyList,
-        @Nullable String transitiveScope,
         @NotNull List<MavenDependency> managedDependencies
     ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
         List<MavenDependency> dependenciesToDownload = dependencyList.stream()
@@ -745,11 +735,7 @@ public class MavenPomProcessor {
                 resolvedDependency.getSecond()
             );
             if (!MavenLocalArtifactRegistry.INSTANCE.isProvided(resolvedDependency.getFirst())) {
-                MavenDependency dependency = resolvedDependency.getFirst();
-                if (dependency.scope() == null && transitiveScope != null) {
-                    dependency = dependency.withScope(transitiveScope);
-                }
-                dependencyList.add(dependency);
+                dependencyList.add(resolvedDependency.getFirst());
             }
         }
     }

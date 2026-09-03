@@ -68,7 +68,8 @@ public class IMLConfigurationProducer implements IImportListener {
     );
     private final Map<Pair<String, VersionRange>, Set<Pair<BundleInfo, Version>>> bundlePackageImports = new ConcurrentHashMap<>();
 
-    private final Set<String> generatedLibraries = new LinkedHashSet<>();
+    // products are generated in parallel and every maven artifact goes through this set
+    private final Set<String> generatedLibraries = ConcurrentHashMap.newKeySet();
     private final Set<Path> rootModules = new LinkedHashSet<>();
     private final Set<ModuleInfo> modules = new LinkedHashSet<>();
 
@@ -620,10 +621,12 @@ public class IMLConfigurationProducer implements IImportListener {
                     log.warn("Missing reexported bundle " + reexportedBundle);
                     continue;
                 }
-                BundleInfo suitableBundle = bundlesByName.stream().filter(it -> VersionRange.isVersionsCompatible(
-                    bundleRequirements.get().getSecond(),
-                    new Version(it.getBundleVersion())
-                )).findFirst().orElseThrow();
+                BundleInfo suitableBundle = getLatestBundle(bundlesByName.stream().filter(
+                    it -> VersionRange.isVersionsCompatible(
+                        bundleRequirements.get().getSecond(),
+                        new Version(it.getBundleVersion())
+                    )
+                ).toList()).orElseThrow();
                 appendLibraryInfo(builder, suitableBundle, result, resolvedBundles, isLibrary);
             }
             for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
@@ -836,11 +839,13 @@ public class IMLConfigurationProducer implements IImportListener {
                 }
             }
         }
-        if (bundleInfo.getPath() != null && bundleInfo.getPath().resolve(TEST_FOLDER).toFile().exists()) {
+        if (bundleInfo.getPath() != null && bundleInfo.getPath().resolve(TEST_FOLDER).toFile().exists()
+            && !appendMavenTestDependencies(bundleInfo.getPath(), builder)
+        ) {
             Set<String> testLibraries = PathsManager.INSTANCE.getTestLibraries();
             if (testLibraries != null) {
                 for (String testLibrary : testLibraries) {
-                    addModuleLibrary(new Pair<>(testLibrary, null), builder, result, resolvedBundles, false);
+                    addModuleLibrary(new Pair<>(testLibrary, null), builder, result, resolvedBundles, false, true);
                 }
             }
         }
@@ -849,7 +854,7 @@ public class IMLConfigurationProducer implements IImportListener {
                 .append("\"/>").append("\n");
         }
         if (!bundleInfo.getClasspathLibs().isEmpty()) {
-            addLibraryEntry(bundleInfo, builder, true, false);
+            addLibraryEntry(bundleInfo, builder, true, false, false);
             for (String classpathLib : bundleInfo.getClasspathLibs()) {
                 appendClasspathLib(builder, bundleInfo, classpathLib, false);
             }
@@ -861,7 +866,30 @@ public class IMLConfigurationProducer implements IImportListener {
     }
 
     private void appendMavenDependencies(@NotNull Path path, @NotNull StringBuilder builder) throws IOException {
-        List<MavenDependency> dependencies = MavenPomProcessor.processDependencies(path);
+        appendMavenDependencyEntries(MavenPomProcessor.processDependencies(path), builder);
+    }
+
+    // pom test deps win over the p2 testLibraries list: p2 ships its own junit build, and a dependent maven
+    // module compiled against the one from ~/.m2 then resolves a different file at runtime.
+    // returns false when the pom has nothing to offer, so the p2 list is used instead
+    private boolean appendMavenTestDependencies(@NotNull Path path, @NotNull StringBuilder builder) throws IOException {
+        if (!Files.exists(path.resolve("pom.xml"))) {
+            return false;
+        }
+        List<MavenDependency> testDependencies = MavenPomProcessor.processDependencies(path).stream()
+            .filter(MavenDependency::isTestScope)
+            .toList();
+        if (testDependencies.isEmpty()) {
+            return false;
+        }
+        appendMavenDependencyEntries(testDependencies, builder);
+        return true;
+    }
+
+    private void appendMavenDependencyEntries(
+        @NotNull List<MavenDependency> dependencies,
+        @NotNull StringBuilder builder
+    ) throws IOException {
         Set<Path> processedDependencies = new HashSet<>();
         for (MavenDependency dependency : dependencies) {
             Path dependencyPath = MavenLocalArtifactRegistry.INSTANCE.getProvidedDependencyPath(dependency) == null ?
@@ -879,22 +907,43 @@ public class IMLConfigurationProducer implements IImportListener {
             // Prevent test dependencies from leaking into dependent modules
             String exportedAttribute = dependency.isTestScope() ? "" : " exported=\"\"";
             if (isThirdParty) {
-                builder.append("  <orderEntry type=\"module-library\"").append(scopeAttribute).append(exportedAttribute).append(">\n");
-                builder.append("    <library>\n");
-                builder.append("      <CLASSES>\n");
-                builder.append("        <root url=\"")
-                    .append(getMavenDependencyPath(dependencyPath))
-                    .append("\"/>\n");
-                builder.append("      </CLASSES>\n");
-                builder.append("      <JAVADOC />\n");
-                builder.append("      <SOURCES />\n");
-                builder.append("    </library>\n");
-                builder.append("  </orderEntry>\n");
+                String libraryName = getMavenLibraryName(dependency);
+                createMavenLibraryConfig(libraryName, dependencyPath);
+                builder.append("  <orderEntry type=\"library\" name=\"").append(libraryName).append("\" level=\"project\"")
+                    .append(scopeAttribute).append(exportedAttribute).append("/>\n");
             } else {
                 builder.append("  <orderEntry type = \"module\" module-name=\"").append(dependencyPath.getFileName())
                     .append("\"").append(scopeAttribute).append(exportedAttribute).append("/>").append("\n");
             }
         }
+    }
+
+    @NotNull
+    private static String getMavenLibraryName(@NotNull MavenDependency dependency) {
+        return "Maven: " + dependency.getCoordinates();
+    }
+
+    // one shared library per artifact instead of an anonymous copy in every module: IDEA resolves the same jar
+    // reached through two module-library entries as two different classes and reports ClassOverriddenAtRuntime
+    private void createMavenLibraryConfig(@NotNull String libraryName, @NotNull Path dependencyPath) throws IOException {
+        if (!generatedLibraries.add(libraryName)) {
+            return;
+        }
+        String config = "<component name=\"libraryTable\">\n"
+            + "  <library name=\"" + libraryName + "\">\n"
+            + "    <CLASSES>\n"
+            + "      <root url=\"" + getMavenDependencyPath(dependencyPath) + "\"/>\n"
+            + "    </CLASSES>\n"
+            + "    <JAVADOC />\n"
+            + "    <SOURCES />\n"
+            + "  </library>\n"
+            + "</component>";
+        createConfigFile(getLibraryConfigPath().resolve(getLibraryFileName(libraryName)), config);
+    }
+
+    @NotNull
+    private static String getLibraryFileName(@NotNull String libraryName) {
+        return libraryName.replaceAll("[^a-zA-Z0-9_]", "_") + ".xml";
     }
 
     @NotNull
@@ -980,13 +1029,13 @@ public class IMLConfigurationProducer implements IImportListener {
             }
             return;
         }
-        BundleInfo bundle = bundleByName.stream()
+        BundleInfo bundle = getLatestBundle(bundleByName.stream()
             .filter(it -> VersionRange.isVersionsCompatible(
                 requireBundle.getSecond(),
                 new Version(it.getBundleVersion())
             ))
-            .findFirst()
-            .orElseThrow();
+            .toList()
+        ).orElseThrow();
         if (resolvedBundles.contains(new Pair<>(requireBundle.getFirst(), new Version(bundle.getBundleVersion())))) {
             return;
         }
@@ -1001,9 +1050,17 @@ public class IMLConfigurationProducer implements IImportListener {
                 builder,
                 result,
                 resolvedBundles,
-                isExported
+                isExported,
+                false
             );
         }
+    }
+
+    // several versions of the same bundle may sit in the dependencies folder, so picking any of them
+    // makes the generated workspace differ between runs (e.g. junit-platform-commons 1.x next to jupiter 6.x)
+    @NotNull
+    private static Optional<BundleInfo> getLatestBundle(@NotNull Collection<BundleInfo> bundles) {
+        return bundles.stream().max(Comparator.comparing(it -> new Version(it.getBundleVersion())));
     }
 
     private void addModuleLibrary(
@@ -1011,7 +1068,8 @@ public class IMLConfigurationProducer implements IImportListener {
         @NotNull StringBuilder builder,
         @NotNull Result result,
         @NotNull Set<Pair<String, Version>> resolvedBundles,
-        boolean isExported
+        boolean isExported,
+        boolean testScope
     ) throws IOException {
         Set<BundleInfo> bundles = result.getBundlesByName(requiredLibrary.getFirst());
         if (bundles == null) {
@@ -1025,14 +1083,14 @@ public class IMLConfigurationProducer implements IImportListener {
                 .findFirst()
                 .orElseThrow();
         } else {
-            bundleByName = bundles.stream().findFirst().orElseThrow();
+            bundleByName = getLatestBundle(bundles).orElseThrow();
         }
         if (bundleByName.getPath() == null) {
             log.warn("Missing reexported bundle " + requiredLibrary);
             return;
         }
         boolean directoryBundle = bundleByName.getPath().toFile().isDirectory();
-        addLibraryEntry(bundleByName, builder, isExported, directoryBundle);
+        addLibraryEntry(bundleByName, builder, isExported, directoryBundle, testScope);
         if (!directoryBundle) {
             Set<Pair<String, Version>> oldResolvedBundles = new LinkedHashSet<>(resolvedBundles);
             appendLibraryInfo(builder, bundleByName, result, resolvedBundles, false);
@@ -1113,14 +1171,19 @@ public class IMLConfigurationProducer implements IImportListener {
     private static void addLibraryEntry(BundleInfo bundleByName,
                                         @NotNull StringBuilder builder,
                                         boolean isExported,
-                                        boolean directoryBundle) {
+                                        boolean directoryBundle,
+                                        boolean testScope) {
+        // without TEST scope junit lands on the compile classpath of every dependent module
+        String scope = testScope ? " scope=\"TEST\"" : "";
         if (!directoryBundle) {
-            builder.append("  <orderEntry type = \"module-library\"").append(isExported ? " exported=\"\">" : ">").append("\n");
+            builder.append("  <orderEntry type = \"module-library\"").append(scope)
+                .append(isExported ? " exported=\"\">" : ">").append("\n");
             builder.append("   <library>\n");
             builder.append("     <CLASSES>\n");
         } else {
             builder.append("  <orderEntry type = \"library\" level=\"project\" name=\"")
-                .append(bundleByName.getBundleName()).append("\"").append(isExported ? " exported=\"\"/>" : "/>")
+                .append(bundleByName.getBundleName()).append("\"").append(scope)
+                .append(isExported ? " exported=\"\"/>" : "/>")
                 .append("\n");
         }
     }
