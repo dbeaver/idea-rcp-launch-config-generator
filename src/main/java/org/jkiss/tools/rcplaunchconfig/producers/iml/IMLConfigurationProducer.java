@@ -221,7 +221,7 @@ public class IMLConfigurationProducer implements IImportListener {
         config.append(
             "  <configuration default=\"false\" name=\"Run %s\" type=\"Application\" folderName=\"Generated\" factoryName=\"Application\">\n"
                 .formatted(result.getProductName()));
-        config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"21\" />\n");
+        config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"BUNDLED\" />\n");
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH_ENABLED\" value=\"true\" />\n");
         config.append("    <option name=\"MAIN_CLASS_NAME\" value=\"org.jkiss.dbeaver.launcher.DBeaverLauncher\" />\n");
         config.append("    <module name=\"org.jkiss.dbeaver.launcher\" />\n");
