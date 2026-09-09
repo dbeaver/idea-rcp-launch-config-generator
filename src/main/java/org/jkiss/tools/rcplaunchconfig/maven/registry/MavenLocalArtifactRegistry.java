@@ -19,20 +19,25 @@ package org.jkiss.tools.rcplaunchconfig.maven.registry;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MavenLocalArtifactRegistry {
-    private final Map<ArtifactKey, Path> providedDependencies = new HashMap<>();
-    private final Map<ArtifactKey, Path> localThirdPartyDependencies = new HashMap<>();
+    private final Map<ArtifactKey, Path> providedDependencies = new ConcurrentHashMap<>();
+    private final Map<ArtifactKey, Path> localThirdPartyDependencies = new ConcurrentHashMap<>();
+    private final Map<ArtifactKey, Path> localPoms = new ConcurrentHashMap<>();
     public static final MavenLocalArtifactRegistry INSTANCE = new MavenLocalArtifactRegistry();
 
     public void addProvidedDependency(MavenDependency dependency, Path path) {
-        providedDependencies.put(ArtifactKey.of(dependency), path);
+        addDeterministically(providedDependencies, dependency, path);
     }
 
     public void addLocalThirdPartyDependency(MavenDependency dependency, Path pathToJar) {
-        localThirdPartyDependencies.put(ArtifactKey.of(dependency), pathToJar);
+        addDeterministically(localThirdPartyDependencies, dependency, pathToJar);
+    }
+
+    public void addLocalPom(MavenDependency dependency, Path pathToPom) {
+        addDeterministically(localPoms, dependency, pathToPom);
     }
 
 
@@ -50,6 +55,34 @@ public class MavenLocalArtifactRegistry {
 
     public boolean isLocalThirdParty(MavenDependency dependency) {
         return localThirdPartyDependencies.containsKey(ArtifactKey.of(dependency));
+    }
+
+    public Path getLocalPomPath(MavenDependency dependency) {
+        return localPoms.get(ArtifactKey.of(dependency));
+    }
+
+    public boolean isLocalPom(MavenDependency dependency) {
+        return localPoms.containsKey(ArtifactKey.of(dependency));
+    }
+
+    private static void addDeterministically(
+        Map<ArtifactKey, Path> artifacts,
+        MavenDependency dependency,
+        Path path
+    ) {
+        artifacts.merge(ArtifactKey.of(dependency), path, (first, second) ->
+            normalizedPath(first).compareTo(normalizedPath(second)) <= 0 ? first : second
+        );
+    }
+
+    private static String normalizedPath(Path path) {
+        return path.toAbsolutePath().normalize().toString();
+    }
+
+    public void reset() {
+        providedDependencies.clear();
+        localThirdPartyDependencies.clear();
+        localPoms.clear();
     }
 
     private MavenLocalArtifactRegistry() {

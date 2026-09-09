@@ -111,7 +111,7 @@ public class MavenPomProcessor {
      * @return a list of MavenDependency objects representing the dependencies found in the pom.xml.
      */
     @NotNull
-    public static List<MavenDependency> processDependencies(@NotNull Path path) {
+    public static List<MavenDependency> processDependencies(@NotNull Path path) throws IOException {
         Path pomXMl = path.resolve("pom.xml");
         try (var inputStream = Files.newInputStream(pomXMl)) {
             // Parse the pom.xml file.
@@ -132,22 +132,22 @@ public class MavenPomProcessor {
                     continue;
                 }
                 String version = resolveVersion(doc, groupId, artifactId, unresolvedVersion, new LinkedHashSet<>(), path.toFile());
-                if (version != null && !version.startsWith("${")) {
-                    List<MavenDependency> exclusions = listExclusions(dependencyElement);
-                    String scope = getTagValue(dependencyElement, "scope");
-                    String type = getTagValue(dependencyElement, "type");
-                    if ("pom".equals(type) && "import".equals(scope)) {
-                        continue;
-                    }
-                    dependencyList.add(new MavenDependency(groupId, artifactId, version, exclusions, scope));
+                if (version == null || version.startsWith("${")) {
+                    throw new IOException("Could not resolve version for " + groupId + ":" + artifactId);
                 }
+                List<MavenDependency> exclusions = listExclusions(dependencyElement);
+                String scope = getTagValue(dependencyElement, "scope");
+                String type = getTagValue(dependencyElement, "type");
+                if ("pom".equals(type) && "import".equals(scope)) {
+                    continue;
+                }
+                dependencyList.add(new MavenDependency(groupId, artifactId, version, exclusions, scope));
             }
             // if version not found check parent
             tryToDownloadNonProvidedDependencies(dependencyList, managedDependencies);
             return dependencyList;
         } catch (Exception e) {
-            log.error("Error processing pom.xml", e);
-            return List.of();
+            throw new IOException("Failed to resolve Maven dependencies for module " + path + ": " + e.getMessage(), e);
         }
     }
 
@@ -189,8 +189,11 @@ public class MavenPomProcessor {
             String groupId = getTagValue(dependency, "groupId");
             String artifactId = getTagValue(dependency, "artifactId");
             String unresolvedVersion = getTagValue(dependency, "version");
-            if (groupId == null || artifactId == null || unresolvedVersion == null) {
+            if (groupId == null || artifactId == null) {
                 continue;
+            }
+            if (unresolvedVersion == null) {
+                throw new IOException("Could not resolve managed version for " + groupId + ":" + artifactId);
             }
 
             String version = resolveVersion(
@@ -202,7 +205,7 @@ public class MavenPomProcessor {
                 currentPomFile
             );
             if (version == null || version.startsWith("${")) {
-                continue;
+                throw new IOException("Could not resolve managed version for " + groupId + ":" + artifactId);
             }
 
             String type = getTagValue(dependency, "type");
@@ -214,7 +217,7 @@ public class MavenPomProcessor {
 
             managedDependencies.put(
                 toManagementKey(groupId, artifactId),
-                new MavenDependency(groupId, artifactId, version, List.of())
+                new MavenDependency(groupId, artifactId, version, listExclusions(dependency), scope)
             );
         }
 
@@ -224,9 +227,6 @@ public class MavenPomProcessor {
             }
 
             Path downloadedDependencyPath = resolveBomDependency(importedBomDependency);
-            if (downloadedDependencyPath == null) {
-                continue;
-            }
 
             Document bomDoc = parseDocument(downloadedDependencyPath);
             Map<String, MavenDependency> bomManagedDependencies = new LinkedHashMap<>();
@@ -260,7 +260,7 @@ public class MavenPomProcessor {
             );
             mergeManagedDependencies(managedDependencies, parentManagedDependencies);
         } catch (Exception e) {
-            log.info("Failed to parse parent pom.xml: {}", parentPom, e);
+            throw new IOException("Failed to resolve managed dependencies from parent " + parentPom, e);
         }
     }
 
@@ -379,6 +379,14 @@ public class MavenPomProcessor {
             return version;
         }
 
+        Element parent = getDirectChild(doc.getDocumentElement(), PARENT_TAG);
+        if (parent != null) {
+            version = getTagValue(parent, "version");
+            if (version != null) {
+                return version;
+            }
+        }
+
         // Fall back to parent's version
         return getParentTagValue(doc, "version", currentPomFile, visitedPomPaths);
     }
@@ -413,7 +421,11 @@ public class MavenPomProcessor {
             if (value != null && !value.startsWith("${")) {
                 return value;
             } else if (value != null) {
-                return resolveProperty(doc, value, visitedPomPaths, currentPomFile);
+                String nestedPropertyName = value.substring(2, value.length() - 1);
+                if (nestedPropertyName.equals(propertyName)) {
+                    return null;
+                }
+                return resolveProperty(doc, nestedPropertyName, visitedPomPaths, currentPomFile);
             }
         }
 
@@ -579,22 +591,22 @@ public class MavenPomProcessor {
         return null;
     }
 
-    @Nullable
-    private static Path resolveBomDependency(@NotNull MavenDependency bomDependency) {
-        if (!MavenLocalArtifactRegistry.INSTANCE.isLocalThirdParty(bomDependency)) {
+    @NotNull
+    private static Path resolveBomDependency(@NotNull MavenDependency bomDependency) throws IOException {
+        if (!MavenLocalArtifactRegistry.INSTANCE.isLocalPom(bomDependency)) {
             try {
                 Pair<MavenDependency, Path> resolvedDependency = MavenArtifactDownloader.resolvePom(bomDependency);
-                MavenLocalArtifactRegistry.INSTANCE.addLocalThirdPartyDependency(
+                MavenLocalArtifactRegistry.INSTANCE.addLocalPom(
                     resolvedDependency.getFirst(),
                     resolvedDependency.getSecond()
                 );
             } catch (ArtifactResolutionException e) {
-                log.error("Failed to resolve BOM dependency: {}", bomDependency, e);
+                throw new IOException("Failed to resolve BOM " + bomDependency.getCoordinates(), e);
             }
         }
-        Path downloadedDependencyPath = MavenLocalArtifactRegistry.INSTANCE.getDowloadedDependencyPath(bomDependency);
+        Path downloadedDependencyPath = MavenLocalArtifactRegistry.INSTANCE.getLocalPomPath(bomDependency);
         if (downloadedDependencyPath == null) {
-            log.warn("Could not locate resolved BOM dependency: {}", bomDependency);
+            throw new IOException("Could not locate resolved BOM " + bomDependency.getCoordinates());
         }
         return downloadedDependencyPath;
     }
@@ -724,11 +736,11 @@ public class MavenPomProcessor {
         List<MavenDependency> dependenciesToDownload = dependencyList.stream()
             .filter(it -> !MavenLocalArtifactRegistry.INSTANCE.isProvided(it))
             .toList();
-        List<Pair<MavenDependency, Path>> resolvedDependencies = MavenArtifactDownloader.resolve(
+        List<Pair<MavenDependency, Path>> resolvedDependencies = MavenArtifactDownloader.resolveClasspath(
             dependenciesToDownload,
-            managedDependencies,
-            false
+            managedDependencies
         );
+        dependencyList.removeIf(dependency -> !MavenLocalArtifactRegistry.INSTANCE.isProvided(dependency));
         for (Pair<MavenDependency, Path> resolvedDependency : resolvedDependencies) {
             MavenLocalArtifactRegistry.INSTANCE.addLocalThirdPartyDependency(
                 resolvedDependency.getFirst(),
