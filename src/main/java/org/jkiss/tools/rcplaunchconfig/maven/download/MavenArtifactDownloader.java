@@ -52,8 +52,8 @@ public class MavenArtifactDownloader {
     private static final String DEFAULT_REPO_LOCAL = String.format("%s/.m2/repository", System.getProperty("user.home"));
     private static final List<RemoteRepository> REPOS = List.of(
         new RemoteRepository.Builder("central", "default", "https://repo1.maven.org/maven2/").build()
-//        new RemoteRepository.Builder("spring-milestones", "default", "https://repo.spring.io/milestone").build(),
-//        new RemoteRepository.Builder("spring-releases", "default", "https://repo.spring.io/release").build()
+    // new RemoteRepository.Builder("spring-milestones", "default", "https://repo.spring.io/milestone").build(),
+    // new RemoteRepository.Builder("spring-releases", "default", "https://repo.spring.io/release").build()
     );
 
     private static final Set<String> DEFAULT_SCOPES = Set.of(JavaScopes.COMPILE, JavaScopes.RUNTIME, JavaScopes.TEST);
@@ -80,6 +80,7 @@ public class MavenArtifactDownloader {
      * @param isBOM             if true, the dependencies are treated as a BOM (Bill of Materials) and will use the import scope
      * @return jar files absolute path
      **/
+    @NotNull
     public static List<Pair<MavenDependency, Path>> resolve(@NotNull List<MavenDependency> mavenDependencies, boolean isBOM
     ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
         return resolve(mavenDependencies, List.of(), isBOM);
@@ -93,6 +94,7 @@ public class MavenArtifactDownloader {
      * @param isBOM                   if true, the dependencies are treated as a BOM (Bill of Materials) and will use the import scope
      * @return jar files absolute path
      **/
+    @NotNull
     public static List<Pair<MavenDependency, Path>> resolve(
         @NotNull List<MavenDependency> mavenDependencies,
         @NotNull List<MavenDependency> managedMavenDependencies,
@@ -108,6 +110,78 @@ public class MavenArtifactDownloader {
         );
     }
 
+    /**
+     * resolve
+     *
+     * @param mavenDependencies eg: org.apache.logging.log4j:log4j-core:2.19.0
+     * @param scopes            default to DEFAULT_SCOPES if null or empty
+     * @param localRepo         default to DEFAULT_REPO_LOCAL if null
+     * @param remoteRepos       default to DEFAULT_REPO_REMOTE if null or empty
+     * @return jar files absolute path
+     **/
+    @NotNull
+    public static List<Pair<MavenDependency, Path>> resolve(
+        @NotNull List<MavenDependency> mavenDependencies,
+        @NotNull List<MavenDependency> managedMavenDependencies,
+        @NotNull Set<String> scopes,
+        @Nullable String localRepo,
+        @Nullable List<RemoteRepository> remoteRepos,
+        boolean isBOM
+    ) throws DependencyResolutionException {
+        if (mavenDependencies.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (scopes.isEmpty()) {
+            scopes = DEFAULT_SCOPES;
+        }
+        if (localRepo == null) {
+            localRepo = DEFAULT_REPO_LOCAL;
+        }
+        if (remoteRepos == null || remoteRepos.isEmpty()) {
+            remoteRepos = REPOS;
+        }
+
+        RepositorySystemSession session = buildSession(localRepo);
+        CollectRequest collectRequest = getCollectRequest(mavenDependencies, managedMavenDependencies, remoteRepos, isBOM);
+
+        DependencyRequest request = new DependencyRequest(
+            collectRequest,
+            null
+        );
+        DependencyResult result = system.resolveDependencies(session, request);
+        Map<String, String> derivedScopes = collectDerivedScopes(result);
+        List<Pair<MavenDependency, Path>> resolvedDependencies = new ArrayList<>();
+
+        for (ArtifactResult artifactResult : result.getArtifactResults()) {
+            if (artifactResult.isResolved()) {
+                Artifact artifact = artifactResult.getArtifact();
+                String coordinates = getCoordinates(artifact);
+                MavenDependency dependency = mavenDependencies.stream()
+                    .filter(dep -> dep.getCoordinates().equals(coordinates))
+                    .findFirst()
+                    .orElseGet(() -> new MavenDependency(
+                        artifact.getGroupId(),
+                        artifact.getArtifactId(),
+                        artifact.getVersion(),
+                        List.of()
+                    ));
+                resolvedDependencies.add(new Pair<>(
+                    dependency.withScope(derivedScopes.get(coordinates)),
+                    Path.of(artifact.getFile().getAbsolutePath())
+                ));
+            } else {
+                Throwable cause = artifactResult.getExceptions().isEmpty() ? null : artifactResult.getExceptions().getFirst();
+                throw new DependencyResolutionException(
+                    result,
+                    "Unresolved Maven artifact " + artifactResult.getArtifact(),
+                    cause
+                );
+            }
+        }
+        return resolvedDependencies;
+    }
+
+    @NotNull
     public static List<Pair<MavenDependency, Path>> resolveClasspath(
         @NotNull List<MavenDependency> mavenDependencies,
         @NotNull List<MavenDependency> managedMavenDependencies
@@ -115,6 +189,7 @@ public class MavenArtifactDownloader {
         return resolveClasspath(mavenDependencies, managedMavenDependencies, DEFAULT_REPO_LOCAL, REPOS);
     }
 
+    @NotNull
     public static List<Pair<MavenDependency, Path>> resolveClasspath(
         @NotNull List<MavenDependency> mavenDependencies,
         @NotNull List<MavenDependency> managedMavenDependencies,
@@ -183,76 +258,6 @@ public class MavenArtifactDownloader {
         return new Pair<>(mavenDependency, Path.of(result.getArtifact().getFile().getAbsolutePath()));
     }
 
-    /**
-     * resolve
-     *
-     * @param mavenDependencies eg: org.apache.logging.log4j:log4j-core:2.19.0
-     * @param scopes            default to DEFAULT_SCOPES if null or empty
-     * @param localRepo         default to DEFAULT_REPO_LOCAL if null
-     * @param remoteRepos       default to DEFAULT_REPO_REMOTE if null or empty
-     * @return jar files absolute path
-     **/
-    public static List<Pair<MavenDependency, Path>> resolve(
-        @NotNull List<MavenDependency> mavenDependencies,
-        @NotNull List<MavenDependency> managedMavenDependencies,
-        @NotNull Set<String> scopes,
-        @Nullable String localRepo,
-        @Nullable List<RemoteRepository> remoteRepos,
-        boolean isBOM
-    ) throws DependencyResolutionException {
-        if (mavenDependencies.isEmpty()) {
-            return Collections.emptyList();
-        }
-        if (scopes.isEmpty()) {
-            scopes = DEFAULT_SCOPES;
-        }
-        if (localRepo == null) {
-            localRepo = DEFAULT_REPO_LOCAL;
-        }
-        if (remoteRepos == null || remoteRepos.isEmpty()) {
-            remoteRepos = REPOS;
-        }
-
-        RepositorySystemSession session = buildSession(localRepo);
-        CollectRequest collectRequest = getCollectRequest(mavenDependencies, managedMavenDependencies, remoteRepos, isBOM);
-
-        DependencyRequest request = new DependencyRequest(
-            collectRequest,
-            null
-        );
-        DependencyResult result = system.resolveDependencies(session, request);
-        Map<String, String> derivedScopes = collectDerivedScopes(result);
-        List<Pair<MavenDependency, Path>> resolvedDependencies = new ArrayList<>();
-
-        for (ArtifactResult artifactResult : result.getArtifactResults()) {
-            if (artifactResult.isResolved()) {
-                Artifact artifact = artifactResult.getArtifact();
-                String coordinates = getCoordinates(artifact);
-                MavenDependency dependency = mavenDependencies.stream()
-                    .filter(dep -> dep.getCoordinates().equals(coordinates))
-                    .findFirst()
-                    .orElseGet(() -> new MavenDependency(
-                        artifact.getGroupId(),
-                        artifact.getArtifactId(),
-                        artifact.getVersion(),
-                        List.of()
-                    ));
-                resolvedDependencies.add(new Pair<>(
-                    dependency.withScope(derivedScopes.get(coordinates)),
-                    Path.of(artifact.getFile().getAbsolutePath())
-                ));
-            } else {
-                Throwable cause = artifactResult.getExceptions().isEmpty() ? null : artifactResult.getExceptions().getFirst();
-                throw new DependencyResolutionException(
-                    result,
-                    "Unresolved Maven artifact " + artifactResult.getArtifact(),
-                    cause
-                );
-            }
-        }
-        return resolvedDependencies;
-    }
-
     // effective scopes come from the collected graph, not from the pom: the resolver derives
     // transitive scopes and keeps a single winner per artifact
     @NotNull
@@ -264,7 +269,7 @@ public class MavenArtifactDownloader {
         }
         root.accept(new DependencyVisitor() {
             @Override
-            public boolean visitEnter(DependencyNode node) {
+            public boolean visitEnter(@NotNull DependencyNode node) {
                 Dependency dependency = node.getDependency();
                 if (dependency != null && dependency.getScope() != null && !dependency.getScope().isEmpty()) {
                     scopes.putIfAbsent(getCoordinates(dependency.getArtifact()), dependency.getScope());
@@ -273,7 +278,7 @@ public class MavenArtifactDownloader {
             }
 
             @Override
-            public boolean visitLeave(DependencyNode node) {
+            public boolean visitLeave(@NotNull DependencyNode node) {
                 return true;
             }
         });

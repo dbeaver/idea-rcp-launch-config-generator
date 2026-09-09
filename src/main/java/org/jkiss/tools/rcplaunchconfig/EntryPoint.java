@@ -56,11 +56,11 @@ public class EntryPoint {
     private static final Logger log = LoggerFactory.getLogger(EntryPoint.class);
     private static final boolean GENERATE_LAUNCH_CONFIGS = false;
 
-    public static void main(String[] args) throws Exception, RepositoryInitialisationError {
+    public static void main(@NotNull String[] args) throws Exception, RepositoryInitialisationError {
         launchGenerate(args);
     }
 
-    private static synchronized void launchGenerate(String[] args) throws IOException, RepositoryInitialisationError {
+    private static synchronized void launchGenerate(@NotNull String[] args) throws IOException, RepositoryInitialisationError {
         var params = new Params();
         log.info("Process started with the following arguments: " + Arrays.toString(args));
         params.init(args);
@@ -104,7 +104,8 @@ public class EntryPoint {
                 );
             }
             DBeaverCopyrightConfigurationGenerator.generateXml();
-            List<ResultInfo> executionResults = forkJoinPool.submit(() -> pathsManager.getProductsPathsAndWorkDirs().entrySet().parallelStream().map((productPath) -> {
+            var productPaths = pathsManager.getProductsPathsAndWorkDirs();
+            List<ResultInfo> executionResults = forkJoinPool.submit(() -> productPaths.entrySet().parallelStream().map(productPath -> {
                 log.info("Starting generation for {}", productPath);
                 log.debug("Thread name {} used for {}", Thread.currentThread().getName(), productPath);
                 try {
@@ -234,7 +235,8 @@ public class EntryPoint {
         }
     }
 
-    private static ForkJoinPool createForkJoinPool(Params params) {
+    @NotNull
+    private static ForkJoinPool createForkJoinPool(@NotNull Params params) {
         if (params.singleCoreMode) {
             return new ForkJoinPool(1);
         } else {

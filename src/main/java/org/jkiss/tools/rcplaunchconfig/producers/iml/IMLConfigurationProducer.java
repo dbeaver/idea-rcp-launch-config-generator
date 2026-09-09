@@ -241,11 +241,13 @@ public class IMLConfigurationProducer implements IImportListener {
         }
     }
 
-    private String generateLaunchConfig(Path productPath, Result result) {
+    @NotNull
+    private String generateLaunchConfig(@NotNull Path productPath, @NotNull Result result) {
         StringBuilder config = new StringBuilder();
         config.append("<component name=\"ProjectRunConfigurationManager\">\n");
         config.append(
-            "  <configuration default=\"false\" name=\"Run %s\" type=\"Application\" folderName=\"Generated\" factoryName=\"Application\">\n"
+            ("  <configuration default=\"false\" name=\"Run %s\" type=\"Application\""
+                + " folderName=\"Generated\" factoryName=\"Application\">\n")
                 .formatted(result.getProductName()));
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH\" value=\"21\" />\n");
         config.append("    <option name=\"ALTERNATIVE_JRE_PATH_ENABLED\" value=\"true\" />\n");
@@ -301,7 +303,11 @@ public class IMLConfigurationProducer implements IImportListener {
         return config.toString();
     }
 
-    private void buildProgramParameters(StringBuilder config, Path productPath, Result result) {
+    private void buildProgramParameters(
+        @NotNull StringBuilder config,
+        @NotNull Path productPath,
+        @NotNull Result result
+    ) {
         config.append("    <option name=\"PROGRAM_PARAMETERS\" value=\"-name ");
         config.append(result.getProductName()).append(" ");
         Path customData = PathsManager.INSTANCE.getOverridenDataFolderLocation(result.getProductUID());
@@ -333,6 +339,7 @@ public class IMLConfigurationProducer implements IImportListener {
         config.append("\"/>\n");
     }
 
+    @NotNull
     private Set<Path> generateRootModules() throws IOException {
         Set<Path> presentModules = PathsManager.INSTANCE.getModulesRoots()
             .stream()
@@ -347,9 +354,14 @@ public class IMLConfigurationProducer implements IImportListener {
         return rootModules;
     }
 
-    private void createModules(Set<Path> presentModules, Path imlModuleRoot, Set<Path> rootModules, boolean isMaven) throws IOException {
+    private void createModules(
+        @NotNull Set<Path> presentModules,
+        @NotNull Path imlModuleRoot,
+        @NotNull Set<Path> rootModules,
+        boolean isMaven
+    ) throws IOException {
         for (Path presentModule : presentModules) {
-            String rootModuleConfig = generateNonOSGIModule(presentModule, isMaven);
+            String rootModuleConfig = generateNonOsgiModule(presentModule, isMaven);
             Path rootIml = imlModuleRoot.resolve(presentModule.getFileName() + ".iml");
 
             rootModules.add(rootIml);
@@ -389,7 +401,7 @@ public class IMLConfigurationProducer implements IImportListener {
     private void appendSource(
         @NotNull StringBuilder sb,
         @NotNull Path module,
-        String relativePath,
+        @NotNull String relativePath,
         boolean isTest,
         @Nullable String type
     ) {
@@ -417,7 +429,8 @@ public class IMLConfigurationProducer implements IImportListener {
             || Files.isDirectory(module.resolve("src/main/resources"));
     }
 
-    private String generateNonOSGIModule(@NotNull Path presentModule, boolean isMaven) throws IOException {
+    @NotNull
+    private String generateNonOsgiModule(@NotNull Path presentModule, boolean isMaven) throws IOException {
         StringBuilder productExcludesAndIncludes = new StringBuilder();
         Map<Path, String> productsPathsAndWorkDirs = PathsManager.INSTANCE.getProductsPathsAndWorkDirs();
         if (isMaven) {
@@ -544,6 +557,7 @@ public class IMLConfigurationProducer implements IImportListener {
         }
     }
 
+    @NotNull
     private String generateModulesConfig() throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -567,7 +581,7 @@ public class IMLConfigurationProducer implements IImportListener {
         return builder.toString();
     }
 
-    private void processAdditionalIMLModules(StringBuilder builder) throws IOException {
+    private void processAdditionalIMLModules(@NotNull StringBuilder builder) throws IOException {
         List<Path> additionalIMlModules = PathsManager.INSTANCE.getAdditionalIMlModules();
         if (additionalIMlModules == null) {
             return;
@@ -579,9 +593,9 @@ public class IMLConfigurationProducer implements IImportListener {
     }
 
     private void processModulePath(
-        StringBuilder builder,
-        Path sourceFile,
-        Path imlModulesPath
+        @NotNull StringBuilder builder,
+        @NotNull Path sourceFile,
+        @NotNull Path imlModulesPath
     ) throws IOException {
         if (sourceFile.toFile().isDirectory()) {
             try (Stream<Path> walk = Files.walk(sourceFile)) {
@@ -1048,7 +1062,7 @@ public class IMLConfigurationProducer implements IImportListener {
         };
     }
 
-    private void appendResourceSources(Path path, StringBuilder builder) {
+    private void appendResourceSources(@NotNull Path path, @NotNull StringBuilder builder) {
         for (String resourceFolder : RESOURCE_FOLDERS) {
             Path testFolder = path.resolve(resourceFolder);
             if (testFolder.toFile().exists()) {
@@ -1059,7 +1073,7 @@ public class IMLConfigurationProducer implements IImportListener {
         }
     }
 
-    private void appendTestSources(@NotNull Path bundlePath, StringBuilder builder) {
+    private void appendTestSources(@NotNull Path bundlePath, @NotNull StringBuilder builder) {
         Path testFolder = bundlePath.resolve(TEST_FOLDER);
         if (testFolder.toFile().exists()) {
             builder.append("   <sourceFolder url=\"")
@@ -1093,7 +1107,8 @@ public class IMLConfigurationProducer implements IImportListener {
         return builder.toString();
     }
 
-    private Properties readBuildConfiguration(Path bundlePath) throws IOException {
+    @NotNull
+    private Properties readBuildConfiguration(@NotNull Path bundlePath) throws IOException {
         Path resolve = bundlePath.resolve("build.properties");
         return FileUtils.readPropertiesFile(resolve);
     }
@@ -1192,7 +1207,7 @@ public class IMLConfigurationProducer implements IImportListener {
     }
 
     @Nullable
-    private String generateXMLLibraryConfig(@NotNull BundleInfo bundleInfo, Result result) {
+    private String generateXMLLibraryConfig(@NotNull BundleInfo bundleInfo, @NotNull Result result) {
         if (bundleInfo.getPath() == null) {
             log.error("Bundle " + bundleInfo.getBundleName() + " path not found");
             return null;
@@ -1229,8 +1244,8 @@ public class IMLConfigurationProducer implements IImportListener {
 
     private void endLibraryEntry(
         @NotNull StringBuilder builder,
-        Result result,
-        Set<Pair<String, Version>> resolvedBundles
+        @NotNull Result result,
+        @NotNull Set<Pair<String, Version>> resolvedBundles
     ) {
         builder.append("     </CLASSES>\n");
         builder.append("     <JAVADOC />\n");
@@ -1251,7 +1266,7 @@ public class IMLConfigurationProducer implements IImportListener {
         builder.append("  </orderEntry>\n");
     }
 
-    private static void addLibraryEntry(BundleInfo bundleByName,
+    private static void addLibraryEntry(@NotNull BundleInfo bundleByName,
                                         @NotNull StringBuilder builder,
                                         boolean isExported,
                                         boolean directoryBundle,
@@ -1271,30 +1286,37 @@ public class IMLConfigurationProducer implements IImportListener {
         }
     }
 
+    @NotNull
     private Path getImlModulePath(@NotNull BundleInfo bundleInfo) {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(bundleInfo.getBundleName() + ".iml");
     }
 
+    @NotNull
     private Path getImlModulePath(@NotNull FeatureInfo featureInfo) {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(featureInfo.getFeatureName() + ".iml");
     }
 
+    @NotNull
     private Path getImplModuleConfigPath() {
         return getIdeaConfigsPath().resolve("modules.xml");
     }
 
+    @NotNull
     private Path getIdeaConfigsPath() {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/");
     }
 
+    @NotNull
     private Path getLibraryConfigPath() {
         return getIdeaConfigsPath().resolve("libraries/");
     }
 
+    @NotNull
     private Path getMavenRepositoryPath() {
         return PathsManager.INSTANCE.getMavenRepoPath();
     }
 
+    @NotNull
     private Path getXMLRunConfigurationPath() {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/runConfigurations/");
     }

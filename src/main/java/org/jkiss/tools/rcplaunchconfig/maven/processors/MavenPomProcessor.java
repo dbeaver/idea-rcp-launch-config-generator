@@ -369,6 +369,7 @@ public class MavenPomProcessor {
     }
 
 
+    @Nullable
     private static String getProjectVersion(
         @NotNull Document doc,
         @NotNull File currentPomFile,
@@ -391,6 +392,7 @@ public class MavenPomProcessor {
         return getParentTagValue(doc, "version", currentPomFile, visitedPomPaths);
     }
 
+    @Nullable
     private static String resolveProperty(
         @NotNull Document doc,
         @NotNull String propertyName,
@@ -433,7 +435,11 @@ public class MavenPomProcessor {
         return getParentTagValue(doc, propertyName, currentPomFile, visitedPomPaths);
     }
 
-    private static String searchForLatestProperty(@NotNull String propertyName, @NotNull LinkedHashSet<String> visitedPomPaths) {
+    @Nullable
+    private static String searchForLatestProperty(
+        @NotNull String propertyName,
+        @NotNull LinkedHashSet<String> visitedPomPaths
+    ) {
         for (String visitedPomPath : visitedPomPaths) {
             File visitedPomFile = new File(visitedPomPath);
             if (!visitedPomFile.exists()) {
@@ -459,6 +465,7 @@ public class MavenPomProcessor {
         return null;
     }
 
+    @Nullable
     private static String getDependencyManagementVersion(
         @NotNull Document doc,
         @NotNull String groupId,
@@ -535,6 +542,7 @@ public class MavenPomProcessor {
         return null;
     }
 
+    @Nullable
     private static String tryToGetVersionFromBoms(
         @NotNull Document doc,
         @NotNull String groupId,
@@ -545,6 +553,7 @@ public class MavenPomProcessor {
         return tryToGetVersionFromBoms(doc, groupId, artifactId, currentPomFile, visitedPomPaths, new LinkedHashSet<>());
     }
 
+    @Nullable
     private static String tryToGetVersionFromBoms(
         @NotNull Document doc,
         @NotNull String groupId,
@@ -622,10 +631,11 @@ public class MavenPomProcessor {
         }
     }
 
+    @NotNull
     private static List<MavenDependency> listBOMDependencies(
-        Document doc,
-        LinkedHashSet<String> visitedPomPaths,
-        File currentPomFile
+        @NotNull Document doc,
+        @NotNull LinkedHashSet<String> visitedPomPaths,
+        @NotNull File currentPomFile
     ) throws IOException, ParserConfigurationException, SAXException {
         List<MavenDependency> bomDependencies = new ArrayList<>();
         // Check BOM (dependencyManagement with type "pom")
@@ -686,7 +696,13 @@ public class MavenPomProcessor {
         return childrenByTag;
     }
 
-    public static String getParentTagValue(Document doc, String tag, File currentPomFile, LinkedHashSet<String> visitedPomPaths) {
+    @Nullable
+    public static String getParentTagValue(
+        @NotNull Document doc,
+        @NotNull String tag,
+        @NotNull File currentPomFile,
+        @NotNull LinkedHashSet<String> visitedPomPaths
+    ) {
         NodeList parentNodes = doc.getElementsByTagName(PARENT_TAG);
         if (parentNodes.getLength() > 0) {
             Element parent = (Element) parentNodes.item(0);
