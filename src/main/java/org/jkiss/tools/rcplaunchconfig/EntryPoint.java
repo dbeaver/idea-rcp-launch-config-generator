@@ -224,6 +224,7 @@ public class EntryPoint {
                 dependencyGraph.printDependencyTree(root);
                 log.debug(result.getBundlesByNames().size() + " additional bundles to resolve found");
 
+                IMLConfigurationProducer.INSTANCE.prepareMavenArtifacts(List.of(result));
                 IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, null);
             }
             log.info("Producing final IML configuration...");

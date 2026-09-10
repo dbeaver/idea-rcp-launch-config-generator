@@ -34,7 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.security.MessageDigest;
@@ -101,7 +100,6 @@ public class IMLConfigurationProducer implements IImportListener {
      */
     public void generateIMLFiles(@NotNull Result result, @Nullable Path productPath) throws IOException {
         log.info("\t- Generating IML configuration " + productPath);
-        prepareMavenArtifacts(List.of(result));
 
         // Bundles
         List<ModuleInfo> modules = new ArrayList<>();
@@ -538,19 +536,14 @@ public class IMLConfigurationProducer implements IImportListener {
         }
         try {
             if (createdModules.contains(configPath)) {
-                if (requireEquivalent && (!Files.exists(configPath) || !Files.readString(configPath).equals(libraryConfig))) {
+                if (requireEquivalent && (!Files.exists(configPath)
+                    || !Files.readString(configPath, StandardCharsets.UTF_8).equals(libraryConfig))) {
                     throw new IOException("Conflicting generated configuration for " + configPath);
                 }
                 return;
             }
-            Files.deleteIfExists(configPath);
             Files.createDirectories(configPath.getParent());
-            Files.createFile(configPath);
-            if (Files.exists(configPath)) {
-                try (PrintWriter out = new PrintWriter(configPath.toFile())) {
-                    out.print(libraryConfig);
-                }
-            }
+            Files.writeString(configPath, libraryConfig, StandardCharsets.UTF_8);
             createdModules.add(configPath);
         } finally {
             lock.unlock();
@@ -1029,15 +1022,21 @@ public class IMLConfigurationProducer implements IImportListener {
         }
     }
 
-    private static void removeLegacyMavenLibraryConfig(
+    private void removeLegacyMavenLibraryConfig(
         @NotNull Path libraryDirectory,
         @NotNull String libraryName
     ) throws IOException {
-        Path legacyConfig = libraryDirectory.resolve(getLegacyLibraryFileName(libraryName));
-        if (Files.isRegularFile(legacyConfig) && Files.readString(legacyConfig).contains(
-            "<library name=\"" + libraryName + "\">"
-        )) {
-            Files.delete(legacyConfig);
+        lock.lock();
+        try {
+            Path legacyConfig = libraryDirectory.resolve(getLegacyLibraryFileName(libraryName));
+            if (Files.isRegularFile(legacyConfig)
+                && Files.readString(legacyConfig, StandardCharsets.UTF_8).contains(
+                    "<library name=\"" + libraryName + "\">"
+                )) {
+                Files.deleteIfExists(legacyConfig);
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
