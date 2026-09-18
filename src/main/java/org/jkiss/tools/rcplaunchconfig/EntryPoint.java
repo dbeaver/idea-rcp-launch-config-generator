@@ -56,15 +56,11 @@ public class EntryPoint {
     private static final Logger log = LoggerFactory.getLogger(EntryPoint.class);
     private static final boolean GENERATE_LAUNCH_CONFIGS = false;
 
-    public static void main(String[] args) throws RepositoryInitialisationError {
-        try {
-            launchGenerate(args);
-        } catch (Exception exception) {
-            exception.printStackTrace(System.out);
-        }
+    public static void main(@NotNull String[] args) throws Exception, RepositoryInitialisationError {
+        launchGenerate(args);
     }
 
-    private static void launchGenerate(String[] args) throws IOException, RepositoryInitialisationError {
+    private static synchronized void launchGenerate(@NotNull String[] args) throws IOException, RepositoryInitialisationError {
         var params = new Params();
         log.info("Process started with the following arguments: " + Arrays.toString(args));
         params.init(args);
@@ -82,6 +78,7 @@ public class EntryPoint {
 
             var pathsManager = PathsManager.INSTANCE;
             pathsManager.init(settings, params.projectsFolderPath, params.eclipsePath);
+            IMLConfigurationProducer.INSTANCE.beginGeneration();
             Path envPath = params.configFilePath.getParent().resolve("additionalProperties.json");
             if (Files.exists(envPath)) {
                 List<PropertyConfig> additionalProperties = ConfigFileManager.processAdditionalProperties(envPath);
@@ -107,7 +104,8 @@ public class EntryPoint {
                 );
             }
             DBeaverCopyrightConfigurationGenerator.generateXml();
-            List<ResultInfo> executionResults = forkJoinPool.submit(() -> pathsManager.getProductsPathsAndWorkDirs().entrySet().parallelStream().map((productPath) -> {
+            var productPaths = pathsManager.getProductsPathsAndWorkDirs();
+            List<ResultInfo> executionResults = forkJoinPool.submit(() -> productPaths.entrySet().parallelStream().map(productPath -> {
                 log.info("Starting generation for {}", productPath);
                 log.debug("Thread name {} used for {}", Thread.currentThread().getName(), productPath);
                 try {
@@ -175,9 +173,20 @@ public class EntryPoint {
                         log.info("Starting to load test bundles for {}...", result.getProductName());
                         PluginResolver.resolveTestBundlesAndLibraries(result, result.getProductGraph());
                     }
-                    {
-                        IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, resultPath);
-                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            })).join();
+
+            IMLConfigurationProducer.INSTANCE.prepareMavenArtifacts(
+                executionResults.stream().map(ResultInfo::result).toList()
+            );
+            forkJoinPool.submit(() -> executionResults.parallelStream().forEach(executionResult -> {
+                try {
+                    IMLConfigurationProducer.INSTANCE.generateIMLFiles(
+                        executionResult.result(),
+                        executionResult.resultPath()
+                    );
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -215,6 +224,7 @@ public class EntryPoint {
                 dependencyGraph.printDependencyTree(root);
                 log.debug(result.getBundlesByNames().size() + " additional bundles to resolve found");
 
+                IMLConfigurationProducer.INSTANCE.prepareMavenArtifacts(List.of(result));
                 IMLConfigurationProducer.INSTANCE.generateIMLFiles(result, null);
             }
             log.info("Producing final IML configuration...");
@@ -226,7 +236,8 @@ public class EntryPoint {
         }
     }
 
-    private static ForkJoinPool createForkJoinPool(Params params) {
+    @NotNull
+    private static ForkJoinPool createForkJoinPool(@NotNull Params params) {
         if (params.singleCoreMode) {
             return new ForkJoinPool(1);
         } else {

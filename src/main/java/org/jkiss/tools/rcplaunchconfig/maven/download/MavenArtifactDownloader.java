@@ -44,20 +44,16 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.utils.Pair;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.*;
 
 public class MavenArtifactDownloader {
-    private static final Logger log = LoggerFactory.getLogger(MavenArtifactDownloader.class);
-
     private static final String DEFAULT_REPO_LOCAL = String.format("%s/.m2/repository", System.getProperty("user.home"));
     private static final List<RemoteRepository> REPOS = List.of(
         new RemoteRepository.Builder("central", "default", "https://repo1.maven.org/maven2/").build()
-//        new RemoteRepository.Builder("spring-milestones", "default", "https://repo.spring.io/milestone").build(),
-//        new RemoteRepository.Builder("spring-releases", "default", "https://repo.spring.io/release").build()
+    // new RemoteRepository.Builder("spring-milestones", "default", "https://repo.spring.io/milestone").build(),
+    // new RemoteRepository.Builder("spring-releases", "default", "https://repo.spring.io/release").build()
     );
 
     private static final Set<String> DEFAULT_SCOPES = Set.of(JavaScopes.COMPILE, JavaScopes.RUNTIME, JavaScopes.TEST);
@@ -84,6 +80,7 @@ public class MavenArtifactDownloader {
      * @param isBOM             if true, the dependencies are treated as a BOM (Bill of Materials) and will use the import scope
      * @return jar files absolute path
      **/
+    @NotNull
     public static List<Pair<MavenDependency, Path>> resolve(@NotNull List<MavenDependency> mavenDependencies, boolean isBOM
     ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
         return resolve(mavenDependencies, List.of(), isBOM);
@@ -97,6 +94,7 @@ public class MavenArtifactDownloader {
      * @param isBOM                   if true, the dependencies are treated as a BOM (Bill of Materials) and will use the import scope
      * @return jar files absolute path
      **/
+    @NotNull
     public static List<Pair<MavenDependency, Path>> resolve(
         @NotNull List<MavenDependency> mavenDependencies,
         @NotNull List<MavenDependency> managedMavenDependencies,
@@ -112,23 +110,6 @@ public class MavenArtifactDownloader {
         );
     }
 
-    @NotNull
-    public static Pair<MavenDependency, Path> resolvePom(@NotNull MavenDependency mavenDependency) throws ArtifactResolutionException {
-        RepositorySystemSession session = buildSession(DEFAULT_REPO_LOCAL);
-
-        ArtifactRequest request = new ArtifactRequest();
-        request.setArtifact(new DefaultArtifact(
-            mavenDependency.group(),
-            mavenDependency.name(),
-            "pom",
-            mavenDependency.version()
-        ));
-        request.setRepositories(REPOS);
-
-        ArtifactResult result = system.resolveArtifact(session, request);
-        return new Pair<>(mavenDependency, Path.of(result.getArtifact().getFile().getAbsolutePath()));
-    }
-
     /**
      * resolve
      *
@@ -138,6 +119,7 @@ public class MavenArtifactDownloader {
      * @param remoteRepos       default to DEFAULT_REPO_REMOTE if null or empty
      * @return jar files absolute path
      **/
+    @NotNull
     public static List<Pair<MavenDependency, Path>> resolve(
         @NotNull List<MavenDependency> mavenDependencies,
         @NotNull List<MavenDependency> managedMavenDependencies,
@@ -188,10 +170,92 @@ public class MavenArtifactDownloader {
                     Path.of(artifact.getFile().getAbsolutePath())
                 ));
             } else {
-                log.error("UNRESOLVED: " + artifactResult.getArtifact() + " - " + artifactResult.getExceptions());
+                Throwable cause = artifactResult.getExceptions().isEmpty() ? null : artifactResult.getExceptions().getFirst();
+                throw new DependencyResolutionException(
+                    result,
+                    "Unresolved Maven artifact " + artifactResult.getArtifact(),
+                    cause
+                );
             }
         }
         return resolvedDependencies;
+    }
+
+    @NotNull
+    public static List<Pair<MavenDependency, Path>> resolveClasspath(
+        @NotNull List<MavenDependency> mavenDependencies,
+        @NotNull List<MavenDependency> managedMavenDependencies
+    ) throws DependencyResolutionException, NoLocalRepositoryManagerException {
+        return resolveClasspath(mavenDependencies, managedMavenDependencies, DEFAULT_REPO_LOCAL, REPOS);
+    }
+
+    @NotNull
+    public static List<Pair<MavenDependency, Path>> resolveClasspath(
+        @NotNull List<MavenDependency> mavenDependencies,
+        @NotNull List<MavenDependency> managedMavenDependencies,
+        @NotNull String localRepo,
+        @NotNull List<RemoteRepository> remoteRepos
+    ) throws DependencyResolutionException {
+        List<MavenDependency> mainDependencies = mavenDependencies.stream()
+            .filter(dependency -> !dependency.isTestScope())
+            .toList();
+        List<MavenDependency> testDependencies = mavenDependencies.stream()
+            .filter(MavenDependency::isTestScope)
+            .toList();
+
+        // A shorter test path must not mediate away a compile dependency. Resolve the classpaths independently,
+        // then let the main graph win GA conflicts while retaining test-only artifacts with derived TEST scope.
+        Map<String, Pair<MavenDependency, Path>> classpath = new LinkedHashMap<>();
+        mergeClasspath(classpath, resolve(
+            mainDependencies,
+            managedMavenDependencies,
+            DEFAULT_SCOPES,
+            localRepo,
+            remoteRepos,
+            false
+        ));
+        List<Pair<MavenDependency, Path>> resolvedTestDependencies = resolve(
+            testDependencies,
+            managedMavenDependencies,
+            DEFAULT_SCOPES,
+            localRepo,
+            remoteRepos,
+            false
+        ).stream()
+            .map(dependency -> new Pair<>(
+                dependency.getFirst().withScope(MavenDependency.SCOPE_TEST),
+                dependency.getSecond()
+            ))
+            .toList();
+        mergeClasspath(classpath, resolvedTestDependencies);
+        return new ArrayList<>(classpath.values());
+    }
+
+    private static void mergeClasspath(
+        @NotNull Map<String, Pair<MavenDependency, Path>> classpath,
+        @NotNull List<Pair<MavenDependency, Path>> dependencies
+    ) {
+        for (Pair<MavenDependency, Path> dependency : dependencies) {
+            MavenDependency artifact = dependency.getFirst();
+            classpath.putIfAbsent(artifact.group() + ":" + artifact.name(), dependency);
+        }
+    }
+
+    @NotNull
+    public static Pair<MavenDependency, Path> resolvePom(@NotNull MavenDependency mavenDependency) throws ArtifactResolutionException {
+        RepositorySystemSession session = buildSession(DEFAULT_REPO_LOCAL);
+
+        ArtifactRequest request = new ArtifactRequest();
+        request.setArtifact(new DefaultArtifact(
+            mavenDependency.group(),
+            mavenDependency.name(),
+            "pom",
+            mavenDependency.version()
+        ));
+        request.setRepositories(REPOS);
+
+        ArtifactResult result = system.resolveArtifact(session, request);
+        return new Pair<>(mavenDependency, Path.of(result.getArtifact().getFile().getAbsolutePath()));
     }
 
     // effective scopes come from the collected graph, not from the pom: the resolver derives
@@ -205,7 +269,7 @@ public class MavenArtifactDownloader {
         }
         root.accept(new DependencyVisitor() {
             @Override
-            public boolean visitEnter(DependencyNode node) {
+            public boolean visitEnter(@NotNull DependencyNode node) {
                 Dependency dependency = node.getDependency();
                 if (dependency != null && dependency.getScope() != null && !dependency.getScope().isEmpty()) {
                     scopes.putIfAbsent(getCoordinates(dependency.getArtifact()), dependency.getScope());
@@ -214,7 +278,7 @@ public class MavenArtifactDownloader {
             }
 
             @Override
-            public boolean visitLeave(DependencyNode node) {
+            public boolean visitLeave(@NotNull DependencyNode node) {
                 return true;
             }
         });
@@ -263,7 +327,11 @@ public class MavenArtifactDownloader {
                 .filter(dependency -> dependency.version() != null)
                 .map(dependency -> new Dependency(
                     new DefaultArtifact(dependency.group(), dependency.name(), "jar", dependency.version()),
-                    "compile"
+                    dependency.scope() == null ? JavaScopes.COMPILE : dependency.scope(),
+                    false,
+                    dependency.exclusions().stream()
+                        .map(exclusion -> new Exclusion(exclusion.group(), exclusion.name(), "*", "*"))
+                        .toList()
                 ))
                 .toList();
             collectRequest.setManagedDependencies(managedDependencies);
