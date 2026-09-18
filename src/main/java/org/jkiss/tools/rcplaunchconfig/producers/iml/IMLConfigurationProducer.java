@@ -165,6 +165,14 @@ public class IMLConfigurationProducer implements IImportListener {
         createConfigFile(getImplModuleConfigPath(), modulesConfig);
         createRunConfiguration();
         processAdditionalConfigFiles();
+        Path vcsConfiguration = getIdeaConfigsPath().resolve("vcs.xml");
+        if (Files.exists(vcsConfiguration)) {
+            DBeaverWorkspacePatcher.patchVcsMappings(
+                vcsConfiguration,
+                PathsManager.INSTANCE.getImlModulesPath(),
+                PathsManager.INSTANCE.getModulesRoots()
+            );
+        }
     }
 
     /**

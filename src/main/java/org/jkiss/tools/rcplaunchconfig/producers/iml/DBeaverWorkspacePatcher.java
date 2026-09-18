@@ -7,6 +7,13 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -14,8 +21,6 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.File;
-import java.nio.file.Path;
 
 public class DBeaverWorkspacePatcher {
     private static final Logger log = LoggerFactory.getLogger(DBeaverWorkspacePatcher.class);
@@ -60,18 +65,81 @@ public class DBeaverWorkspacePatcher {
         }
     }
 
-    private static void addOrUpdateComponent(Document doc, String componentName, String[][] options) {
-        NodeList components = doc.getElementsByTagName("component");
-        Element targetComponent = null;
+    public static void patchVcsMappings(
+        @NotNull Path path,
+        @NotNull Path projectPath,
+        @NotNull Collection<Path> repositoryPaths
+    ) throws IOException {
+        try {
+            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Document doc = builder.parse(path.toFile());
+            doc.getDocumentElement().normalize();
 
-        // Check if the component exists
+            Element mappingsComponent = findComponent(doc, "VcsDirectoryMappings");
+            if (mappingsComponent == null) {
+                mappingsComponent = doc.createElement("component");
+                mappingsComponent.setAttribute("name", "VcsDirectoryMappings");
+                doc.getDocumentElement().appendChild(mappingsComponent);
+            }
+            Element targetComponent = mappingsComponent;
+
+            Set<String> existingMappings = new HashSet<>();
+            NodeList mappings = mappingsComponent.getElementsByTagName("mapping");
+            for (int i = 0; i < mappings.getLength(); i++) {
+                existingMappings.add(((Element) mappings.item(i)).getAttribute("directory"));
+            }
+
+            Path absoluteProjectPath = projectPath.toAbsolutePath().normalize();
+            repositoryPaths.stream()
+                .map(repositoryPath -> repositoryPath.toAbsolutePath().normalize())
+                .filter(repositoryPath -> Files.exists(repositoryPath.resolve(".git")))
+                .sorted()
+                .map(repositoryPath -> toIdeaPath(absoluteProjectPath, repositoryPath))
+                .filter(existingMappings::add)
+                .forEach(directory -> {
+                    Element mapping = doc.createElement("mapping");
+                    mapping.setAttribute("directory", directory);
+                    mapping.setAttribute("vcs", "Git");
+                    targetComponent.appendChild(mapping);
+                });
+
+            saveDocument(doc, path.toFile());
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("Error updating VCS mappings", e);
+        }
+    }
+
+    @NotNull
+    private static String toIdeaPath(@NotNull Path projectPath, @NotNull Path repositoryPath) {
+        Path relativePath = projectPath.relativize(repositoryPath);
+        if (relativePath.getNameCount() == 0) {
+            return "$PROJECT_DIR$";
+        }
+        return "$PROJECT_DIR$/" + relativePath.toString().replace('\\', '/');
+    }
+
+    private static void saveDocument(@NotNull Document doc, @NotNull File xmlFile) throws Exception {
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        Transformer transformer = transformerFactory.newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.transform(new DOMSource(doc), new StreamResult(xmlFile));
+    }
+
+    private static Element findComponent(@NotNull Document doc, @NotNull String componentName) {
+        NodeList components = doc.getElementsByTagName("component");
         for (int i = 0; i < components.getLength(); i++) {
             Element component = (Element) components.item(i);
             if (component.getAttribute("name").equals(componentName)) {
-                targetComponent = component;
-                break;
+                return component;
             }
         }
+        return null;
+    }
+
+    private static void addOrUpdateComponent(Document doc, String componentName, String[][] options) {
+        Element targetComponent = findComponent(doc, componentName);
 
         // If the component does not exist, create it
         if (targetComponent == null) {
