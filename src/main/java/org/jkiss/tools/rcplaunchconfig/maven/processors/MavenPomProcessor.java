@@ -51,9 +51,9 @@ public class MavenPomProcessor {
      * Processes the pom.xml in the current directory.
      * <p>
      * If pom.xml exists, this method extracts the project's groupId, artifactId, version,
-     * and packaging. If the packaging is not "eclipse-plugin", it adds only the main artifact
-     * (ignoring any dependencies) to the MavenLocalArtifactRepository and returns true.
-     * If the packaging is "eclipse-plugin" or any error occurs, it returns false.
+     * and adds the main artifact (ignoring any dependencies) to the MavenLocalArtifactRegistry.
+     * This includes "eclipse-plugin" artifacts, which can also be used as Maven dependencies.
+     * Returns false if the POM is missing or an error occurs.
      * </p>
      *
      * @return true if the artifact was processed and added, false otherwise.
