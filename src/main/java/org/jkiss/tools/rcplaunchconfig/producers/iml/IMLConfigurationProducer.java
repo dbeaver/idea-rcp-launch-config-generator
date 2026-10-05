@@ -70,6 +70,8 @@ public class IMLConfigurationProducer implements IImportListener {
 
     // products are generated in parallel and every maven artifact goes through this set
     private final Set<String> generatedLibraries = ConcurrentHashMap.newKeySet();
+    private final Set<Path> referencedMavenModules = ConcurrentHashMap.newKeySet();
+    private boolean mavenArtifactsCollected;
     private final Set<Path> rootModules = new LinkedHashSet<>();
     private final Set<ModuleInfo> modules = new LinkedHashSet<>();
 
@@ -88,6 +90,7 @@ public class IMLConfigurationProducer implements IImportListener {
      */
     public void generateIMLFiles(@NotNull Result result, @Nullable Path productPath) throws IOException {
         log.info("\t- Generating IML configuration " + productPath);
+        collectMavenArtifacts();
         // Bundles
         List<ModuleInfo> modules = new ArrayList<>();
         for (Set<BundleInfo> value : result.getBundlesByNames().values()) {
@@ -134,24 +137,51 @@ public class IMLConfigurationProducer implements IImportListener {
         }
         log.info(modules.size() + " module IML configs associated for " + result.getProductName());
         this.modules.addAll(modules);
-        rootModules.addAll(generateMavenModules());
         rootModules.addAll(generateRootModules());
+    }
+
+    private synchronized void collectMavenArtifacts() throws IOException {
+        if (mavenArtifactsCollected) {
+            return;
+        }
+        // Maven dependencies can refer to local bundles absent from every product's OSGi graph.
+        Set<Path> artifactPaths = new LinkedHashSet<>();
+        for (Path location : Stream.concat(
+            PathsManager.INSTANCE.getBundlesLocations().stream(),
+            PathsManager.INSTANCE.getTestBundlesPaths().stream()
+        ).distinct().toList()) {
+            if (Files.isDirectory(location)) {
+                try (Stream<Path> children = Files.list(location)) {
+                    children.filter(path -> Files.isRegularFile(path.resolve("pom.xml"))).forEach(artifactPaths::add);
+                }
+            }
+        }
+        if (PathsManager.INSTANCE.getMavenModules() != null) {
+            artifactPaths.addAll(PathsManager.INSTANCE.getMavenModules());
+        }
+        artifactPaths.forEach(MavenPomProcessor::collectArtifacts);
+        mavenArtifactsCollected = true;
     }
 
     @NotNull
     private Set<? extends Path> generateMavenModules() throws IOException {
-        if (PathsManager.INSTANCE.getMavenModules() == null) {
-            return Collections.emptySet();
+        collectMavenArtifacts();
+        if (PathsManager.INSTANCE.getMavenModules() != null) {
+            referencedMavenModules.addAll(PathsManager.INSTANCE.getMavenModules());
         }
-        Set<Path> presentModules = PathsManager.INSTANCE.getMavenModules()
-            .stream()
-            .filter(it -> it.toFile().exists())
-            .collect(Collectors.toSet());
-        presentModules.forEach(MavenPomProcessor::collectArtifacts);
         Set<Path> rootModules = new LinkedHashSet<>();
         Path imlModuleRoot = PathsManager.INSTANCE.getImlModulesPath();
-        createModules(presentModules, imlModuleRoot, rootModules, true);
-        return rootModules;
+        while (true) {
+            Set<Path> pendingModules = referencedMavenModules.stream()
+                .filter(Files::isDirectory)
+                .filter(path -> !createdModules.contains(imlModuleRoot.resolve(path.getFileName() + ".iml")))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (pendingModules.isEmpty()) {
+                return rootModules;
+            }
+            // Generating a module can discover further local Maven dependencies.
+            createModules(pendingModules, imlModuleRoot, rootModules, true);
+        }
     }
 
     /**
@@ -161,6 +191,8 @@ public class IMLConfigurationProducer implements IImportListener {
      * @throws IOException issue during configuration creation/transfer
      */
     public void generateImplConfiguration() throws IOException {
+        // Wait until all products have contributed their OSGi modules to avoid duplicate module entries.
+        rootModules.addAll(generateMavenModules());
         String modulesConfig = generateModulesConfig();
         createConfigFile(getImplModuleConfigPath(), modulesConfig);
         createRunConfiguration();
@@ -921,6 +953,7 @@ public class IMLConfigurationProducer implements IImportListener {
                 builder.append("  <orderEntry type=\"library\" name=\"").append(libraryName).append("\" level=\"project\"")
                     .append(scopeAttribute).append(exportedAttribute).append("/>\n");
             } else {
+                referencedMavenModules.add(dependencyPath);
                 builder.append("  <orderEntry type = \"module\" module-name=\"").append(dependencyPath.getFileName())
                     .append("\"").append(scopeAttribute).append(exportedAttribute).append("/>").append("\n");
             }
@@ -1225,6 +1258,6 @@ public class IMLConfigurationProducer implements IImportListener {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/runConfigurations/");
     }
 
-    private IMLConfigurationProducer() {
+    IMLConfigurationProducer() {
     }
 }
