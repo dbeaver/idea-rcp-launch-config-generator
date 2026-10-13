@@ -23,6 +23,30 @@ Once dependencies are downloaded and IDEA configs created, the folder `dbeaver-w
 
 Now, you can debug code in IDEA, modify Java classes on the fly, etc.
 
+## Checkout branches attached to a GitHub ticket
+
+Use `checkout-ticket-branches.sh` to switch all sibling repository clones to branches attached to a GitHub issue. The script reads linked GitHub branches and pull requests from the ticket, finds matching cloned repositories in the parent folder, fetches missing local branches from `origin`, and runs `git checkout`.
+
+```sh
+export GITHUB_TOKEN=<token>
+./checkout-ticket-branches.sh https://github.com/dbeaver/pro/issues/12345
+```
+
+On Windows, use `checkout-ticket-branches.cmd`:
+
+```cmd
+set GITHUB_TOKEN=<token>
+checkout-ticket-branches.cmd https://github.com/dbeaver/pro/issues/12345
+```
+
+The repositories root defaults to the parent folder of this repository. It can be overridden with the second argument:
+
+```sh
+./checkout-ticket-branches.sh https://github.com/dbeaver/pro/issues/12345 /path/to/repositories
+```
+
+If `GITHUB_TOKEN` or `GH_TOKEN` is not set, the script tries to read a token from `gh auth token`.
+
 ## Manual launch Configuration (Optional information)
 
 This tool generates the `dev.properties` and `config.ini` files needed to run the project in the dev environment, additionally it creates IDEA configuration in `(output folder)/idea-configuration`.
