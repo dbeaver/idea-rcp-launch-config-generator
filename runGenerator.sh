@@ -25,14 +25,14 @@ echo "Build workspace generator"
 # shellcheck disable=SC2086
 "$repositories_root_dir/dbeaver-common/mvnw" clean install \
     $mvn_args \
-    -q \
+    -q -DskipTests=true \
     -f "$script_dir/aggregate"
 
 echo "Run workspace generator"
 # shellcheck disable=SC2086
 "$repositories_root_dir/dbeaver-common/mvnw" package \
     $mvn_args \
-    -q \
+    -q -DskipTests=true \
     -f "$script_dir/pom.xml" \
     exec:java \
     -Dexec.args="-eclipse.version \${eclipse-version} -updateWorkspace -config $target_repo/osgi-app.properties -projectsFolder $repositories_root_dir -eclipse $repositories_root_dir/dbeaver-workspace/dependencies -output $repositories_root_dir/dbeaver-workspace/products/"

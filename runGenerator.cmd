@@ -33,7 +33,7 @@ echo Build workspace generator
 call %GENERATOR_DIR%..\dbeaver-common\mvnw.cmd clean package -DskipTests=true %MAVEN_ARGS% -q -f "%GENERATOR_DIR%aggregate"
 
 echo Run workspace generator
-call %GENERATOR_DIR%..\dbeaver-common\mvnw.cmd -f "%GENERATOR_DIR%pom.xml" package %MAVEN_ARGS% -q exec:java -Dexec.args="-eclipse.version ${eclipse-version} -updateWorkspace -config %WORKING_DIR%osgi-app.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace\products"
+call %GENERATOR_DIR%..\dbeaver-common\mvnw.cmd -f "%GENERATOR_DIR%pom.xml" package %MAVEN_ARGS% -q -DskipTests=true exec:java -Dexec.args="-eclipse.version ${eclipse-version} -updateWorkspace -config %WORKING_DIR%osgi-app.properties -projectsFolder %WORKING_DIR%..\ -eclipse %WORKING_DIR%..\dbeaver-workspace\dependencies -output %WORKING_DIR%..\dbeaver-workspace\products"
 
 :end
 endlocal
