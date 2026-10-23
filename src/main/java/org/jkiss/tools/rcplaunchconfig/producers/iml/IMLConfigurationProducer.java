@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -799,11 +800,11 @@ public class IMLConfigurationProducer implements IImportListener {
             for (int i = 0; i < sources.size(); i++) {
                 Path source = bundleInfo.getPath().resolve(sources.get(i).trim()).normalize();
                 if (!source.startsWith(bundleInfo.getPath().normalize())) {
-                    // IDEA cannot assign the same source root to two modules. Tycho supports shared
-                    // sources, but IDEA needs a separate copy to compile each bundle against its own dependencies.
+                    // IDEA cannot assign the same source root to two modules. A separate directory link
+                    // lets each module compile the shared files against its own dependencies.
                     Path ideaSource = PathsManager.INSTANCE.getImlModulesPath()
-                        .resolve(".idea-sources").resolve(bundleInfo.getBundleName()).resolve(Integer.toString(i));
-                    copyIdeaSources(source, ideaSource);
+                        .resolve(".idea-links").resolve(bundleInfo.getBundleName()).resolve(Integer.toString(i));
+                    createIdeaSourceLink(source, ideaSource);
                     sharedSources.add(ideaSource);
                     continue;
                 }
@@ -1074,27 +1075,32 @@ public class IMLConfigurationProducer implements IImportListener {
         return FileUtils.readPropertiesFile(resolve);
     }
 
-    private static synchronized void copyIdeaSources(Path source, Path destination) throws IOException {
+    private static synchronized void createIdeaSourceLink(Path source, Path link) throws IOException {
         if (!Files.isDirectory(source)) {
             throw new IOException("Shared bundle source directory does not exist: " + source);
         }
-        Files.createDirectories(destination);
-        try (Stream<Path> files = Files.walk(destination)) {
-            for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
-                if (!file.equals(destination) && !Files.exists(source.resolve(destination.relativize(file)))) {
-                    Files.delete(file);
-                }
+        if (Files.exists(link, LinkOption.NOFOLLOW_LINKS)) {
+            if (!Files.isSameFile(source, link)) {
+                throw new IOException("IDEA source link points to a different directory: " + link);
             }
+            return;
         }
-        try (Stream<Path> files = Files.walk(source)) {
-            for (Path file : files.toList()) {
-                Path copy = destination.resolve(source.relativize(file));
-                if (Files.isDirectory(file)) {
-                    Files.createDirectories(copy);
-                } else {
-                    Files.copy(file, copy, StandardCopyOption.REPLACE_EXISTING);
+        Files.createDirectories(link.getParent());
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            // Directory symlinks require special privileges on Windows; junctions do not.
+            Process process = new ProcessBuilder("cmd.exe", "/c", "mklink", "/J",
+                link.toString(), source.toString()).redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            try {
+                if (process.waitFor() != 0) {
+                    throw new IOException("Cannot create IDEA source junction " + link + ": " + output);
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while creating IDEA source junction " + link, e);
             }
+        } else {
+            Files.createSymbolicLink(link, source.toAbsolutePath());
         }
     }
 

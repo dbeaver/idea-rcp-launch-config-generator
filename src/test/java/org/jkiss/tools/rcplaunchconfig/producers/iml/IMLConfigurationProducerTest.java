@@ -92,7 +92,7 @@ class IMLConfigurationProducerTest {
     }
 
     @Test
-    void copiesSharedBundleSourcesIntoSeparateIdeaModule() throws Exception {
+    void linksSharedBundleSourcesIntoSeparateIdeaModule() throws Exception {
         Path main = createModule("bundles", "com.dbeaver.test.mongodb", true);
         Path legacy = createModule("bundles", "com.dbeaver.test.mongodb.legacy", true);
         Files.writeString(main.resolve("build.properties"), "source.. = src/\noutput.. = target/classes/\n");
@@ -115,21 +115,21 @@ class IMLConfigurationProducerTest {
         assertEquals("0", evaluate(readIml(legacy),
             "count(//sourceFolder[contains(@url, '/com.dbeaver.test.mongodb/src')])"));
         assertEquals("1", evaluate(readIml(legacy),
-            "count(//content[contains(@url, '/test-workspace/.idea-sources/com.dbeaver.test.mongodb.legacy/0')]/sourceFolder)"));
+            "count(//content[contains(@url, '/test workspace/.idea-links/com.dbeaver.test.mongodb.legacy/0')]/sourceFolder)"));
         assertEquals("1", evaluate(readIml(legacy), "count(//output[contains(@url, '/target/classes')])"));
-        assertEquals(Files.readString(main.resolve("src/example/Model.java")),
-            Files.readString(PathsManager.INSTANCE.getImlModulesPath().resolve(
-                ".idea-sources/com.dbeaver.test.mongodb.legacy/0/example/Model.java")));
+        Path link = PathsManager.INSTANCE.getImlModulesPath().resolve(".idea-links/com.dbeaver.test.mongodb.legacy/0");
+        assertTrue(Files.isSameFile(main.resolve("src"), link));
 
-        Files.delete(main.resolve("src/example/Model.java"));
+        Files.writeString(main.resolve("src/example/Model.java"), "package example; class Model { int changed; }\n");
+        assertEquals(Files.readString(main.resolve("src/example/Model.java")),
+            Files.readString(link.resolve("example/Model.java")));
         new IMLConfigurationProducer().generateIMLFiles(result, null);
-        assertFalse(Files.exists(PathsManager.INSTANCE.getImlModulesPath().resolve(
-            ".idea-sources/com.dbeaver.test.mongodb.legacy/0/example/Model.java")));
+        assertTrue(Files.isSameFile(main.resolve("src"), link));
     }
 
     private void initPaths(Path service) throws IOException {
         Properties settings = new Properties();
-        settings.setProperty("workspaceName", "test-workspace");
+        settings.setProperty("workspaceName", "test workspace");
         settings.setProperty("bundlesPaths", "repository/bundles");
         settings.setProperty("featuresPaths", "repository/features");
         settings.setProperty("productsPaths", "repository/test.product");
