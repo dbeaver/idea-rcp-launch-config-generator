@@ -21,6 +21,8 @@ Before proceeding with building DBeaver, ensure that your system meets the follo
 Once dependencies are downloaded and IDEA configs created, the folder `dbeaver-workspace` will appear. The IDEA configuration, by default, will be generated in `dbeaver-workspace/dbeaver-ce` or `dbeaver-workspace/dbeaver/cloudbeaver-ce`, which can be opened in IntelliJ IDEA.
 - Launch IDEA and open the configuration. It should contain all launch configurations
 
+Bundles that reuse another bundle's `source..` directory get a separate directory link under the generated workspace's `.idea-links` directory for IDEA compilation. On Windows the generator creates a junction; on macOS and Linux it creates a symbolic link. Edits to the original sources are visible in both modules immediately.
+
 Now, you can debug code in IDEA, modify Java classes on the fly, etc.
 
 ## Manual launch Configuration (Optional information)

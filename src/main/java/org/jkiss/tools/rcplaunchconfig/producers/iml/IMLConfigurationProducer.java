@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -795,9 +796,20 @@ public class IMLConfigurationProducer implements IImportListener {
         if (hasContent) {
             builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">")
                 .append("\n");
-            for (String source : sources) {
+            List<Path> sharedSources = new ArrayList<>();
+            for (int i = 0; i < sources.size(); i++) {
+                Path source = bundleInfo.getPath().resolve(sources.get(i).trim()).normalize();
+                if (!source.startsWith(bundleInfo.getPath().normalize())) {
+                    // IDEA cannot assign the same source root to two modules. A separate directory link
+                    // lets each module compile the shared files against its own dependencies.
+                    Path ideaSource = PathsManager.INSTANCE.getImlModulesPath()
+                        .resolve(".idea-links").resolve(bundleInfo.getBundleName()).resolve(Integer.toString(i));
+                    createIdeaSourceLink(source, ideaSource);
+                    sharedSources.add(ideaSource);
+                    continue;
+                }
                 builder.append("   <sourceFolder url=\"")
-                    .append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false))
+                    .append(getFormattedRelativePath(source, false, false))
                     .append("\"/>").append("\n");
             }
             builder.append("   <excludeFolder url=\"")
@@ -816,6 +828,12 @@ public class IMLConfigurationProducer implements IImportListener {
                 appendResourceSources(bundleInfo.getPath(), builder);
             }
             builder.append("  </content>").append("\n");
+            for (Path source : sharedSources) {
+                String url = getFormattedRelativePath(source, false, false);
+                builder.append("  <content url=\"").append(url).append("\">\n")
+                    .append("   <sourceFolder url=\"").append(url).append("\"/>\n")
+                    .append("  </content>\n");
+            }
         }
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
@@ -1055,6 +1073,35 @@ public class IMLConfigurationProducer implements IImportListener {
     private Properties readBuildConfiguration(Path bundlePath) throws IOException {
         Path resolve = bundlePath.resolve("build.properties");
         return FileUtils.readPropertiesFile(resolve);
+    }
+
+    private static synchronized void createIdeaSourceLink(Path source, Path link) throws IOException {
+        if (!Files.isDirectory(source)) {
+            throw new IOException("Shared bundle source directory does not exist: " + source);
+        }
+        if (Files.exists(link, LinkOption.NOFOLLOW_LINKS)) {
+            if (!Files.isSameFile(source, link)) {
+                throw new IOException("IDEA source link points to a different directory: " + link);
+            }
+            return;
+        }
+        Files.createDirectories(link.getParent());
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            // Directory symlinks require special privileges on Windows; junctions do not.
+            Process process = new ProcessBuilder("cmd.exe", "/c", "mklink", "/J",
+                link.toString(), source.toString()).redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            try {
+                if (process.waitFor() != 0) {
+                    throw new IOException("Cannot create IDEA source junction " + link + ": " + output);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while creating IDEA source junction " + link, e);
+            }
+        } else {
+            Files.createSymbolicLink(link, source.toAbsolutePath());
+        }
     }
 
     private void appendBundleInfo(

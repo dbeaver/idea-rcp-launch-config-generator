@@ -91,9 +91,45 @@ class IMLConfigurationProducerTest {
         assertEquals("JDK_21", evaluate(readIml(api), "string(//component/@LANGUAGE_LEVEL)"));
     }
 
+    @Test
+    void linksSharedBundleSourcesIntoSeparateIdeaModule() throws Exception {
+        Path main = createModule("bundles", "com.dbeaver.test.mongodb", true);
+        Path legacy = createModule("bundles", "com.dbeaver.test.mongodb.legacy", true);
+        Files.writeString(main.resolve("build.properties"), "source.. = src/\noutput.. = target/classes/\n");
+        Files.createDirectories(main.resolve("src/example"));
+        Files.writeString(main.resolve("src/example/Model.java"), "package example; class Model {}\n");
+        Files.writeString(legacy.resolve("build.properties"),
+            "source.. = ../com.dbeaver.test.mongodb/src/\noutput.. = target/classes/\n");
+        initPaths(main);
+
+        Result result = new Result();
+        for (Path bundle : List.of(main, legacy)) {
+            try (var input = Files.newInputStream(bundle.resolve("META-INF/MANIFEST.MF"))) {
+                result.addBundle(ManifestParser.parseManifest(bundle, null, new Manifest(input)));
+            }
+        }
+        new IMLConfigurationProducer().generateIMLFiles(result, null);
+
+        assertEquals("1", evaluate(readIml(main),
+            "count(//sourceFolder[contains(@url, '/com.dbeaver.test.mongodb/src')])"));
+        assertEquals("0", evaluate(readIml(legacy),
+            "count(//sourceFolder[contains(@url, '/com.dbeaver.test.mongodb/src')])"));
+        assertEquals("1", evaluate(readIml(legacy),
+            "count(//content[contains(@url, '/test workspace/.idea-links/com.dbeaver.test.mongodb.legacy/0')]/sourceFolder)"));
+        assertEquals("1", evaluate(readIml(legacy), "count(//output[contains(@url, '/target/classes')])"));
+        Path link = PathsManager.INSTANCE.getImlModulesPath().resolve(".idea-links/com.dbeaver.test.mongodb.legacy/0");
+        assertTrue(Files.isSameFile(main.resolve("src"), link));
+
+        Files.writeString(main.resolve("src/example/Model.java"), "package example; class Model { int changed; }\n");
+        assertEquals(Files.readString(main.resolve("src/example/Model.java")),
+            Files.readString(link.resolve("example/Model.java")));
+        new IMLConfigurationProducer().generateIMLFiles(result, null);
+        assertTrue(Files.isSameFile(main.resolve("src"), link));
+    }
+
     private void initPaths(Path service) throws IOException {
         Properties settings = new Properties();
-        settings.setProperty("workspaceName", "test-workspace");
+        settings.setProperty("workspaceName", "test workspace");
         settings.setProperty("bundlesPaths", "repository/bundles");
         settings.setProperty("featuresPaths", "repository/features");
         settings.setProperty("productsPaths", "repository/test.product");
