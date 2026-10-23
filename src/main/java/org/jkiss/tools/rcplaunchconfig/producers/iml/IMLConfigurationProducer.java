@@ -795,9 +795,20 @@ public class IMLConfigurationProducer implements IImportListener {
         if (hasContent) {
             builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">")
                 .append("\n");
-            for (String source : sources) {
+            List<Path> sharedSources = new ArrayList<>();
+            for (int i = 0; i < sources.size(); i++) {
+                Path source = bundleInfo.getPath().resolve(sources.get(i).trim()).normalize();
+                if (!source.startsWith(bundleInfo.getPath().normalize())) {
+                    // IDEA cannot assign the same source root to two modules. Tycho supports shared
+                    // sources, but IDEA needs a separate copy to compile each bundle against its own dependencies.
+                    Path ideaSource = PathsManager.INSTANCE.getImlModulesPath()
+                        .resolve(".idea-sources").resolve(bundleInfo.getBundleName()).resolve(Integer.toString(i));
+                    copyIdeaSources(source, ideaSource);
+                    sharedSources.add(ideaSource);
+                    continue;
+                }
                 builder.append("   <sourceFolder url=\"")
-                    .append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false))
+                    .append(getFormattedRelativePath(source, false, false))
                     .append("\"/>").append("\n");
             }
             builder.append("   <excludeFolder url=\"")
@@ -816,6 +827,12 @@ public class IMLConfigurationProducer implements IImportListener {
                 appendResourceSources(bundleInfo.getPath(), builder);
             }
             builder.append("  </content>").append("\n");
+            for (Path source : sharedSources) {
+                String url = getFormattedRelativePath(source, false, false);
+                builder.append("  <content url=\"").append(url).append("\">\n")
+                    .append("   <sourceFolder url=\"").append(url).append("\"/>\n")
+                    .append("  </content>\n");
+            }
         }
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
@@ -1055,6 +1072,30 @@ public class IMLConfigurationProducer implements IImportListener {
     private Properties readBuildConfiguration(Path bundlePath) throws IOException {
         Path resolve = bundlePath.resolve("build.properties");
         return FileUtils.readPropertiesFile(resolve);
+    }
+
+    private static synchronized void copyIdeaSources(Path source, Path destination) throws IOException {
+        if (!Files.isDirectory(source)) {
+            throw new IOException("Shared bundle source directory does not exist: " + source);
+        }
+        Files.createDirectories(destination);
+        try (Stream<Path> files = Files.walk(destination)) {
+            for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+                if (!file.equals(destination) && !Files.exists(source.resolve(destination.relativize(file)))) {
+                    Files.delete(file);
+                }
+            }
+        }
+        try (Stream<Path> files = Files.walk(source)) {
+            for (Path file : files.toList()) {
+                Path copy = destination.resolve(source.relativize(file));
+                if (Files.isDirectory(file)) {
+                    Files.createDirectories(copy);
+                } else {
+                    Files.copy(file, copy, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
 
     private void appendBundleInfo(
