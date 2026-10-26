@@ -19,12 +19,12 @@ package org.jkiss.tools.rcplaunchconfig.maven.registry;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MavenLocalArtifactRegistry {
-    private final Map<ArtifactKey, Path> providedDependencies = new HashMap<>();
-    private final Map<ArtifactKey, Path> localThirdPartyDependencies = new HashMap<>();
+    private final Map<ArtifactKey, Path> providedDependencies = new ConcurrentHashMap<>();
+    private final Map<ArtifactKey, Path> localThirdPartyDependencies = new ConcurrentHashMap<>();
     public static final MavenLocalArtifactRegistry INSTANCE = new MavenLocalArtifactRegistry();
 
     public void addProvidedDependency(MavenDependency dependency, Path path) {
