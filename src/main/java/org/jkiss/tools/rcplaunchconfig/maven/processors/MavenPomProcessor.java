@@ -120,7 +120,7 @@ public class MavenPomProcessor {
             Document doc = builder.parse(inputStream);
             doc.getDocumentElement().normalize();
             List<MavenDependency> managedDependencies = listManagedDependencies(doc, path.toFile());
-            List<Element> dependencies = listProjectDependencies(doc);
+            List<Element> dependencies = listProjectDependencies(doc, pomXMl);
             List<MavenDependency> dependencyList = new ArrayList<>();
             for (Element dependencyElement : dependencies) {
                 String groupId = getTagValue(dependencyElement, "groupId");
@@ -149,6 +149,29 @@ public class MavenPomProcessor {
             log.error("Error processing pom.xml", e);
             return List.of();
         }
+    }
+
+    @NotNull
+    private static List<Element> listProjectDependencies(@NotNull Document doc, @NotNull Path pomPath)
+        throws IOException, ParserConfigurationException, SAXException {
+        Map<String, Element> dependencies = new LinkedHashMap<>();
+        Set<Path> visited = new HashSet<>();
+        while (visited.add(pomPath.toRealPath())) {
+            for (Element dependency : listProjectDependencies(doc)) {
+                String type = getTagValue(dependency, "type");
+                String classifier = getTagValue(dependency, "classifier");
+                String key = getTagValue(dependency, "groupId") + ":" + getTagValue(dependency, "artifactId")
+                    + ":" + (type == null ? "jar" : type) + ":" + (classifier == null ? "" : classifier);
+                dependencies.putIfAbsent(key, dependency);
+            }
+            File parentPom = getParentPomFile(doc, pomPath.toFile());
+            if (parentPom == null || !parentPom.isFile()) {
+                break;
+            }
+            pomPath = parentPom.toPath();
+            doc = parseDocument(pomPath);
+        }
+        return new ArrayList<>(dependencies.values());
     }
 
     @NotNull
