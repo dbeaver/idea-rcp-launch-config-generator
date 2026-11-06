@@ -263,7 +263,7 @@ public class MavenArtifactDownloader {
                 .filter(dependency -> dependency.version() != null)
                 .map(dependency -> new Dependency(
                     new DefaultArtifact(dependency.group(), dependency.name(), "jar", dependency.version()),
-                    "compile"
+                    dependency.scope()
                 ))
                 .toList();
             collectRequest.setManagedDependencies(managedDependencies);
