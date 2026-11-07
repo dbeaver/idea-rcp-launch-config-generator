@@ -26,6 +26,7 @@ import com.dbeaver.osgi.dependency.processing.util.VersionRange;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
+import org.jkiss.tools.rcplaunchconfig.maven.processors.MavenAssemblyProcessor;
 import org.jkiss.tools.rcplaunchconfig.maven.processors.MavenPomProcessor;
 import org.jkiss.tools.rcplaunchconfig.maven.registry.MavenLocalArtifactRegistry;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
@@ -34,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,6 +73,7 @@ public class IMLConfigurationProducer implements IImportListener {
     // products are generated in parallel and every maven artifact goes through this set
     private final Set<String> generatedLibraries = ConcurrentHashMap.newKeySet();
     private final Set<Path> referencedMavenModules = ConcurrentHashMap.newKeySet();
+    private final Map<Path, List<MavenDependency>> bundleMavenDependencies = new ConcurrentHashMap<>();
     private boolean mavenArtifactsCollected;
     private final Set<Path> rootModules = new LinkedHashSet<>();
     private final Set<ModuleInfo> modules = new LinkedHashSet<>();
@@ -495,7 +498,7 @@ public class IMLConfigurationProducer implements IImportListener {
             appendMavenDependencies(presentModule, moduleImports);
             return new StringBuilder().append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                 .append("<module type=\"JAVA_MODULE\" version=\"4\">\n")
-                .append("  <component name=\"NewModuleRootManager\" LANGUAGE_LEVEL=\"JDK_17\">\n")
+                .append("  <component name=\"NewModuleRootManager\" inherit-compiler-output=\"false\" LANGUAGE_LEVEL=\"JDK_17\">\n")
                 .append("  <exclude-output/>\n")
                 .append("  <output url=\"")
                 .append(getFormattedRelativePath(presentModule.resolve("target/classes"), false, false))
@@ -726,9 +729,47 @@ public class IMLConfigurationProducer implements IImportListener {
             log.error("Error appending classpath to non-existing module, should not happen");
             return;
         }
+        Path jar = bundleInfo.getPath().resolve(classpathLib);
+        if (!Files.isRegularFile(jar) && classpathLib.startsWith("lib/") && classpathLib.endsWith(".jar")) {
+            List<MavenDependency> dependencies = bundleMavenDependencies.computeIfAbsent(
+                bundleInfo.getPath(), MavenPomProcessor::processDependencies
+            );
+            try {
+                MavenAssemblyProcessor.prepare(bundleInfo.getPath(), dependencies);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            if (!Files.isRegularFile(jar)) {
+                Path resolved = findMavenClasspathJar(classpathLib, dependencies);
+                if (resolved != null) {
+                    try {
+                        Files.createDirectories(jar.getParent());
+                        Files.copy(resolved, jar, StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                } else {
+                    log.warn("Missing bundle classpath library {} in {}", classpathLib, bundleInfo.getPath());
+                }
+            }
+        }
         builder.append("      <root url=\"")
-            .append(getFormattedRelativePath(bundleInfo.getPath().resolve(classpathLib), true, isLibrary))
+            .append(getFormattedRelativePath(jar, true, isLibrary))
             .append("\"/>\n");
+    }
+
+    @Nullable
+    static Path findMavenClasspathJar(@NotNull String classpathLib, @NotNull List<MavenDependency> dependencies) {
+        String artifactName = classpathLib.substring("lib/".length(), classpathLib.length() - ".jar".length());
+        for (MavenDependency dependency : dependencies) {
+            if (artifactName.equals(dependency.name())) {
+                Path jar = MavenLocalArtifactRegistry.INSTANCE.getDowloadedDependencyPath(dependency);
+                if (jar != null && Files.isRegularFile(jar)) {
+                    return jar;
+                }
+            }
+        }
+        return null;
     }
 
     private @NotNull String getFormattedRelativePath(@NotNull Path pathToFormat,
@@ -776,13 +817,18 @@ public class IMLConfigurationProducer implements IImportListener {
             log.warn("Bundle doesn't contain any data");
             return null;
         }
+        if (Files.isRegularFile(bundleInfo.getPath().resolve("descriptor.xml"))) {
+            MavenAssemblyProcessor.prepare(bundleInfo.getPath(), bundleMavenDependencies.computeIfAbsent(
+                bundleInfo.getPath(), MavenPomProcessor::processDependencies
+            ));
+        }
         StringBuilder builder = new StringBuilder();
         builder.append("<module type=\"JAVA_MODULE\" version=\"4\">\n");
         String requiredJava = null;
         if (bundleInfo.getRequiredJava() != null) {
             requiredJava = eclipseToIdeaJavaMappings.get(bundleInfo.getRequiredJava());
         }
-        builder.append(" <component name=\"NewModuleRootManager\"");
+        builder.append(" <component name=\"NewModuleRootManager\" inherit-compiler-output=\"false\"");
         if (requiredJava != null) {
             builder.append(" LANGUAGE_LEVEL=\"").append(requiredJava).append("\"");
         }
@@ -793,6 +839,9 @@ public class IMLConfigurationProducer implements IImportListener {
             builder.append("  <output url=\"")
                 .append(getFormattedRelativePath(bundleInfo.getPath().resolve(outputs.getFirst()), false, false))
                 .append("\"/>").append("\n");
+            builder.append("  <output-test url=\"")
+                .append(getFormattedRelativePath(bundleInfo.getPath().resolve("target/test-classes"), false, false))
+                .append("\"/>").append("\n");
         }
         builder.append("  <exclude-output/>").append("\n");
         List<String> sources = properties.get("source..") != null ? List.of(((String) properties.get("source..")).split(",")) : List.of();
@@ -802,6 +851,13 @@ public class IMLConfigurationProducer implements IImportListener {
             builder.append("  <content url=\"").append(getFormattedRelativePath(bundleInfo.getPath(), false, false)).append("\">")
                 .append("\n");
             for (String source : sources) {
+                // A bundle may reuse another bundle's sources (e.g. the MongoDB legacy variants).
+                // IDEA can assign a source directory to only one module; let its owning module compile it.
+                if (!bundleInfo.getPath().resolve(source).toAbsolutePath().normalize()
+                    .startsWith(bundleInfo.getPath().toAbsolutePath().normalize())) {
+                    log.info("Skipping external source folder {} in {}", source, bundleInfo.getBundleName());
+                    continue;
+                }
                 builder.append("   <sourceFolder url=\"")
                     .append(getFormattedRelativePath(bundleInfo.getPath().resolve(source), false, false))
                     .append("\"/>").append("\n");

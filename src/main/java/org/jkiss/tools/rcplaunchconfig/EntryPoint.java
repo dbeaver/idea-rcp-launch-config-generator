@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2024 DBeaver Corp and others
+ * Copyright (C) 2010-2026 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import com.dbeaver.osgi.dependency.processing.util.FileUtils;
 import com.dbeaver.osgi.dependency.processing.xml.CategoryXMLFileParser;
 import com.dbeaver.osgi.dependency.processing.xml.XmlReader;
 import org.jkiss.code.NotNull;
+import org.jkiss.tools.rcplaunchconfig.maven.processors.MavenSourceGenerator;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
@@ -84,6 +85,15 @@ public class EntryPoint {
 
             var pathsManager = PathsManager.INSTANCE;
             pathsManager.init(settings, params.projectsFolderPath, params.eclipsePath);
+            for (Path location : pathsManager.getBundlesLocations()) {
+                if (Files.isDirectory(location)) {
+                    try (Stream<Path> modules = Files.list(location)) {
+                        for (Path module : modules.filter(Files::isDirectory).toList()) {
+                            MavenSourceGenerator.generate(module);
+                        }
+                    }
+                }
+            }
             Path envPath = params.configFilePath.getParent().resolve("additionalProperties.json");
             if (Files.exists(envPath)) {
                 List<PropertyConfig> additionalProperties = ConfigFileManager.processAdditionalProperties(envPath);
