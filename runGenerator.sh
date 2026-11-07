@@ -35,4 +35,4 @@ echo "Run workspace generator"
     -q -DskipTests=true \
     -f "$script_dir/pom.xml" \
     exec:java \
-    -Dexec.args="-eclipse.version \${eclipse-version} -updateWorkspace -config $target_repo/osgi-app.properties -projectsFolder $repositories_root_dir -eclipse $repositories_root_dir/dbeaver-workspace/dependencies -output $repositories_root_dir/dbeaver-workspace/products/"
+    -Dexec.args="-eclipse.version \${eclipse-version} -updateWorkspace -config $target_repo/osgi-app.properties -projectsFolder $repositories_root_dir -eclipse $repositories_root_dir/.workspace/dependencies -output $repositories_root_dir/.workspace/products/"
