@@ -41,6 +41,17 @@ class IMLConfigurationProducerTest {
     Path tempDir;
 
     @Test
+    void resolvesMissingBundleClasspathJarFromMavenDependencies() throws Exception {
+        Path jar = tempDir.resolve("spring-core-6.0.jar");
+        Files.write(jar, new byte[]{1});
+        MavenDependency dependency = new MavenDependency("org.springframework", "spring-core", "6.0", List.of());
+        MavenLocalArtifactRegistry.INSTANCE.addLocalThirdPartyDependency(dependency, jar);
+
+        assertEquals(jar, IMLConfigurationProducer.findMavenClasspathJar("lib/spring-core.jar", List.of(dependency)));
+        assertNull(IMLConfigurationProducer.findMavenClasspathJar("lib/other.jar", List.of(dependency)));
+    }
+
+    @Test
     void generatesMavenOnlyBundleDependenciesRecursively() throws Exception {
         Path api = createModule("bundles", "com.dbeaver.test.api", true, "com.dbeaver.test.model");
         Path model = createModule("bundles", "com.dbeaver.test.model", true, "com.dbeaver.test.api");
@@ -64,6 +75,7 @@ class IMLConfigurationProducerTest {
             Document iml = readIml(module);
             assertEquals("1", evaluate(iml, "count(//sourceFolder[contains(@url, '/src/main/java')])"));
             assertEquals("1", evaluate(iml, "count(//output[contains(@url, '/target/classes')])"));
+            assertEquals("false", evaluate(iml, "string(//component[@name='NewModuleRootManager']/@inherit-compiler-output)"));
         }
         assertFalse(Files.exists(PathsManager.INSTANCE.getImlModulesPath().resolve("com.dbeaver.test.unused.iml")));
         assertTrue(result.getBundlesByNames().isEmpty());
@@ -89,6 +101,29 @@ class IMLConfigurationProducerTest {
         assertModuleListedOnce(api);
         assertEquals(bundleConfig, Files.readString(imlPath(api)));
         assertEquals("JDK_21", evaluate(readIml(api), "string(//component/@LANGUAGE_LEVEL)"));
+        assertEquals("false", evaluate(readIml(api), "string(//component/@inherit-compiler-output)"));
+        assertEquals("1", evaluate(readIml(api), "count(//output[contains(@url, '/target/classes')])"));
+        assertEquals("1", evaluate(readIml(api), "count(//output-test[contains(@url, '/target/test-classes')])"));
+    }
+
+    @Test
+    void externalSourceFolderDoesNotStealSourcesFromOwningModule() throws Exception {
+        Path canonical = createModule("bundles", "com.dbeaver.test.mongodb", true);
+        Path legacy = createModule("bundles", "com.dbeaver.test.mongodb.legacy", true);
+        Files.writeString(legacy.resolve("build.properties"),
+            "source.. = ../com.dbeaver.test.mongodb/src/main/java/\noutput.. = target/classes/\n");
+        initPaths(canonical);
+
+        Result result = new Result();
+        for (Path bundle : List.of(canonical, legacy)) {
+            try (var input = Files.newInputStream(bundle.resolve("META-INF/MANIFEST.MF"))) {
+                result.addBundle(ManifestParser.parseManifest(bundle, null, new Manifest(input)));
+            }
+        }
+        new IMLConfigurationProducer().generateIMLFiles(result, null);
+
+        assertEquals("1", evaluate(readIml(canonical), "count(//sourceFolder[contains(@url, 'com.dbeaver.test.mongodb/src/main/java')])"));
+        assertEquals("0", evaluate(readIml(legacy), "count(//sourceFolder[contains(@url, 'com.dbeaver.test.mongodb/src/main/java')])"));
     }
 
     private void initPaths(Path service) throws IOException {
