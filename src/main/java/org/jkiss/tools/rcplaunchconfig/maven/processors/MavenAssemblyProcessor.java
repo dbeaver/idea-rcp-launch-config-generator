@@ -78,7 +78,7 @@ public class MavenAssemblyProcessor {
         }
     }
 
-    private static Set<String> coordinates(Element assembly, String tag) {
+    private static @NotNull Set<String> coordinates(@NotNull Element assembly, @NotNull String tag) {
         Set<String> result = new HashSet<>();
         NodeList entries = assembly.getElementsByTagName(tag);
         for (int i = 0; i < entries.getLength(); i++) {

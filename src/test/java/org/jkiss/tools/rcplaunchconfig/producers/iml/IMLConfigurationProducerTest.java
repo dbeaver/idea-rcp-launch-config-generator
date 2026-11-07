@@ -19,6 +19,7 @@ package org.jkiss.tools.rcplaunchconfig.producers.iml;
 import com.dbeaver.osgi.dependency.processing.PathsManager;
 import com.dbeaver.osgi.dependency.processing.Result;
 import com.dbeaver.osgi.dependency.processing.resolvers.ManifestParser;
+import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.tools.rcplaunchconfig.maven.registry.MavenLocalArtifactRegistry;
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,7 @@ class IMLConfigurationProducerTest {
 
     @Test
     void generatesMavenOnlyBundleDependenciesRecursively() throws Exception {
-        Path api = createModule("bundles", "com.dbeaver.test.api", true, "com.dbeaver.test.model");
+        final Path api = createModule("bundles", "com.dbeaver.test.api", true, "com.dbeaver.test.model");
         Path model = createModule("bundles", "com.dbeaver.test.model", true, "com.dbeaver.test.api");
         createModule("bundles", "com.dbeaver.test.unused", true);
         Path service = createModule("services", "com.dbeaver.test.service", false, "com.dbeaver.test.api");
@@ -190,7 +191,7 @@ class IMLConfigurationProducerTest {
             "count(//module[@filepath='$PROJECT_DIR$/" + module.getFileName() + ".iml'])"));
     }
 
-    private Path imlPath(Path module) {
+    private @NotNull Path imlPath(@NotNull Path module) {
         return PathsManager.INSTANCE.getImlModulesPath().resolve(module.getFileName() + ".iml");
     }
 

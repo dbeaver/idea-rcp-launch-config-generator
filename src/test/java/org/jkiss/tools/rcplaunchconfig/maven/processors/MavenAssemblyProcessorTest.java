@@ -16,6 +16,7 @@
  */
 package org.jkiss.tools.rcplaunchconfig.maven.processors;
 
+import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.tools.rcplaunchconfig.maven.registry.MavenLocalArtifactRegistry;
 import org.junit.jupiter.api.Test;
@@ -59,7 +60,7 @@ class MavenAssemblyProcessorTest {
         assertFalse(Files.exists(module.resolve("lib/unused.jar")));
     }
 
-    private static MavenDependency dependency(String name) {
+    private static @NotNull MavenDependency dependency(@NotNull String name) {
         return new MavenDependency("test", name, "1", List.of());
     }
 }

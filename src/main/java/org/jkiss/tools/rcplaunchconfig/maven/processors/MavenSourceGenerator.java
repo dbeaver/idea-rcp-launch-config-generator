@@ -16,8 +16,8 @@
  */
 package org.jkiss.tools.rcplaunchconfig.maven.processors;
 
-import org.antlr.v4.Tool;
 import com.sun.tools.xjc.Driver;
+import org.antlr.v4.Tool;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.slf4j.Logger;
@@ -98,7 +98,9 @@ public class MavenSourceGenerator {
         @Nullable Element pluginConfig
     ) throws IOException {
         Path source = module.resolve(value(executionConfig, pluginConfig, "sourceDirectory", "src/main/antlr4")).normalize();
-        Path output = module.resolve(value(executionConfig, pluginConfig, "outputDirectory", "target/generated-sources/antlr4")).normalize();
+        Path output = module.resolve(
+            value(executionConfig, pluginConfig, "outputDirectory", "target/generated-sources/antlr4")
+        ).normalize();
         if (!source.startsWith(module) || !output.startsWith(module) || !Files.isDirectory(source)) {
             return;
         }
@@ -148,10 +150,10 @@ public class MavenSourceGenerator {
             return;
         }
         Path output = module.resolve(value(executionConfig, pluginConfig, "outputDirectory", "target/generated-sources/jaxb")).normalize();
-        String packageName = value(executionConfig, pluginConfig, "packageName", "");
         if (!output.startsWith(module)) {
             throw new IOException("JAXB output is outside module " + module);
         }
+        String packageName = value(executionConfig, pluginConfig, "packageName", "");
         List<Path> schemas = new ArrayList<>();
         for (Element source : children(sources, "source")) {
             Path schema = module.resolve(source.getTextContent().trim()).normalize();
@@ -233,7 +235,8 @@ public class MavenSourceGenerator {
             return null;
         }
         for (Node node = parent.getFirstChild(); node != null; node = node.getNextSibling()) {
-            if (node instanceof Element element && name.equals(element.getLocalName() == null ? element.getNodeName() : element.getLocalName())) {
+            if (node instanceof Element element
+                && name.equals(element.getLocalName() == null ? element.getNodeName() : element.getLocalName())) {
                 return element;
             }
         }
@@ -244,7 +247,8 @@ public class MavenSourceGenerator {
         List<Element> elements = new ArrayList<>();
         NodeList nodes = parent.getChildNodes();
         for (int i = 0; i < nodes.getLength(); i++) {
-            if (nodes.item(i) instanceof Element element && name.equals(element.getLocalName() == null ? element.getNodeName() : element.getLocalName())) {
+            if (nodes.item(i) instanceof Element element
+                && name.equals(element.getLocalName() == null ? element.getNodeName() : element.getLocalName())) {
                 elements.add(element);
             }
         }
