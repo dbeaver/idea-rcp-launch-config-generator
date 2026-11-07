@@ -38,6 +38,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -46,6 +48,37 @@ public class MavenPomProcessor {
     private static final Logger log = LoggerFactory.getLogger(MavenPomProcessor.class);
     private static final String PARENT_TAG = "parent";
     private static final String RELATIVE_PATH_TAG = "relativePath";
+    private static final Map<Path, Document> pomDocuments = new ConcurrentHashMap<>();
+    private static final Map<Path, List<MavenDependency>> dependencyCache = new ConcurrentHashMap<>();
+    private static final Set<Path> collectedArtifacts = ConcurrentHashMap.newKeySet();
+    private static final Map<Path, LongAdder> pomOpens = new ConcurrentHashMap<>();
+    private static volatile boolean generationActive;
+
+    public static void startGeneration() {
+        pomDocuments.clear();
+        dependencyCache.clear();
+        collectedArtifacts.clear();
+        pomOpens.clear();
+        generationActive = true;
+    }
+
+    public static void finishGeneration() {
+        generationActive = false;
+        pomOpens.entrySet().stream()
+            .sorted((a, b) -> Long.compare(b.getValue().sum(), a.getValue().sum()))
+            .forEach(entry -> log.debug("POM opens: {} {}", entry.getValue().sum(), entry.getKey()));
+        log.info("POM files opened: {}, total opens: {}", pomOpens.size(),
+            pomOpens.values().stream().mapToLong(LongAdder::sum).sum());
+        pomDocuments.clear();
+        dependencyCache.clear();
+        collectedArtifacts.clear();
+        pomOpens.clear();
+    }
+
+    static long getPomOpenCount(@NotNull Path pomPath) {
+        LongAdder count = pomOpens.get(pomPath.toAbsolutePath().normalize());
+        return count == null ? 0 : count.sum();
+    }
 
     /**
      * Processes the pom.xml in the current directory.
@@ -63,17 +96,17 @@ public class MavenPomProcessor {
             return false;
         }
         Path pomPath = mavenPath.resolve("pom.xml");
+        if (generationActive && collectedArtifacts.contains(pomPath.toAbsolutePath().normalize())) {
+            return true;
+        }
         if (!Files.exists(pomPath)) {
             log.info("pom.xml not found in the current directory.");
             return false;
         }
 
-        try (var inputStream = Files.newInputStream(pomPath)) {
+        try {
             // Parse the pom.xml file.
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(inputStream);
-            doc.getDocumentElement().normalize();
+            Document doc = parseDocument(pomPath);
 
             // Extract main artifact details.
             String groupId = getTagValue(doc, "groupId");
@@ -96,6 +129,9 @@ public class MavenPomProcessor {
             }
             MavenDependency artifact = new MavenDependency(groupId, artifactId, version, List.of());
             MavenLocalArtifactRegistry.INSTANCE.addProvidedDependency(artifact, mavenPath);
+            if (generationActive) {
+                collectedArtifacts.add(pomPath.toAbsolutePath().normalize());
+            }
 
             return true;
         } catch (Exception e) {
@@ -112,13 +148,18 @@ public class MavenPomProcessor {
      */
     @NotNull
     public static List<MavenDependency> processDependencies(@NotNull Path path) {
+        if (generationActive) {
+            return dependencyCache.computeIfAbsent(path.toAbsolutePath().normalize(), MavenPomProcessor::parseDependencies);
+        }
+        return parseDependencies(path);
+    }
+
+    @NotNull
+    private static List<MavenDependency> parseDependencies(@NotNull Path path) {
         Path pomXMl = path.resolve("pom.xml");
-        try (var inputStream = Files.newInputStream(pomXMl)) {
+        try {
             // Parse the pom.xml file.
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(inputStream);
-            doc.getDocumentElement().normalize();
+            Document doc = parseDocument(pomXMl);
             List<MavenDependency> managedDependencies = listManagedDependencies(doc, path.toFile());
             List<Element> dependencies = listProjectDependencies(doc, pomXMl);
             List<MavenDependency> dependencyList = new ArrayList<>();
@@ -269,10 +310,7 @@ public class MavenPomProcessor {
         }
 
         try {
-            Document parentDoc = DocumentBuilderFactory.newInstance()
-                .newDocumentBuilder()
-                .parse(parentPom);
-            parentDoc.getDocumentElement().normalize();
+            Document parentDoc = parseDocument(parentPom.toPath());
             Map<String, MavenDependency> parentManagedDependencies = new LinkedHashMap<>();
             collectManagedDependencies(
                 parentDoc,
@@ -451,10 +489,7 @@ public class MavenPomProcessor {
                 continue; // Skip non-existing POMs
             }
             try {
-                Document parentDoc = DocumentBuilderFactory.newInstance()
-                    .newDocumentBuilder()
-                    .parse(visitedPomFile);
-                parentDoc.getDocumentElement().normalize();
+                Document parentDoc = parseDocument(visitedPomFile.toPath());
                 NodeList propsNodes = parentDoc.getElementsByTagName("properties");
                 if (propsNodes.getLength() > 0) {
                     Element properties = (Element) propsNodes.item(0);
@@ -531,10 +566,7 @@ public class MavenPomProcessor {
             visitedPomPaths.add(parentPom.getAbsolutePath());
 
             try {
-                Document parentDoc = DocumentBuilderFactory.newInstance()
-                    .newDocumentBuilder()
-                    .parse(parentPom);
-                parentDoc.getDocumentElement().normalize();
+                Document parentDoc = parseDocument(parentPom.toPath());
 
                 return resolveDependencyManagementVersionRecursive(parentDoc, groupId, artifactId, parentPom, visitedPomPaths);
 
@@ -624,12 +656,41 @@ public class MavenPomProcessor {
 
     @NotNull
     private static Document parseDocument(@NotNull Path pomPath) throws IOException, ParserConfigurationException, SAXException {
+        if (generationActive) {
+            try {
+                Document cached = pomDocuments.computeIfAbsent(pomPath.toAbsolutePath().normalize(), path -> {
+                    try {
+                        return openDocument(path);
+                    } catch (IOException | ParserConfigurationException | SAXException e) {
+                        throw new PomReadException(e);
+                    }
+                });
+                synchronized (cached) {
+                    return (Document) cached.cloneNode(true);
+                }
+            } catch (PomReadException e) {
+                throw new IOException("Error reading " + pomPath, e.getCause());
+            }
+        }
+        return openDocument(pomPath);
+    }
+
+    private static Document openDocument(@NotNull Path pomPath) throws IOException, ParserConfigurationException, SAXException {
         try (var inputStream = Files.newInputStream(pomPath)) {
+            if (generationActive) {
+                pomOpens.computeIfAbsent(pomPath, ignored -> new LongAdder()).increment();
+            }
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document doc = builder.parse(inputStream);
             doc.getDocumentElement().normalize();
             return doc;
+        }
+    }
+
+    private static class PomReadException extends RuntimeException {
+        private PomReadException(Exception cause) {
+            super(cause);
         }
     }
 
@@ -721,10 +782,7 @@ public class MavenPomProcessor {
             visitedPomPaths.add(parentPom.getAbsolutePath());
 
             try {
-                Document parentDoc = DocumentBuilderFactory.newInstance()
-                    .newDocumentBuilder()
-                    .parse(parentPom);
-                parentDoc.getDocumentElement().normalize();
+                Document parentDoc = parseDocument(parentPom.toPath());
 
                 // Try to resolve tag in parent
                 if ("version".equals(tag)) {

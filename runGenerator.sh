@@ -12,27 +12,16 @@ fi
 script_dir="$(realpath "$(dirname "$0")")"
 repositories_root_dir="$(realpath "$script_dir/..")"
 
-if [ -d "$repositories_root_dir/checkstyle-nullability-annotations" ]; then
-  echo "Build checkstyle-nullability-annotations"
-  # shellcheck disable=SC2086
-  "$repositories_root_dir/dbeaver-common/mvnw" package \
-      $mvn_args \
-      -q -DskipTests=true \
-      -f "$repositories_root_dir/checkstyle-nullability-annotations/pom.xml"
+projects=":idea-rcp-launch-config-generator"
+if [ -f "$repositories_root_dir/checkstyle-nullability-annotations/pom.xml" ]; then
+  projects="$projects,../../checkstyle-nullability-annotations"
 fi
 
-echo "Build workspace generator"
+echo "Build and run workspace generator"
 # shellcheck disable=SC2086
-"$repositories_root_dir/dbeaver-common/mvnw" clean install \
+"$repositories_root_dir/dbeaver-common/mvnw" \
     $mvn_args \
-    -q -DskipTests=true \
-    -f "$script_dir/aggregate"
-
-echo "Run workspace generator"
-# shellcheck disable=SC2086
-"$repositories_root_dir/dbeaver-common/mvnw" package \
-    $mvn_args \
-    -q -DskipTests=true \
-    -f "$script_dir/pom.xml" \
-    exec:java \
+    -DskipTests=true \
+    -f "$script_dir/aggregate/pom.xml" \
+    -pl "$projects" -am verify -Pgenerate-workspace \
     -Dexec.args="-eclipse.version \${eclipse-version} -updateWorkspace -config $target_repo/osgi-app.properties -projectsFolder $repositories_root_dir -eclipse $repositories_root_dir/.workspace/dependencies -output $repositories_root_dir/.workspace/products/"

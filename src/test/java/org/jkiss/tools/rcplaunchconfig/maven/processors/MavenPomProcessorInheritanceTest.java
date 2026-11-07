@@ -33,6 +33,24 @@ class MavenPomProcessorInheritanceTest {
     Path tempDir;
 
     @Test
+    void opensEachPomOnlyOnceDuringGeneration() throws Exception {
+        Path parentPom = tempDir.resolve("pom.xml");
+        Files.writeString(parentPom, "<project><groupId>test</groupId><artifactId>parent</artifactId><version>1</version></project>");
+        Path child = childPom("child", "");
+        MavenPomProcessor.startGeneration();
+        try {
+            MavenPomProcessor.collectArtifacts(child);
+            MavenPomProcessor.collectArtifacts(child);
+            MavenPomProcessor.processDependencies(child);
+            MavenPomProcessor.processDependencies(child);
+            assertEquals(1, MavenPomProcessor.getPomOpenCount(child.resolve("pom.xml")));
+            assertEquals(1, MavenPomProcessor.getPomOpenCount(parentPom));
+        } finally {
+            MavenPomProcessor.finishGeneration();
+        }
+    }
+
+    @Test
     void inheritsSameTestFrameworkWithAndWithoutDirectTestDependencies() throws Exception {
         MavenDependency junit = providedDependency("junit-jupiter-engine", "1", "test");
         MavenDependency sqlite = providedDependency("sqlite-jdbc", "1", "test");

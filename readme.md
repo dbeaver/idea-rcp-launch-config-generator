@@ -18,6 +18,7 @@ Before proceeding with building DBeaver, ensure that your system meets the follo
   - https://github.com/dbeaver/cloudbeaver (only if you need to make changes in Cloudbeaver)
   - https://github.com/dbeaver/idea-rcp-launch-config-generator
 - Execute the `generate_workspace` script in either the dbeaver or cloudbeaver repo, depending on the workspace you need.
+  The script uses one Maven reactor invocation to build changed generator sources and their required modules, then generates the workspace. Maven build output is shown.
 Once dependencies are downloaded and IDEA configs created, the folder `.workspace` will appear. The IDEA configuration, by default, will be generated in `.workspace/dbeaver-ce` or `.workspace/cloudbeaver-ce`, which can be opened in IntelliJ IDEA.
 - Launch IDEA and open the configuration. It should contain all launch configurations
 
@@ -37,7 +38,7 @@ Accepts the following required parameters:
 | -eclipse         | Path to the folder with eclipse and other dependencies should be the same. The same as ECLIPSE_PATH in IDEA preferences(optional, `${projectsFolder}/../.workspace` will be used if not specifed) |
 | -output          | Place for result files                                                                                                                                                                                   |
 | -singleCoreMode  | (Debug) Uses only one core for the project resolution                                                                                                                                                    |
-| -debug           | Provides more detailed output                                                                                                                                                                            |
+| -debug           | Provides detailed output, including per-file POM open counts and generated IML read/write counts (totals are always logged)                                                                             |
 | -noTree          | Disable dependency tree generation for each product                                                                                                                                                      |
 
 Configuration file example:

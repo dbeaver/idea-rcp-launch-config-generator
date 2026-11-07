@@ -15,4 +15,18 @@
     <module>../../dbeaver-osgi-common</module>
     <module>../</module>
   </modules>
+
+  <profiles>
+    <profile>
+      <id>checkstyle-nullability-annotations</id>
+      <activation>
+        <file>
+          <exists>../../checkstyle-nullability-annotations/pom.xml</exists>
+        </file>
+      </activation>
+      <modules>
+        <module>../../checkstyle-nullability-annotations</module>
+      </modules>
+    </profile>
+  </profiles>
 </project>

@@ -36,6 +36,7 @@ import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
 import org.jkiss.tools.rcplaunchconfig.producers.iml.IMLConfigurationProducer;
+import org.jkiss.tools.rcplaunchconfig.maven.processors.MavenPomProcessor;
 import org.jkiss.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +61,7 @@ public class EntryPoint {
         try {
             launchGenerate(args);
         } catch (Exception exception) {
-            exception.printStackTrace(System.out);
+            throw new IllegalStateException("Workspace generation failed", exception);
         }
     }
 
@@ -75,6 +76,7 @@ public class EntryPoint {
         } else {
             logger.setLevel(Level.INFO);
         }
+        MavenPomProcessor.startGeneration();
         try (ForkJoinPool forkJoinPool = createForkJoinPool(params)) {
             log.info("Dependency folder location: " + params.eclipsePath);
 
@@ -222,16 +224,14 @@ public class EntryPoint {
             if (params.updateWorkspace) {
                 IMLConfigurationProducer.INSTANCE.patchWorkspaceParameters();
             }
-            log.info("Execution completed!");
+        } finally {
+            MavenPomProcessor.finishGeneration();
         }
+        log.info("Execution completed; all generation tasks and file writes have finished.");
     }
 
     private static ForkJoinPool createForkJoinPool(Params params) {
-        if (params.singleCoreMode) {
-            return new ForkJoinPool(1);
-        } else {
-            return ForkJoinPool.commonPool();
-        }
+        return new ForkJoinPool(params.singleCoreMode ? 1 : Runtime.getRuntime().availableProcessors());
     }
 
     @NotNull
