@@ -34,10 +34,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -76,6 +76,8 @@ public class IMLConfigurationProducer implements IImportListener {
     private final Set<ModuleInfo> modules = new LinkedHashSet<>();
 
     private final Set<Path> createdModules = new LinkedHashSet<>();
+    private final Map<Path, LongAdder> configReads = new ConcurrentHashMap<>();
+    private final Map<Path, LongAdder> configWrites = new ConcurrentHashMap<>();
 
     private final Lock lock = new ReentrantLock();
 
@@ -137,7 +139,6 @@ public class IMLConfigurationProducer implements IImportListener {
         }
         log.info(modules.size() + " module IML configs associated for " + result.getProductName());
         this.modules.addAll(modules);
-        rootModules.addAll(generateRootModules());
     }
 
     private synchronized void collectMavenArtifacts() throws IOException {
@@ -192,6 +193,7 @@ public class IMLConfigurationProducer implements IImportListener {
      */
     public void generateImplConfiguration() throws IOException {
         // Wait until all products have contributed their OSGi modules to avoid duplicate module entries.
+        rootModules.addAll(generateRootModules());
         rootModules.addAll(generateMavenModules());
         String modulesConfig = generateModulesConfig();
         createConfigFile(getImplModuleConfigPath(), modulesConfig);
@@ -205,6 +207,11 @@ public class IMLConfigurationProducer implements IImportListener {
                 PathsManager.INSTANCE.getModulesRoots()
             );
         }
+        log.info("IML config files read: {}, written: {} ({} unique)",
+            configReads.values().stream().mapToLong(LongAdder::sum).sum(),
+            configWrites.values().stream().mapToLong(LongAdder::sum).sum(), configWrites.size());
+        configWrites.forEach((path, count) -> log.debug("IML config writes: {} {}", count.sum(), path));
+        configReads.forEach((path, count) -> log.debug("IML config reads: {} {}", count.sum(), path));
     }
 
     /**
@@ -527,20 +534,19 @@ public class IMLConfigurationProducer implements IImportListener {
     }
 
     private void createConfigFile(@NotNull Path configPath, @NotNull String libraryConfig) throws IOException {
-        while (!lock.tryLock()) {
-            Thread.onSpinWait();
-        }
+        lock.lock();
         try {
             if (createdModules.contains(configPath)) {
                 return;
             }
-            Files.deleteIfExists(configPath);
             Files.createDirectories(configPath.getParent());
-            Files.createFile(configPath);
-            if (Files.exists(configPath)) {
-                try (PrintWriter out = new PrintWriter(configPath.toFile())) {
-                    out.print(libraryConfig);
-                }
+            boolean exists = Files.exists(configPath);
+            if (exists) {
+                configReads.computeIfAbsent(configPath, ignored -> new LongAdder()).increment();
+            }
+            if (!exists || !Files.readString(configPath).equals(libraryConfig)) {
+                Files.writeString(configPath, libraryConfig);
+                configWrites.computeIfAbsent(configPath, ignored -> new LongAdder()).increment();
             }
             createdModules.add(configPath);
         } finally {
