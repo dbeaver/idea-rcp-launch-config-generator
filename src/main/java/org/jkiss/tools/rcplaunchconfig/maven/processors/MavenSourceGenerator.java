@@ -18,6 +18,7 @@ package org.jkiss.tools.rcplaunchconfig.maven.processors;
 
 import com.sun.tools.xjc.Driver;
 import org.antlr.v4.Tool;
+import org.codehaus.plexus.util.DirectoryScanner;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.slf4j.Logger;
@@ -29,6 +30,7 @@ import org.w3c.dom.NodeList;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -36,12 +38,14 @@ import java.util.Map;
 import java.util.stream.Stream;
 import javax.xml.parsers.DocumentBuilderFactory;
 
-/** Processes supported generate-sources executions directly, without running a Maven build. */
+/** Prepares supported generated sources and resources directly, without running a Maven build. */
 public class MavenSourceGenerator {
     private static final Logger log = LoggerFactory.getLogger(MavenSourceGenerator.class);
     private static final Map<String, SourceGoal> GOALS = Map.of(
         "org.antlr:antlr4-maven-plugin:antlr4", new SourceGoal("generate-sources", MavenSourceGenerator::generateAntlr),
-        "org.codehaus.mojo:jaxb2-maven-plugin:xjc", new SourceGoal("generate-sources", MavenSourceGenerator::generateJaxb)
+        "org.codehaus.mojo:jaxb2-maven-plugin:xjc", new SourceGoal("generate-sources", MavenSourceGenerator::generateJaxb),
+        "org.apache.maven.plugins:maven-resources-plugin:copy-resources",
+        new SourceGoal("generate-resources", MavenSourceGenerator::copyResources)
     );
 
     private interface SourceHandler {
@@ -77,9 +81,10 @@ public class MavenSourceGenerator {
                         continue;
                     }
                     for (Element goal : children(goals, "goal")) {
-                        String key = text(plugin, "groupId") + ":" + text(plugin, "artifactId") + ":" + goal.getTextContent().trim();
+                        String key = value(plugin, "groupId", "org.apache.maven.plugins") + ":"
+                            + text(plugin, "artifactId") + ":" + goal.getTextContent().trim();
                         SourceGoal sourceGoal = GOALS.get(key);
-                        if (sourceGoal != null && "generate-sources".equals(value(execution, "phase", sourceGoal.defaultPhase()))) {
+                        if (sourceGoal != null && sourceGoal.defaultPhase().equals(value(execution, "phase", sourceGoal.defaultPhase()))) {
                             sourceGoal.handler().generate(module, child(execution, "configuration"), child(plugin, "configuration"));
                         }
                     }
@@ -88,8 +93,78 @@ public class MavenSourceGenerator {
         } catch (IOException e) {
             throw e;
         } catch (Exception e) {
-            throw new IOException("Failed to read generate-sources configuration from " + pom, e);
+            throw new IOException("Failed to prepare generated sources and resources from " + pom, e);
         }
+    }
+
+    private static void copyResources(
+        @NotNull Path module,
+        @Nullable Element executionConfig,
+        @Nullable Element pluginConfig
+    ) throws IOException {
+        Path output = resourcePath(module, value(executionConfig, pluginConfig, "outputDirectory", ""));
+        if (!output.startsWith(module) || output.equals(module)) {
+            throw new IOException("Resource output must be inside module " + module);
+        }
+        Element resources = child(executionConfig, "resources");
+        if (resources == null) {
+            resources = child(pluginConfig, "resources");
+        }
+        if (resources == null) {
+            return;
+        }
+        boolean overwrite = Boolean.parseBoolean(value(executionConfig, pluginConfig, "overwrite", "false"));
+        for (Element resource : children(resources, "resource")) {
+            if (Boolean.parseBoolean(value(resource, "filtering", "false"))) {
+                log.warn("Skipping filtered resources for {}: filtering is not supported", module);
+                continue;
+            }
+            Path source = resourcePath(module, value(resource, "directory", ""));
+            if (!Files.isDirectory(source)) {
+                log.warn("Resource directory {} is missing for {}", source, module);
+                continue;
+            }
+            Path targetRoot = output.resolve(value(resource, "targetPath", "")).normalize();
+            if (!targetRoot.startsWith(output)) {
+                throw new IOException("Resource target is outside output directory " + output);
+            }
+            DirectoryScanner scanner = new DirectoryScanner();
+            scanner.setBasedir(source.toFile());
+            Element includes = child(resource, "includes");
+            if (includes != null) {
+                scanner.setIncludes(children(includes, "include").stream().map(Element::getTextContent)
+                    .map(String::trim).toArray(String[]::new));
+            }
+            Element excludes = child(resource, "excludes");
+            if (excludes != null) {
+                scanner.setExcludes(children(excludes, "exclude").stream().map(Element::getTextContent)
+                    .map(String::trim).toArray(String[]::new));
+            }
+            scanner.addDefaultExcludes();
+            scanner.scan();
+            for (String name : scanner.getIncludedFiles()) {
+                Path input = source.resolve(name);
+                Path target = targetRoot.resolve(name);
+                if (Files.isRegularFile(target)) {
+                    if ((!overwrite && Files.getLastModifiedTime(input).compareTo(Files.getLastModifiedTime(target)) <= 0)
+                        || Files.mismatch(input, target) == -1) {
+                        continue;
+                    }
+                }
+                Files.createDirectories(target.getParent());
+                Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+                log.info("Copied resource {} to {}", input, target);
+            }
+        }
+    }
+
+    private static @NotNull Path resourcePath(@NotNull Path module, @NotNull String value) throws IOException {
+        String resolved = value.replace("${project.basedir}", module.toString()).replace("${basedir}", module.toString())
+            .replace("${project.build.directory}", module.resolve("target").toString());
+        if (resolved.contains("${")) {
+            throw new IOException("Unsupported resource path property: " + value + " in " + module);
+        }
+        return module.resolve(resolved).normalize();
     }
 
     private static void generateAntlr(

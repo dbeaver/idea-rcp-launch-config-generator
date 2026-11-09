@@ -24,6 +24,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MavenSourceGeneratorTest {
@@ -84,5 +86,93 @@ class MavenSourceGeneratorTest {
         Files.writeString(factory, "unchanged");
         MavenSourceGenerator.generate(module.resolve("nested/.."));
         assertEquals("unchanged", Files.readString(factory));
+    }
+
+    @Test
+    void copiesPrebuiltWidgetResourcesAndRefreshesExistingAssets() throws Exception {
+        Path bundle = Files.createDirectories(module.resolve("ee/bundles/chart"));
+        Path dist = Files.createDirectories(module.resolve("widgets/dist"));
+        Files.writeString(dist.resolve("data-chart.js"), "new widget");
+        Files.writeString(dist.resolve("data-chart.css"), "chart styles");
+        Files.writeString(dist.resolve("data-chart.d.ts"), "types");
+        Files.writeString(bundle.resolve("pom.xml"), """
+            <project xmlns="http://maven.apache.org/POM/4.0.0"><build><plugins><plugin>
+              <groupId>org.apache.maven.plugins</groupId><artifactId>maven-resources-plugin</artifactId>
+              <executions><execution><phase>generate-resources</phase><goals><goal>copy-resources</goal></goals>
+                <configuration><outputDirectory>${project.basedir}/web</outputDirectory><overwrite>true</overwrite>
+                  <resources><resource><directory>${project.basedir}/../../../widgets/dist</directory>
+                    <includes><include>data-chart.js</include><include>data-chart.css</include></includes>
+                  </resource></resources>
+                </configuration>
+              </execution></executions>
+            </plugin></plugins></build></project>
+            """);
+        Path web = Files.createDirectory(bundle.resolve("web"));
+        Files.writeString(web.resolve("index.html"), "host page");
+        Files.writeString(web.resolve("data-chart.js"), "stale widget");
+
+        MavenSourceGenerator.generate(bundle);
+
+        assertEquals("new widget", Files.readString(web.resolve("data-chart.js")));
+        assertEquals("chart styles", Files.readString(web.resolve("data-chart.css")));
+        assertEquals("host page", Files.readString(web.resolve("index.html")));
+        assertFalse(Files.exists(web.resolve("data-chart.d.ts")));
+        var modified = Files.getLastModifiedTime(web.resolve("data-chart.js"));
+        MavenSourceGenerator.generate(bundle);
+        assertEquals(modified, Files.getLastModifiedTime(web.resolve("data-chart.js")));
+        Files.writeString(dist.resolve("data-chart.js"), "updated widget");
+        MavenSourceGenerator.generate(bundle);
+        assertEquals("updated widget", Files.readString(web.resolve("data-chart.js")));
+    }
+
+    @Test
+    void copiesPluginConfiguredResourcesWithPatternsAndTargetPathsOnlyInPreparationPhase() throws Exception {
+        Files.createDirectories(module.resolve("assets/nested"));
+        Files.writeString(module.resolve("assets/main.js"), "main");
+        Files.writeString(module.resolve("assets/nested/chart.js"), "chart");
+        Files.writeString(module.resolve("assets/nested/chart.test.js"), "test");
+        Files.writeString(module.resolve("assets/chart.css"), "css");
+        Files.writeString(module.resolve("pom.xml"), """
+            <project><build><plugins><plugin>
+              <artifactId>maven-resources-plugin</artifactId>
+              <configuration><outputDirectory>${project.build.directory}/web</outputDirectory>
+                <resources><resource><directory>${basedir}/assets</directory><targetPath>scripts</targetPath>
+                  <includes><include>**/*.js</include></includes>
+                  <excludes><exclude>**/*.test.js</exclude></excludes>
+                </resource></resources>
+              </configuration>
+              <executions>
+                <execution><phase>generate-resources</phase><goals><goal>copy-resources</goal></goals></execution>
+                <execution><phase>package</phase><goals><goal>copy-resources</goal></goals>
+                  <configuration><outputDirectory>${project.basedir}/packaged</outputDirectory></configuration>
+                </execution>
+              </executions>
+            </plugin></plugins></build></project>
+            """);
+
+        MavenSourceGenerator.generate(module);
+
+        assertEquals("main", Files.readString(module.resolve("target/web/scripts/main.js")));
+        assertEquals("chart", Files.readString(module.resolve("target/web/scripts/nested/chart.js")));
+        assertFalse(Files.exists(module.resolve("target/web/scripts/nested/chart.test.js")));
+        assertFalse(Files.exists(module.resolve("target/web/scripts/chart.css")));
+        assertFalse(Files.exists(module.resolve("packaged")));
+        Files.writeString(module.resolve("target/web/scripts/main.js"), "newer target");
+        MavenSourceGenerator.generate(module);
+        assertEquals("newer target", Files.readString(module.resolve("target/web/scripts/main.js")));
+    }
+
+    @Test
+    void rejectsResourceOutputOutsideModule() throws Exception {
+        Files.writeString(module.resolve("pom.xml"), """
+            <project><build><plugins><plugin>
+              <artifactId>maven-resources-plugin</artifactId>
+              <executions><execution><phase>generate-resources</phase><goals><goal>copy-resources</goal></goals>
+                <configuration><outputDirectory>${project.basedir}/../outside</outputDirectory></configuration>
+              </execution></executions>
+            </plugin></plugins></build></project>
+            """);
+
+        assertThrows(java.io.IOException.class, () -> MavenSourceGenerator.generate(module));
     }
 }
