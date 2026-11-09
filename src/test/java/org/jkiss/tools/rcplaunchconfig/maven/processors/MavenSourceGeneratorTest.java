@@ -34,6 +34,8 @@ class MavenSourceGeneratorTest {
 
     @Test
     void generatesConfiguredSourcesOnlyWhenMissing() throws Exception {
+        // On Windows this directory name produces a Unicode escape prefix in native paths.
+        module = Files.createDirectory(module.resolve("user"));
         Files.writeString(module.resolve("pom.xml"), """
             <project><build><plugins><plugin>
               <groupId>org.antlr</groupId><artifactId>antlr4-maven-plugin</artifactId>
@@ -51,6 +53,12 @@ class MavenSourceGeneratorTest {
         MavenSourceGenerator.generate(module.resolve("nested/.."));
         Path parser = module.resolve("target/generated-sources/antlr4/ExampleParser.java");
         assertTrue(Files.isRegularFile(parser));
+        for (String name : new String[]{"ExampleLexer", "ExampleParser", "ExampleListener", "ExampleBaseListener"}) {
+            String header = Files.readString(parser.resolveSibling(name + ".java")).lines().findFirst().orElseThrow();
+            assertTrue(header.startsWith("// Generated from "));
+            assertFalse(header.contains("\\"), header);
+            assertTrue(header.contains("/user/grammar/Example.g4"), header);
+        }
         Files.writeString(parser, "unchanged");
         MavenSourceGenerator.generate(module.resolve("nested/.."));
         assertEquals("unchanged", Files.readString(parser));

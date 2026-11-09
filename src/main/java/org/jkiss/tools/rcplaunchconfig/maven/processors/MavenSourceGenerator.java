@@ -27,6 +27,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -202,7 +203,8 @@ public class MavenSourceGenerator {
         Files.createDirectories(output);
         List<String> args = new ArrayList<>(List.of("-o", output.toString(), "-lib", source.toString()));
         for (Path grammar : grammars) {
-            args.add(grammar.toString());
+            // ANTLR embeds this path in Java comments, where Windows separators can start Unicode escapes.
+            args.add(grammar.toString().replace(File.separatorChar, '/'));
         }
         log.info("Generating ANTLR sources for {}", module);
         Tool tool = new Tool(args.toArray(String[]::new));
