@@ -21,6 +21,7 @@ Before proceeding with building DBeaver, ensure that your system meets the follo
   The script uses one Maven reactor invocation to build changed generator sources and their required modules, then generates the workspace. Maven build output is shown.
 Once dependencies are downloaded and IDEA configs created, the folder `.workspace` will appear. The IDEA configuration, by default, will be generated in `.workspace/dbeaver-ce` or `.workspace/cloudbeaver-ce`, which can be opened in IntelliJ IDEA.
 - The generator reads `generate-sources` executions in module POMs and invokes supported tools (ANTLR and JAXB XJC) directly for missing or outdated sources. It resolves missing bundle `lib/*.jar` entries from Maven dependencies, including libraries listed in assembly `descriptor.xml` files. No separate Maven build of the product is needed.
+- It also processes unfiltered `maven-resources-plugin:copy-resources` executions in `generate-resources`, including copying prebuilt chart and execution-plan assets from the sibling `dbeaver-web-widgets` repository into desktop bundles. Includes, excludes, target paths, and overwrite settings come from the module POM. The widget assets must already be built or checked out; workspace generation does not compile TypeScript.
 - Launch IDEA and open the configuration. It should contain all launch configurations
 
 Now, you can debug code in IDEA, modify Java classes on the fly, etc.
