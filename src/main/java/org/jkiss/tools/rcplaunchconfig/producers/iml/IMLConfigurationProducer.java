@@ -66,7 +66,8 @@ public class IMLConfigurationProducer implements IImportListener {
             "JavaSE-11", "JDK_11",
             "JavaSE-17", "JDK_17",
             "JavaSE-21", "JDK_21",
-            "JavaSE-24", "JDK_24"
+            "JavaSE-24", "JDK_24",
+            "JavaSE-25", "JDK_25"
     );
     private final Map<Pair<String, VersionRange>, Set<Pair<BundleInfo, Version>>> bundlePackageImports = new ConcurrentHashMap<>();
 
