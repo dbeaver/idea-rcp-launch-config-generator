@@ -18,10 +18,17 @@ package org.jkiss.tools.rcplaunchconfig.producers.iml;
 
 import com.dbeaver.osgi.dependency.processing.PathsManager;
 import com.dbeaver.osgi.dependency.processing.Result;
+import com.dbeaver.osgi.dependency.processing.p2.P2BundleLookupCache;
+import com.dbeaver.osgi.dependency.processing.resolvers.FeatureResolver;
 import com.dbeaver.osgi.dependency.processing.resolvers.ManifestParser;
+import com.dbeaver.osgi.dependency.processing.resolvers.PluginResolver;
+import com.dbeaver.osgi.dependency.processing.util.DependencyGraphImpl;
 import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.tools.rcplaunchconfig.maven.registry.MavenLocalArtifactRegistry;
+import org.jkiss.tools.rcplaunchconfig.producers.ConfigIniProducer;
+import org.jkiss.tools.rcplaunchconfig.producers.DevPropertiesProducer;
+import org.jkiss.utils.Pair;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.w3c.dom.Document;
@@ -125,6 +132,70 @@ class IMLConfigurationProducerTest {
 
         assertEquals("1", evaluate(readIml(canonical), "count(//sourceFolder[contains(@url, 'com.dbeaver.test.mongodb/src/main/java')])"));
         assertEquals("0", evaluate(readIml(legacy), "count(//sourceFolder[contains(@url, 'com.dbeaver.test.mongodb/src/main/java')])"));
+    }
+
+    @Test
+    void launchesExplicitFrameworkSourceInsteadOfDownloadedFramework() throws Exception {
+        Path framework = createModule("bundles", "org.eclipse.osgi", true);
+        createModule("bundles", "org.eclipse.equinox.unused", true);
+        Path consumer = createModule("services", "com.dbeaver.test.framework.consumer", false);
+        Files.createDirectories(framework.resolve("osgi"));
+        Files.write(framework.resolve("osgi/j9stubs.jar"), new byte[]{1});
+        Files.writeString(framework.resolve("build.properties"),
+            "source.. = src/main/java/\noutput.. = target/classes/\njars.extra.classpath = osgi/j9stubs.jar\n");
+
+        Properties settings = new Properties();
+        settings.setProperty("workspaceName", "test-workspace");
+        settings.setProperty("bundlesPaths", tempDir.relativize(framework).toString());
+        settings.setProperty("featuresPaths", "repository/features");
+        settings.setProperty("productsPaths", "repository/test.product");
+        settings.setProperty("testBundlePaths", "repository/tests");
+        settings.setProperty("mavenModules", tempDir.relativize(consumer).toString());
+        PathsManager.INSTANCE.init(settings, tempDir, tempDir.resolve("workspace/eclipse"));
+        Files.createDirectories(PathsManager.INSTANCE.getEclipsePluginsPath());
+        Files.write(PathsManager.INSTANCE.getEclipsePluginsPath().resolve("org.eclipse.osgi_9.9.9.jar"), new byte[]{1});
+
+        Result result = new Result();
+        DependencyGraphImpl graph = new DependencyGraphImpl();
+        result.setProductPath(tempDir.resolve("repository/test.product"));
+        FeatureResolver.addNewFeatureProject(result.getProductPath());
+        graph.traverseIntoNode("test-product");
+        PluginResolver.resolvePluginDependencies(result, new Pair<>("org.eclipse.osgi", null), null, new P2BundleLookupCache(), graph);
+        var resolvedFramework = result.getBundlesByName("org.eclipse.osgi").iterator().next();
+        assertEquals(framework, resolvedFramework.getPath());
+        assertEquals(1, result.getBundlesByNames().size());
+
+        var bundles = result.getBundlesByNames().values();
+        assertEquals("file:" + framework.toFile().getCanonicalPath().replace('\\', '/'),
+            ConfigIniProducer.generateConfigIni(null, bundles).get("osgi.framework"));
+        assertEquals("target/classes", DevPropertiesProducer.generateDevProperties(bundles).get("org.eclipse.osgi"));
+
+        IMLConfigurationProducer producer = new IMLConfigurationProducer();
+        producer.generateIMLFiles(result, null);
+        producer.generateImplConfiguration();
+        assertModuleListedOnce(framework);
+        Document iml = readIml(framework);
+        assertEquals("1", evaluate(iml, "count(//sourceFolder[contains(@url, '/src/main/java')])"));
+        assertEquals("1", evaluate(iml, "count(//output[contains(@url, '/target/classes')])"));
+        assertEquals("1", evaluate(iml, "count(//CLASSES/root[contains(@url, '/osgi/j9stubs.jar')])"));
+    }
+
+    @Test
+    void binaryFrameworkRemainsAnExternalLibrary() throws Exception {
+        Path consumer = createModule("services", "com.dbeaver.test.binary.consumer", false);
+        initPaths(consumer);
+        Path frameworkJar = tempDir.resolve("org.eclipse.osgi_3.24.300.jar");
+        var manifest = new Manifest();
+        manifest.getMainAttributes().putValue("Bundle-SymbolicName", "org.eclipse.osgi");
+        manifest.getMainAttributes().putValue("Bundle-Version", "3.24.300");
+        var framework = ManifestParser.parseManifest(frameworkJar, null, manifest);
+        Result result = new Result();
+        result.addBundle(framework);
+
+        assertFalse(DevPropertiesProducer.isBundleAcceptable(framework));
+        assertFalse(DevPropertiesProducer.generateDevProperties(result.getBundlesByNames().values()).containsKey("org.eclipse.osgi"));
+        assertEquals("file:" + frameworkJar.toFile().getCanonicalPath().replace('\\', '/'),
+            ConfigIniProducer.generateConfigIni(null, result.getBundlesByNames().values()).get("osgi.framework"));
     }
 
     private void initPaths(Path service) throws IOException {

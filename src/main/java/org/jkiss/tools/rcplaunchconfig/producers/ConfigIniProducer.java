@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2024 DBeaver Corp and others
+ * Copyright (C) 2010-2026 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ public class ConfigIniProducer {
         result.put("osgi.bundles.defaultStartLevel", "4");
         result.put("osgi.configuration.cascaded", Boolean.FALSE.toString());
         result.put("osgi.bundles", getOsgiBundlesValue(bundles));
-        result.put("osgi.framework", getNormalizeFileReference(getOsgiFrameworkValue()));
+        result.put("osgi.framework", getNormalizeFileReference(getOsgiFrameworkValue(bundles)));
         return result;
     }
 
@@ -86,7 +86,14 @@ public class ConfigIniProducer {
         }
     }
 
-    private static @NotNull String getOsgiFrameworkValue() throws IOException {
+    private static @NotNull String getOsgiFrameworkValue(@NotNull Collection<Set<BundleInfo>> bundles) throws IOException {
+        for (Set<BundleInfo> bundleInfos : bundles) {
+            for (BundleInfo bundleInfo : bundleInfos) {
+                if (OSGI_FRAMEWORK_BUNDLE_NAME.equals(bundleInfo.getBundleName()) && bundleInfo.getPath() != null) {
+                    return bundleInfo.getPath().toFile().getCanonicalPath();
+                }
+            }
+        }
         var eclipsePluginsPath = PathsManager.INSTANCE.getEclipsePluginsPath();
         var file = FileUtils.findFirstChildByPackageName(eclipsePluginsPath, OSGI_FRAMEWORK_BUNDLE_NAME);
         if (file == null) {
@@ -160,7 +167,7 @@ public class ConfigIniProducer {
         lstr.append("    <setAttribute key=\"selected_target_bundles\">\n");
         for (var bundleInfos : result.getBundlesByNames().values()) {
             for (BundleInfo bundleInfo : bundleInfos) {
-                if (!DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
+                if (!DevPropertiesProducer.isBundleAcceptable(bundleInfo)) {
                     lstr.append("        <setEntry value=\"").append(bundleInfo.getBundleName()).append(getBundleStartLevel(bundleInfo)).append("\"/>\n");
                 }
             }
@@ -169,7 +176,7 @@ public class ConfigIniProducer {
         lstr.append("    <setAttribute key=\"selected_workspace_bundles\">\n");
         for (var bundleInfos : result.getBundlesByNames().values()) {
             for (BundleInfo bundleInfo : bundleInfos) {
-                if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
+                if (DevPropertiesProducer.isBundleAcceptable(bundleInfo)) {
                     lstr.append("        <setEntry value=\"").append(bundleInfo.getBundleName()).append(getBundleStartLevel(bundleInfo)).append("\"/>\n");
                 }
             }
