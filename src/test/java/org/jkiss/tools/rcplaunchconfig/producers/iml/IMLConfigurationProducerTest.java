@@ -198,6 +198,74 @@ class IMLConfigurationProducerTest {
             ConfigIniProducer.generateConfigIni(null, result.getBundlesByNames().values()).get("osgi.framework"));
     }
 
+    @Test
+    void binaryJarReexportsSourceFrameworkAsModuleDependency() throws Exception {
+        assertSourceFrameworkReexport(false);
+    }
+
+    @Test
+    void unpackedBinaryReexportsSourceFrameworkAsModuleDependency() throws Exception {
+        assertSourceFrameworkReexport(true);
+    }
+
+    private void assertSourceFrameworkReexport(boolean unpacked) throws Exception {
+        Path framework = createModule("bundles", "org.eclipse.osgi", true);
+        Path model = createModule("bundles", "com.dbeaver.test.reexport.model", true);
+        Path consumer = createModule("bundles", "com.dbeaver.test.reexport.consumer", true);
+        initPaths(model);
+
+        Result result = new Result();
+        for (Path module : List.of(framework, model, consumer)) {
+            Manifest manifest;
+            try (var input = Files.newInputStream(module.resolve("META-INF/MANIFEST.MF"))) {
+                manifest = new Manifest(input);
+            }
+            if (!module.equals(framework)) {
+                manifest.getMainAttributes().putValue("Require-Bundle",
+                    "org.eclipse.core.runtime" + (module.equals(model) ? ";visibility:=reexport" : "")
+                        + ",org.eclipse.equinox.common");
+            }
+            result.addBundle(ManifestParser.parseManifest(module, null, manifest));
+        }
+        for (String name : List.of("org.eclipse.core.runtime", "org.eclipse.equinox.common")) {
+            Path binary = tempDir.resolve(name + (unpacked ? "_1.0.0" : "_1.0.0.jar"));
+            if (unpacked) {
+                Files.createDirectories(binary);
+            } else {
+                Files.write(binary, new byte[]{1});
+            }
+            Manifest manifest = new Manifest();
+            manifest.getMainAttributes().putValue("Bundle-SymbolicName", name);
+            manifest.getMainAttributes().putValue("Bundle-Version", "1.0.0");
+            manifest.getMainAttributes().putValue("Require-Bundle", "org.eclipse.osgi;visibility:=reexport");
+            result.addBundle(ManifestParser.parseManifest(binary, null, manifest));
+        }
+        Manifest fragment = new Manifest();
+        fragment.getMainAttributes().putValue("Bundle-SymbolicName", "org.eclipse.core.runtime.fragment");
+        fragment.getMainAttributes().putValue("Bundle-Version", "1.0.0");
+        fragment.getMainAttributes().putValue("Fragment-Host", "org.eclipse.core.runtime");
+        result.getBundlesByName("org.eclipse.core.runtime").iterator().next().addFragmentBundle(
+            ManifestParser.parseManifest(tempDir.resolve("runtime-fragment.jar"), null, fragment));
+
+        IMLConfigurationProducer producer = new IMLConfigurationProducer();
+        producer.generateIMLFiles(result, null);
+        producer.generateImplConfiguration();
+
+        for (Path module : List.of(model, consumer)) {
+            Document iml = readIml(module);
+            assertEquals("1", evaluate(iml, "count(//orderEntry[@type='module' and @module-name='org.eclipse.osgi'])"));
+            assertEquals(module.equals(model) ? "1" : "0",
+                evaluate(iml, "count(//orderEntry[@type='module' and @module-name='org.eclipse.osgi' and @exported])"));
+            assertEquals("0", evaluate(iml, "count(//CLASSES/root[contains(@url, '/bundles/org.eclipse.osgi')])"));
+        }
+        if (unpacked) {
+            for (String name : List.of("org.eclipse.core.runtime", "org.eclipse.equinox.common")) {
+                Document library = readXml(PathsManager.INSTANCE.getImlModulesPath().resolve(".idea/libraries/" + name + ".xml"));
+                assertEquals("0", evaluate(library, "count(//CLASSES/root[contains(@url, '/bundles/org.eclipse.osgi')])"));
+            }
+        }
+    }
+
     private void initPaths(Path service) throws IOException {
         Properties settings = new Properties();
         settings.setProperty("workspaceName", "test-workspace");

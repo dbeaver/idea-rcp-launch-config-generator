@@ -636,9 +636,15 @@ public class IMLConfigurationProducer implements IImportListener {
         @NotNull Result result,
         @NotNull Set<Pair<String, Version>> resolvedBundles,
         boolean isLibrary) {
-        resolvedBundles.add(new Pair<>(bundleInfo.getBundleName(), new Version(bundleInfo.getBundleVersion())));
+        if (!resolvedBundles.add(new Pair<>(bundleInfo.getBundleName(), new Version(bundleInfo.getBundleVersion())))) {
+            return;
+        }
         if (bundleInfo.getPath() == null) {
             log.error("Error appending library info to non existing module {}, should not happen", bundleInfo.getBundleName());
+            return;
+        }
+        // Source bundles need module edges, not library roots pointing at uncompiled sources.
+        if (DevPropertiesProducer.isBundleAcceptable(bundleInfo)) {
             return;
         }
         if (bundleInfo.getPath().toFile().isDirectory()) {
@@ -1207,26 +1213,46 @@ public class IMLConfigurationProducer implements IImportListener {
             return;
         }
         boolean directoryBundle = bundleByName.getPath().toFile().isDirectory();
+        Set<Pair<String, Version>> libraryObjects = new LinkedHashSet<>();
         addLibraryEntry(bundleByName, builder, isExported, directoryBundle, testScope);
         if (!directoryBundle) {
-            Set<Pair<String, Version>> oldResolvedBundles = new LinkedHashSet<>(resolvedBundles);
-            appendLibraryInfo(builder, bundleByName, result, resolvedBundles, false);
-            HashSet<Pair<String, Version>> diff = new HashSet<>(resolvedBundles);
-            diff.removeAll(oldResolvedBundles);
-            endLibraryEntry(builder, result, diff);
+            appendLibraryInfo(builder, bundleByName, result, libraryObjects, false);
+            endLibraryEntry(builder, result, libraryObjects);
         } else {
+            String libraryConfig = generateXMLLibraryConfig(bundleByName, result, libraryObjects);
             if (!generatedLibraries.contains(bundleByName.getBundleName())) {
-                String libraryConfig = generateXMLLibraryConfig(bundleByName, result);
                 if (libraryConfig != null) {
                     createConfigFile(getLibraryConfigPath().resolve(bundleByName.getBundleName() + ".xml"), libraryConfig);
                 }
                 generatedLibraries.add(bundleByName.getBundleName());
             }
         }
+        for (Pair<String, Version> libraryObject : libraryObjects) {
+            if (!resolvedBundles.add(libraryObject)) {
+                continue;
+            }
+            Set<BundleInfo> dependencies = result.getBundlesByName(libraryObject.getFirst());
+            if (dependencies == null) {
+                continue;
+            }
+            for (BundleInfo dependency : dependencies) {
+                if (DevPropertiesProducer.isBundleAcceptable(dependency)
+                    && new Version(dependency.getBundleVersion()).equals(libraryObject.getSecond())) {
+                    builder.append("  <orderEntry type=\"module\" module-name=\"").append(dependency.getBundleName()).append("\"")
+                        .append(isExported ? " exported=\"\"" : "")
+                        .append(testScope ? " scope=\"TEST\"" : "").append("/>\n");
+                    break;
+                }
+            }
+        }
     }
 
     @Nullable
-    private String generateXMLLibraryConfig(@NotNull BundleInfo bundleInfo, Result result) {
+    private String generateXMLLibraryConfig(
+        @NotNull BundleInfo bundleInfo,
+        @NotNull Result result,
+        @NotNull Set<Pair<String, Version>> libraryObjects
+    ) {
         if (bundleInfo.getPath() == null) {
             log.error("Bundle " + bundleInfo.getBundleName() + " path not found");
             return null;
@@ -1235,7 +1261,6 @@ public class IMLConfigurationProducer implements IImportListener {
         builder.append("<component name=\"libraryTable\">").append("\n");
         builder.append(" <library name=\"").append(bundleInfo.getBundleName()).append("\">\n");
         builder.append("   <CLASSES>").append("\n");
-        LinkedHashSet<Pair<String, Version>> libraryObjects = new LinkedHashSet<>();
         appendLibraryInfo(builder, bundleInfo, result, libraryObjects, true);
         builder.append("  </CLASSES>").append("\n");
         builder.append("   <SOURCES>").append("\n");
