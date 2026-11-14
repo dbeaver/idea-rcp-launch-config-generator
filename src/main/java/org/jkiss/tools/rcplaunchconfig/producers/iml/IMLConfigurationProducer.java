@@ -100,7 +100,7 @@ public class IMLConfigurationProducer implements IImportListener {
         List<ModuleInfo> modules = new ArrayList<>();
         for (Set<BundleInfo> value : result.getBundlesByNames().values()) {
             for (BundleInfo bundleInfo : value) {
-                if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
+                if (DevPropertiesProducer.isBundleAcceptable(bundleInfo)) {
                     if (bundleInfo.getPath() != null) {
                         MavenPomProcessor.collectArtifacts(bundleInfo.getPath());
                     }
@@ -113,7 +113,7 @@ public class IMLConfigurationProducer implements IImportListener {
                 if (this.modules.contains(bundleInfo)) {
                     continue;
                 }
-                if (DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
+                if (DevPropertiesProducer.isBundleAcceptable(bundleInfo)) {
                     String moduleConfig = generateIMLBundleConfig(bundleInfo, result);
                     if (moduleConfig != null) {
                         modules.add(bundleInfo);
@@ -636,9 +636,15 @@ public class IMLConfigurationProducer implements IImportListener {
         @NotNull Result result,
         @NotNull Set<Pair<String, Version>> resolvedBundles,
         boolean isLibrary) {
-        resolvedBundles.add(new Pair<>(bundleInfo.getBundleName(), new Version(bundleInfo.getBundleVersion())));
+        if (!resolvedBundles.add(new Pair<>(bundleInfo.getBundleName(), new Version(bundleInfo.getBundleVersion())))) {
+            return;
+        }
         if (bundleInfo.getPath() == null) {
             log.error("Error appending library info to non existing module {}, should not happen", bundleInfo.getBundleName());
+            return;
+        }
+        // Source bundles need module edges, not library roots pointing at uncompiled sources.
+        if (DevPropertiesProducer.isBundleAcceptable(bundleInfo)) {
             return;
         }
         if (bundleInfo.getPath().toFile().isDirectory()) {
@@ -881,6 +887,19 @@ public class IMLConfigurationProducer implements IImportListener {
         }
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
+        String extraClasspath = properties.getProperty("jars.extra.classpath", "");
+        for (String entry : extraClasspath.split(",")) {
+            if (!entry.isBlank()) {
+                builder.append("  <orderEntry type=\"module-library\"><library><CLASSES>\n");
+                appendClasspathLib(builder, bundleInfo, entry.trim(), false);
+                builder.append("  </CLASSES><JAVADOC/><SOURCES/></library></orderEntry>\n");
+            }
+        }
+        if (!DevPropertiesProducer.isBundleAcceptable(bundleInfo.getBundleName())) {
+            appendMavenDependencyEntries(MavenPomProcessor.processDependencies(bundleInfo.getPath()).stream()
+                .filter(dependency -> MavenDependency.SCOPE_PROVIDED.equals(dependency.scope()))
+                .toList(), builder);
+        }
         LinkedHashSet<Pair<String, Version>> resolvedBundles = new LinkedHashSet<>();
         for (Pair<String, VersionRange> requireBundle : bundleInfo.getRequireBundles()) {
             appendBundleInfo(bundleInfo, requireBundle, builder, result, resolvedBundles);
@@ -1144,7 +1163,7 @@ public class IMLConfigurationProducer implements IImportListener {
             return;
         }
         boolean isExported = bundleInfo.getReexportedBundles().contains(requireBundle.getFirst());
-        if (DevPropertiesProducer.isBundleAcceptable(requireBundle.getFirst())) {
+        if (DevPropertiesProducer.isBundleAcceptable(bundle)) {
             resolvedBundles.add(new Pair<>(requireBundle.getFirst(), new Version(bundle.getBundleVersion())));
             builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireBundle.getFirst())
                 .append(isExported ? "\" exported=\"\"" : "\"").append("/>").append("\n");
@@ -1194,26 +1213,46 @@ public class IMLConfigurationProducer implements IImportListener {
             return;
         }
         boolean directoryBundle = bundleByName.getPath().toFile().isDirectory();
+        Set<Pair<String, Version>> libraryObjects = new LinkedHashSet<>();
         addLibraryEntry(bundleByName, builder, isExported, directoryBundle, testScope);
         if (!directoryBundle) {
-            Set<Pair<String, Version>> oldResolvedBundles = new LinkedHashSet<>(resolvedBundles);
-            appendLibraryInfo(builder, bundleByName, result, resolvedBundles, false);
-            HashSet<Pair<String, Version>> diff = new HashSet<>(resolvedBundles);
-            diff.removeAll(oldResolvedBundles);
-            endLibraryEntry(builder, result, diff);
+            appendLibraryInfo(builder, bundleByName, result, libraryObjects, false);
+            endLibraryEntry(builder, result, libraryObjects);
         } else {
+            String libraryConfig = generateXMLLibraryConfig(bundleByName, result, libraryObjects);
             if (!generatedLibraries.contains(bundleByName.getBundleName())) {
-                String libraryConfig = generateXMLLibraryConfig(bundleByName, result);
                 if (libraryConfig != null) {
                     createConfigFile(getLibraryConfigPath().resolve(bundleByName.getBundleName() + ".xml"), libraryConfig);
                 }
                 generatedLibraries.add(bundleByName.getBundleName());
             }
         }
+        for (Pair<String, Version> libraryObject : libraryObjects) {
+            if (!resolvedBundles.add(libraryObject)) {
+                continue;
+            }
+            Set<BundleInfo> dependencies = result.getBundlesByName(libraryObject.getFirst());
+            if (dependencies == null) {
+                continue;
+            }
+            for (BundleInfo dependency : dependencies) {
+                if (DevPropertiesProducer.isBundleAcceptable(dependency)
+                    && new Version(dependency.getBundleVersion()).equals(libraryObject.getSecond())) {
+                    builder.append("  <orderEntry type=\"module\" module-name=\"").append(dependency.getBundleName()).append("\"")
+                        .append(isExported ? " exported=\"\"" : "")
+                        .append(testScope ? " scope=\"TEST\"" : "").append("/>\n");
+                    break;
+                }
+            }
+        }
     }
 
     @Nullable
-    private String generateXMLLibraryConfig(@NotNull BundleInfo bundleInfo, Result result) {
+    private String generateXMLLibraryConfig(
+        @NotNull BundleInfo bundleInfo,
+        @NotNull Result result,
+        @NotNull Set<Pair<String, Version>> libraryObjects
+    ) {
         if (bundleInfo.getPath() == null) {
             log.error("Bundle " + bundleInfo.getBundleName() + " path not found");
             return null;
@@ -1222,7 +1261,6 @@ public class IMLConfigurationProducer implements IImportListener {
         builder.append("<component name=\"libraryTable\">").append("\n");
         builder.append(" <library name=\"").append(bundleInfo.getBundleName()).append("\">\n");
         builder.append("   <CLASSES>").append("\n");
-        LinkedHashSet<Pair<String, Version>> libraryObjects = new LinkedHashSet<>();
         appendLibraryInfo(builder, bundleInfo, result, libraryObjects, true);
         builder.append("  </CLASSES>").append("\n");
         builder.append("   <SOURCES>").append("\n");
