@@ -127,6 +127,33 @@ class IMLConfigurationProducerTest {
         assertEquals("0", evaluate(readIml(legacy), "count(//sourceFolder[contains(@url, 'com.dbeaver.test.mongodb/src/main/java')])"));
     }
 
+    @Test
+    void includesCompileDependenciesForExplicitlyConfiguredOsgiModule() throws Exception {
+        Path nativeApi = createModule("services", "com.dbeaver.test.native.api", false);
+        Path wrapper = createModule("bundles", "com.dbeaver.test.wrapper", true, "com.dbeaver.test.native.api");
+        Path ordinary = createModule("bundles", "com.dbeaver.test.ordinary", true, "com.dbeaver.test.native.api");
+        initPaths(wrapper);
+        MavenLocalArtifactRegistry.INSTANCE.addProvidedDependency(
+            new MavenDependency("com.dbeaver.test", "com.dbeaver.test.native.api", "1.0.0", List.of()), nativeApi);
+
+        Result result = new Result();
+        for (Path bundle : List.of(wrapper, ordinary)) {
+            try (var input = Files.newInputStream(bundle.resolve("META-INF/MANIFEST.MF"))) {
+                result.addBundle(ManifestParser.parseManifest(bundle, null, new Manifest(input)));
+            }
+        }
+        IMLConfigurationProducer producer = new IMLConfigurationProducer();
+        producer.generateIMLFiles(result, null);
+        producer.generateImplConfiguration();
+
+        assertModuleDependency(wrapper, nativeApi);
+        assertModuleListedOnce(wrapper);
+        assertModuleListedOnce(nativeApi);
+        assertEquals("0", evaluate(readIml(ordinary),
+            "count(//orderEntry[@module-name='com.dbeaver.test.native.api'])"));
+        assertEquals("JDK_21", evaluate(readIml(wrapper), "string(//component/@LANGUAGE_LEVEL)"));
+    }
+
     private void initPaths(Path service) throws IOException {
         Properties settings = new Properties();
         settings.setProperty("workspaceName", "test-workspace");
