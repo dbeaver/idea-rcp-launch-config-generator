@@ -942,7 +942,19 @@ public class IMLConfigurationProducer implements IImportListener {
                 }
             }
         }
-        if (bundleInfo.getPath() != null && bundleInfo.getPath().resolve(TEST_FOLDER).toFile().exists()
+        Collection<Path> mavenModules = PathsManager.INSTANCE.getMavenModules();
+        if (mavenModules != null && mavenModules.contains(bundleInfo.getPath())) {
+            // Explicitly configured hybrid modules need their compile-time Maven dependencies
+            // even when they have already been discovered as OSGi bundles.
+            List<MavenDependency> dependencies = MavenPomProcessor.processDependencies(bundleInfo.getPath()).stream()
+                .filter(dependency -> {
+                    Path module = MavenLocalArtifactRegistry.INSTANCE.getProvidedDependencyPath(dependency);
+                    return module == null || resolvedBundles.stream()
+                        .noneMatch(bundle -> bundle.getFirst().equals(module.getFileName().toString()));
+                })
+                .toList();
+            appendMavenDependencyEntries(dependencies, builder);
+        } else if (bundleInfo.getPath() != null && bundleInfo.getPath().resolve(TEST_FOLDER).toFile().exists()
             && !appendMavenTestDependencies(bundleInfo.getPath(), builder)
         ) {
             Set<String> testLibraries = PathsManager.INSTANCE.getTestLibraries();
