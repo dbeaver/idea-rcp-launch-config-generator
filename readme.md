@@ -41,7 +41,8 @@ Accepts the following required parameters:
 | -output          | Place for result files                                                                                                                                                                                   |
 | -singleCoreMode  | (Debug) Uses only one core for the project resolution                                                                                                                                                    |
 | -debug           | Provides detailed output, including per-file POM open counts and generated IML read/write counts (totals are always logged)                                                                             |
-| -noTree          | Disable dependency tree generation for each product                                                                                                                                                      |
+| -generateDependencyTree | Generate dependency tree files in `tree-output` for products and additional repositories (disabled by default) |
+| -noTree          | Disable dependency tree generation (the default); overrides `-generateDependencyTree` |
 
 Configuration file example:
 ```properties

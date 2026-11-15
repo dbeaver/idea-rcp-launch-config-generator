@@ -71,7 +71,7 @@ public class EntryPoint {
         log.info("Process started with the following arguments: " + Arrays.toString(args));
         params.init(args);
         ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
-        boolean generateDependencyTree = !params.notGenerateDependencyTree;
+        boolean generateDependencyTree = params.generateDependencyTree && !params.notGenerateDependencyTree;
         if (params.debug) {
             logger.setLevel(Level.DEBUG);
         } else {
