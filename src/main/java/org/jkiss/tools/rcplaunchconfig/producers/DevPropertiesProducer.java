@@ -1,6 +1,6 @@
 /*
  * DBeaver - Universal Database Manager
- * Copyright (C) 2010-2024 DBeaver Corp and others
+ * Copyright (C) 2010-2026 DBeaver Corp and others
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import com.dbeaver.osgi.dependency.processing.BundleInfo;
 import com.dbeaver.osgi.dependency.processing.util.BundleValidator;
 import org.jkiss.code.NotNull;
 
+import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -32,7 +33,7 @@ public class DevPropertiesProducer {
         Map<String, String> result = new LinkedHashMap<>();
         for (var bundleInfos : bundles) {
             for (BundleInfo bundleInfo : bundleInfos) {
-                if (isBundleAcceptable(bundleInfo.getBundleName())) {
+                if (isBundleAcceptable(bundleInfo)) {
                     result.put(bundleInfo.getBundleName(), generateValue(bundleInfo.getClasspathLibs()));
                 }
             }
@@ -43,6 +44,11 @@ public class DevPropertiesProducer {
 
     public static boolean isBundleAcceptable(@NotNull String bundleName) {
         return BundleValidator.isInternalBundle(bundleName);
+    }
+
+    public static boolean isBundleAcceptable(@NotNull BundleInfo bundleInfo) {
+        return isBundleAcceptable(bundleInfo.getBundleName())
+            || bundleInfo.getPath() != null && Files.isRegularFile(bundleInfo.getPath().resolve("build.properties"));
     }
 
     private static @NotNull String generateValue(@NotNull List<String> bundleClassPath) {
