@@ -40,7 +40,10 @@ public class Params {
     @Option(names = "-eclipse", description = "Path to folder with 3-rd party dependencies")
     public Path eclipsePath;
 
-    @Option(names = "-noTree", description = "Option to generate dependency tree files")
+    @Option(names = "-generateDependencyTree", description = "Generate dependency tree files in tree-output (disabled by default)")
+    public boolean generateDependencyTree;
+
+    @Option(names = "-noTree", description = "Disable dependency tree generation (the default)")
     public boolean notGenerateDependencyTree;
 
     @Option(names = "-output", description = "Place for result files", required = true)
