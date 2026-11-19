@@ -16,12 +16,14 @@
  */
 package org.jkiss.tools.rcplaunchconfig.producers.iml;
 
+import com.dbeaver.osgi.dependency.processing.BundleInfo;
 import com.dbeaver.osgi.dependency.processing.PathsManager;
 import com.dbeaver.osgi.dependency.processing.Result;
 import com.dbeaver.osgi.dependency.processing.resolvers.ManifestParser;
 import org.jkiss.code.NotNull;
 import org.jkiss.tools.rcplaunchconfig.maven.model.MavenDependency;
 import org.jkiss.tools.rcplaunchconfig.maven.registry.MavenLocalArtifactRegistry;
+import org.jkiss.utils.Pair;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.w3c.dom.Document;
@@ -125,6 +127,61 @@ class IMLConfigurationProducerTest {
 
         assertEquals("1", evaluate(readIml(canonical), "count(//sourceFolder[contains(@url, 'com.dbeaver.test.mongodb/src/main/java')])"));
         assertEquals("0", evaluate(readIml(legacy), "count(//sourceFolder[contains(@url, 'com.dbeaver.test.mongodb/src/main/java')])"));
+    }
+
+    @Test
+    void fragmentInheritsHostRequirementsAndPackageImports() throws Exception {
+        Path host = createModule("bundles", "com.dbeaver.test.host", true);
+        Path required = createModule("bundles", "com.dbeaver.test.required", true);
+        Path imported = createModule("bundles", "com.dbeaver.test.imported", true);
+        Path shared = createModule("bundles", "com.dbeaver.test.shared.dependency", true);
+        Path fragment = createModule("tests", "com.dbeaver.test.fragment", true);
+        Path consumer = createModule("bundles", "com.dbeaver.test.host.consumer", true);
+        Files.writeString(host.resolve("META-INF/MANIFEST.MF"), """
+            Manifest-Version: 1.0
+            Bundle-SymbolicName: com.dbeaver.test.host
+            Bundle-Version: 1.0.0
+            Require-Bundle: com.dbeaver.test.required,com.dbeaver.test.shared.dependency
+            Import-Package: com.dbeaver.test.imported.model
+
+            """);
+        Files.writeString(fragment.resolve("META-INF/MANIFEST.MF"), """
+            Manifest-Version: 1.0
+            Bundle-SymbolicName: com.dbeaver.test.fragment
+            Bundle-Version: 1.0.0
+            Fragment-Host: com.dbeaver.test.host;bundle-version="[1.0.0,2.0.0)"
+            Require-Bundle: com.dbeaver.test.shared.dependency
+
+            """);
+        Files.writeString(consumer.resolve("META-INF/MANIFEST.MF"), """
+            Manifest-Version: 1.0
+            Bundle-SymbolicName: com.dbeaver.test.host.consumer
+            Bundle-Version: 1.0.0
+            Require-Bundle: com.dbeaver.test.host
+
+            """);
+        initPaths(host);
+
+        Result result = new Result();
+        IMLConfigurationProducer producer = new IMLConfigurationProducer();
+        for (Path module : List.of(host, required, imported, shared, fragment, consumer)) {
+            try (var input = Files.newInputStream(module.resolve("META-INF/MANIFEST.MF"))) {
+                BundleInfo bundle = ManifestParser.parseManifest(module, null, new Manifest(input));
+                result.addBundle(bundle);
+                if (module.equals(imported)) {
+                    producer.notifyAboutDependency(new Pair<>("com.dbeaver.test.imported.model", null), new Pair<>(bundle, null));
+                }
+            }
+        }
+        producer.generateIMLFiles(result, null);
+
+        for (Path dependency : List.of(host, required, imported, shared)) {
+            assertModuleDependency(fragment, dependency);
+        }
+        assertEquals("4", evaluate(readIml(fragment), "count(//orderEntry[@type='module'])"));
+        assertEquals("1", evaluate(readIml(consumer), "count(//orderEntry[@type='module'])"));
+        assertModuleDependency(consumer, host);
+        assertEquals("0", evaluate(readIml(host), "count(//orderEntry[@exported])"));
     }
 
     private void initPaths(Path service) throws IOException {

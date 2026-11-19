@@ -882,11 +882,54 @@ public class IMLConfigurationProducer implements IImportListener {
         builder.append("  <orderEntry type=\"inheritedJdk\" />").append("\n");
         builder.append("  <orderEntry type=\"sourceFolder\" forTests=\"false\" />").append("\n");
         LinkedHashSet<Pair<String, Version>> resolvedBundles = new LinkedHashSet<>();
+        appendBundleDependencies(bundleInfo, builder, result, resolvedBundles);
+        if (bundleInfo.getPath() != null && bundleInfo.getPath().resolve(TEST_FOLDER).toFile().exists()
+            && !appendMavenTestDependencies(bundleInfo.getPath(), builder)
+        ) {
+            Set<String> testLibraries = PathsManager.INSTANCE.getTestLibraries();
+            if (testLibraries != null) {
+                for (String testLibrary : testLibraries) {
+                    addModuleLibrary(new Pair<>(testLibrary, null), builder, result, resolvedBundles, false, true);
+                }
+            }
+        }
+        for (String requireFragment : bundleInfo.getRequireFragments()) {
+            builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireFragment)
+                .append("\"/>").append("\n");
+        }
+        if (!bundleInfo.getClasspathLibs().isEmpty()) {
+            addLibraryEntry(bundleInfo, builder, true, false, false);
+            for (String classpathLib : bundleInfo.getClasspathLibs()) {
+                appendClasspathLib(builder, bundleInfo, classpathLib, false);
+            }
+            endLibraryEntry(builder, result, Set.of());
+        }
+        builder.append(" </component>").append("\n");
+        builder.append("</module>");
+        return builder.toString();
+    }
+
+    private void appendBundleDependencies(
+        @NotNull BundleInfo bundleInfo,
+        @NotNull StringBuilder builder,
+        @NotNull Result result,
+        @NotNull Set<Pair<String, Version>> resolvedBundles
+    ) throws IOException {
         for (Pair<String, VersionRange> requireBundle : bundleInfo.getRequireBundles()) {
             appendBundleInfo(bundleInfo, requireBundle, builder, result, resolvedBundles);
         }
         if (bundleInfo.getFragmentHost() != null) {
             appendBundleInfo(bundleInfo, bundleInfo.getFragmentHost(), builder, result, resolvedBundles);
+            Set<BundleInfo> hosts = result.getBundlesByName(bundleInfo.getFragmentHost().getFirst());
+            if (hosts != null) {
+                BundleInfo host = getLatestBundle(hosts.stream()
+                    .filter(it -> VersionRange.isVersionsCompatible(
+                        bundleInfo.getFragmentHost().getSecond(), new Version(it.getBundleVersion())
+                    ))
+                    .toList()).orElseThrow();
+                // Fragments share their host's class space, including non-reexported dependencies.
+                appendBundleDependencies(host, builder, result, resolvedBundles);
+            }
         }
         for (Pair<String, VersionRange> importPackage : bundleInfo.getImportPackages()) {
             if (bundlePackageImports.get(importPackage) != null) {
@@ -942,30 +985,6 @@ public class IMLConfigurationProducer implements IImportListener {
                 }
             }
         }
-        if (bundleInfo.getPath() != null && bundleInfo.getPath().resolve(TEST_FOLDER).toFile().exists()
-            && !appendMavenTestDependencies(bundleInfo.getPath(), builder)
-        ) {
-            Set<String> testLibraries = PathsManager.INSTANCE.getTestLibraries();
-            if (testLibraries != null) {
-                for (String testLibrary : testLibraries) {
-                    addModuleLibrary(new Pair<>(testLibrary, null), builder, result, resolvedBundles, false, true);
-                }
-            }
-        }
-        for (String requireFragment : bundleInfo.getRequireFragments()) {
-            builder.append("  <orderEntry type = \"module\" module-name=\"").append(requireFragment)
-                .append("\"/>").append("\n");
-        }
-        if (!bundleInfo.getClasspathLibs().isEmpty()) {
-            addLibraryEntry(bundleInfo, builder, true, false, false);
-            for (String classpathLib : bundleInfo.getClasspathLibs()) {
-                appendClasspathLib(builder, bundleInfo, classpathLib, false);
-            }
-            endLibraryEntry(builder, result, Set.of());
-        }
-        builder.append(" </component>").append("\n");
-        builder.append("</module>");
-        return builder.toString();
     }
 
     private void appendMavenDependencies(@NotNull Path path, @NotNull StringBuilder builder) throws IOException {
