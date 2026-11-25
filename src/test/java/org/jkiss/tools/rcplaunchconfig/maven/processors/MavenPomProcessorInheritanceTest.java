@@ -184,6 +184,17 @@ class MavenPomProcessorInheritanceTest {
             </profile></profiles>
             """);
         assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version><packaging>pom</packaging>
+                <profiles><profile><id>jar</id>
+                    <activation><property><name>packaging</name><value>jar</value></property></activation>
+                    <properties><maven.compiler.release>25</maven.compiler.release></properties>
+                </profile></profiles>
+            </project>
+            """);
+        childPom("child", "");
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(tempDir));
     }
 
     @Test

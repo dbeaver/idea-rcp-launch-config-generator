@@ -179,11 +179,15 @@ public class MavenPomProcessor {
         Set<String> inheritanceBarriers = new HashSet<>();
         Set<Path> visited = new HashSet<>();
         Path pom = path.resolve("pom.xml");
+        String packaging = null;
         try {
             while (Files.isRegularFile(pom) && visited.add(pom.toRealPath())) {
                 Document doc = parseDocument(pom);
                 Element project = doc.getDocumentElement();
-                List<Element> configurations = getActiveCompilerConfigurations(doc, pom);
+                if (packaging == null) {
+                    packaging = Objects.requireNonNullElse(getTagValue(project, "packaging"), "jar");
+                }
+                List<Element> configurations = getActiveCompilerConfigurations(doc, pom, packaging);
                 configurations.add(project);
                 for (Element configuration : configurations) {
                     Element props = getDirectChild(configuration, "properties");
@@ -241,7 +245,11 @@ public class MavenPomProcessor {
     }
 
     @NotNull
-    private static List<Element> getActiveCompilerConfigurations(@NotNull Document doc, @NotNull Path pom) throws IOException {
+    private static List<Element> getActiveCompilerConfigurations(
+        @NotNull Document doc,
+        @NotNull Path pom,
+        @NotNull String packaging
+    ) throws IOException {
         Element profiles = getDirectChild(doc.getDocumentElement(), "profiles");
         List<Element> configurations = new ArrayList<>();
         if (profiles == null) {
@@ -254,7 +262,7 @@ public class MavenPomProcessor {
             var context = new DefaultProfileActivationContext()
                 .setProjectDirectory(pom.toAbsolutePath().getParent().toFile())
                 .setProjectProperties(model.getProperties())
-                .setUserProperties(Map.of("packaging", model.getPackaging()))
+                .setUserProperties(Map.of("packaging", packaging))
                 .setSystemProperties(System.getProperties());
             var activeProfiles = new ProfileSelectorFactory().newProfileSelector().getActiveProfiles(
                 model.getProfiles(), context, problem -> log.warn("Maven profile activation: {}", problem.getMessage())
