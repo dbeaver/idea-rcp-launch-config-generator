@@ -154,6 +154,108 @@ public class MavenPomProcessor {
         return parseDependencies(path);
     }
 
+    /**
+     * Resolves the compiler release/source using local parent POMs and child property overrides.
+     * Returns null when no language level is configured, so IDEA can inherit its project default.
+     */
+    @Nullable
+    public static String getJavaLanguageLevel(@NotNull Path path) throws IOException {
+        Map<String, String> properties = new LinkedHashMap<>();
+        Map<String, String> compiler = new LinkedHashMap<>();
+        Map<String, String> managedCompiler = new LinkedHashMap<>();
+        Set<Path> visited = new HashSet<>();
+        Path pom = path.resolve("pom.xml");
+        try {
+            while (Files.isRegularFile(pom) && visited.add(pom.toRealPath())) {
+                Document doc = parseDocument(pom);
+                Element project = doc.getDocumentElement();
+                Element props = getDirectChild(project, "properties");
+                if (props != null) {
+                    NodeList children = props.getChildNodes();
+                    for (int i = 0; i < children.getLength(); i++) {
+                        Node child = children.item(i);
+                        if (child instanceof Element) {
+                            properties.putIfAbsent(child.getNodeName(), child.getTextContent().trim());
+                        }
+                    }
+                }
+                Element build = getDirectChild(project, "build");
+                if (build != null) {
+                    collectCompilerOptions(build, compiler);
+                    Element management = getDirectChild(build, "pluginManagement");
+                    if (management != null) {
+                        collectCompilerOptions(management, managedCompiler);
+                    }
+                }
+                Element parent = getDirectChild(project, PARENT_TAG);
+                if (parent == null || "".equals(getTagValue(parent, RELATIVE_PATH_TAG))) {
+                    break;
+                }
+                File parentPom = getParentPomFile(doc, pom.toFile());
+                if (parentPom == null) {
+                    break;
+                }
+                pom = parentPom.toPath();
+            }
+        } catch (ParserConfigurationException | SAXException e) {
+            throw new IOException("Error reading compiler configuration from " + pom, e);
+        }
+        managedCompiler.forEach(compiler::putIfAbsent);
+        for (String option : List.of("release", "source")) {
+            String value = compiler.getOrDefault(option, properties.get("maven.compiler." + option));
+            value = resolveCompilerProperty(value, properties, new HashSet<>());
+            if (value != null) {
+                if (value.startsWith("1.")) {
+                    value = value.substring(2);
+                }
+                if (value.matches("[1-9][0-9]*")) {
+                    int version = Integer.parseInt(value);
+                    return version <= 8 ? "JDK_1_" + version : "JDK_" + version;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void collectCompilerOptions(@NotNull Element build, @NotNull Map<String, String> options) {
+        Element plugins = getDirectChild(build, "plugins");
+        if (plugins == null) {
+            return;
+        }
+        for (Element plugin : getDirectChildren(plugins, "plugin")) {
+            String group = getTagValue(plugin, "groupId");
+            if (!"maven-compiler-plugin".equals(getTagValue(plugin, "artifactId"))
+                || (group != null && !"org.apache.maven.plugins".equals(group))) {
+                continue;
+            }
+            Element configuration = getDirectChild(plugin, "configuration");
+            if (configuration != null) {
+                for (String option : List.of("release", "source")) {
+                    String value = getTagValue(configuration, option);
+                    if (value != null) {
+                        options.putIfAbsent(option, value);
+                    }
+                }
+            }
+        }
+    }
+
+    @Nullable
+    private static String resolveCompilerProperty(
+        @Nullable String value,
+        @NotNull Map<String, String> properties,
+        @NotNull Set<String> visited
+    ) {
+        if (value == null) {
+            return null;
+        }
+        if (value.startsWith("${") && value.endsWith("}")) {
+            String property = value.substring(2, value.length() - 1);
+            return visited.add(property) ? resolveCompilerProperty(properties.get(property), properties, visited) : null;
+        }
+        return value;
+    }
+
     @NotNull
     private static List<MavenDependency> parseDependencies(@NotNull Path path) {
         Path pomXMl = path.resolve("pom.xml");

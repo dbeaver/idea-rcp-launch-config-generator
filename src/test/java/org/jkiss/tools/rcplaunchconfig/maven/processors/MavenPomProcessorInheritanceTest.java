@@ -27,10 +27,88 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class MavenPomProcessorInheritanceTest {
     @TempDir
     Path tempDir;
+
+    @Test
+    void inheritsCompilerPropertiesAndResolvesChildOverrides() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><properties>
+                <java.version>25</java.version>
+                <maven.compiler.source>${java.version}</maven.compiler.source>
+                <maven.compiler.target>${java.version}</maven.compiler.target>
+            </properties></project>
+            """);
+        Path parent = childPom("parent", "");
+        Path child = childPom("parent/child", "");
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+
+        childPom("parent/child", "<properties><java.version>17</java.version></properties>");
+        assertEquals("JDK_17", MavenPomProcessor.getJavaLanguageLevel(child));
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(parent));
+
+        childPom("parent/child", "<properties><maven.compiler.release>21</maven.compiler.release></properties>");
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void resolvesInheritedCompilerPluginConfiguration() throws Exception {
+        for (String container : List.of("%s", "<pluginManagement>%s</pluginManagement>")) {
+            Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                    <properties><java.version>25</java.version><maven.compiler.source>17</maven.compiler.source></properties>
+                    <build>%s</build>
+                </project>
+                """.formatted(container.formatted("""
+                <plugins><plugin>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><release>${java.version}</release></configuration>
+                </plugin></plugins>
+                """)));
+            Path child = childPom("child", "<properties><java.version>21</java.version></properties>");
+            assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+
+            childPom("child", """
+                <build><plugins><plugin>
+                    <groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><release>17</release></configuration>
+                </plugin></plugins></build>
+                """);
+            assertEquals("JDK_17", MavenPomProcessor.getJavaLanguageLevel(child));
+        }
+    }
+
+    @Test
+    void normalizesLegacySourceAndIgnoresTargetAndInactiveProfiles() throws Exception {
+        Path child = childPom("child", """
+            <properties><maven.compiler.target>17</maven.compiler.target></properties>
+            <profiles><profile><properties><maven.compiler.source>21</maven.compiler.source></properties></profile></profiles>
+            """);
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
+        for (String source : List.of("8", "1.8")) {
+            childPom("child", """
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><source>%s</source><target>17</target></configuration>
+                </plugin></plugins></build>
+                """.formatted(source));
+            assertEquals("JDK_1_8", MavenPomProcessor.getJavaLanguageLevel(child));
+        }
+    }
+
+    @Test
+    void unresolvedAndCyclicCompilerPropertiesInheritProjectDefault() throws Exception {
+        Path child = childPom("child", """
+            <properties>
+                <maven.compiler.release>${missing}</maven.compiler.release>
+                <maven.compiler.source>${java.version}</maven.compiler.source>
+                <java.version>${maven.compiler.source}</java.version>
+            </properties>
+            """);
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
+    }
 
     @Test
     void opensEachPomOnlyOnceDuringGeneration() throws Exception {

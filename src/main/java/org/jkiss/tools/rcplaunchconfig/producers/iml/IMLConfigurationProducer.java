@@ -497,9 +497,12 @@ public class IMLConfigurationProducer implements IImportListener {
         if (isMaven) {
             StringBuilder moduleImports = new StringBuilder();
             appendMavenDependencies(presentModule, moduleImports);
+            String languageLevel = MavenPomProcessor.getJavaLanguageLevel(presentModule);
             return new StringBuilder().append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                 .append("<module type=\"JAVA_MODULE\" version=\"4\">\n")
-                .append("  <component name=\"NewModuleRootManager\" inherit-compiler-output=\"false\" LANGUAGE_LEVEL=\"JDK_17\">\n")
+                .append("  <component name=\"NewModuleRootManager\" inherit-compiler-output=\"false\"")
+                .append(languageLevel == null ? "" : " LANGUAGE_LEVEL=\"" + languageLevel + "\"")
+                .append(">\n")
                 .append("  <exclude-output/>\n")
                 .append("  <output url=\"")
                 .append(getFormattedRelativePath(presentModule.resolve("target/classes"), false, false))
