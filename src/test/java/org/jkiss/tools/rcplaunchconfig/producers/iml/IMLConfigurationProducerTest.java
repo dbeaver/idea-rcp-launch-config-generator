@@ -55,6 +55,26 @@ class IMLConfigurationProducerTest {
     }
 
     @Test
+    void generatesMavenLanguageLevelFromInheritedCompilerProperties() throws Exception {
+        Path service = createModule("services", "com.dbeaver.test.language", false);
+        Path parentPom = service.getParent().resolve("pom.xml");
+        Files.writeString(parentPom, """
+            <project><groupId>com.dbeaver.test</groupId><artifactId>test-parent</artifactId><version>1.0.0</version><properties>
+                <java.version>25</java.version>
+                <maven.compiler.source>${java.version}</maven.compiler.source>
+            </properties></project>
+            """);
+        initPaths(service);
+
+        new IMLConfigurationProducer().generateImplConfiguration();
+        assertEquals("JDK_25", evaluate(readIml(service), "string(//component/@LANGUAGE_LEVEL)"));
+
+        Files.writeString(parentPom, "<project/>");
+        new IMLConfigurationProducer().generateImplConfiguration();
+        assertEquals("0", evaluate(readIml(service), "count(//component/@LANGUAGE_LEVEL)"));
+    }
+
+    @Test
     void generatesMavenOnlyBundleDependenciesRecursively() throws Exception {
         final Path api = createModule("bundles", "com.dbeaver.test.api", true, "com.dbeaver.test.model");
         Path model = createModule("bundles", "com.dbeaver.test.model", true, "com.dbeaver.test.api");

@@ -27,10 +27,291 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class MavenPomProcessorInheritanceTest {
     @TempDir
     Path tempDir;
+
+    @Test
+    void inheritsCompilerPropertiesAndResolvesChildOverrides() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version><properties>
+                <java.version>25</java.version>
+                <maven.compiler.source>${java.version}</maven.compiler.source>
+                <maven.compiler.target>${java.version}</maven.compiler.target>
+            </properties></project>
+            """);
+        Path parent = childPom("parent", "");
+        Path child = childPom("parent/child", "");
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+
+        childPom("parent/child", "<properties><java.version>17</java.version></properties>");
+        assertEquals("JDK_17", MavenPomProcessor.getJavaLanguageLevel(child));
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(parent));
+
+        childPom("parent/child", "<properties><maven.compiler.release>21</maven.compiler.release></properties>");
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void resolvesInheritedCompilerPluginConfiguration() throws Exception {
+        for (String container : List.of("%s", "<pluginManagement>%s</pluginManagement>")) {
+            Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                    <groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                    <properties><java.version>25</java.version><maven.compiler.source>17</maven.compiler.source></properties>
+                    <build>%s</build>
+                </project>
+                """.formatted(container.formatted("""
+                <plugins><plugin>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><release>${java.version}</release></configuration>
+                </plugin></plugins>
+                """)));
+            Path child = childPom("child", "<properties><java.version>21</java.version></properties>");
+            assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+
+            childPom("child", """
+                <build><plugins><plugin>
+                    <groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><release>17</release></configuration>
+                </plugin></plugins></build>
+                """);
+            assertEquals("JDK_17", MavenPomProcessor.getJavaLanguageLevel(child));
+        }
+    }
+
+    @Test
+    void skipsNonInheritedPluginAndExecutionConfiguration() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <inherited>FALSE</inherited><configuration><release>17</release></configuration>
+                </plugin></plugins></build>
+            </project>
+            """);
+        Path child = childPom("child", "");
+        assertEquals("JDK_17", MavenPomProcessor.getJavaLanguageLevel(tempDir));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
+
+        childPom("child", """
+            <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId><executions><execution>
+                <id>default-compile</id><inherited>FALSE</inherited><configuration><source>21</source></configuration>
+            </execution></executions></plugin></plugins></build>
+            """);
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(childPom("child/grandchild", "")));
+    }
+
+    @Test
+    void nonInheritanceBlocksOlderAncestorConfiguration() throws Exception {
+        for (String configuration : List.of(
+            "<configuration><release>17</release></configuration>",
+            "<executions><execution><id>default-compile</id><configuration><release>17</release></configuration></execution></executions>"
+        )) {
+            Files.writeString(tempDir.resolve("pom.xml"), """
+                <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                    <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>%s</plugin></plugins></build>
+                </project>
+                """.formatted(configuration));
+            String barrier = configuration.startsWith("<executions>")
+                ? "<executions><execution><id>default-compile</id><inherited>false</inherited></execution></executions>"
+                : "<inherited>false</inherited>";
+            Path parent = childPom("parent", """
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>%s</plugin></plugins></build>
+                """.formatted(barrier));
+            assertEquals("JDK_17", MavenPomProcessor.getJavaLanguageLevel(parent));
+            assertNull(MavenPomProcessor.getJavaLanguageLevel(childPom("parent/child", "")));
+        }
+    }
+
+    @Test
+    void defaultCompileExecutionOverridesTopLevelConfiguration() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <build><pluginManagement><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><release>17</release></configuration>
+                    <executions><execution><id>default-compile</id>
+                        <configuration><release>${java.version}</release></configuration>
+                    </execution><execution><id>default-testCompile</id>
+                        <configuration><release>8</release></configuration>
+                    </execution></executions>
+                </plugin></plugins></pluginManagement></build>
+            </project>
+            """);
+        Path child = childPom("child", "<properties><java.version>25</java.version></properties>");
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void ignoresLocalPomWithDifferentParentCoordinates() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>aggregator</artifactId><version>1</version>
+                <properties><maven.compiler.source>17</maven.compiler.source></properties>
+            </project>
+            """);
+        Path child = childPom("child", "");
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void appliesDefaultAndFileActivatedCompilerProfiles() throws Exception {
+        Path child = childPom("child", """
+            <properties><maven.compiler.source>17</maven.compiler.source></properties>
+            <profiles>
+                <profile><id>default</id><activation><activeByDefault>true</activeByDefault></activation>
+                    <properties><maven.compiler.source>25</maven.compiler.source></properties>
+                </profile>
+                <profile><id>file</id><activation><file><exists>compiler-profile</exists></file></activation>
+                    <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                        <configuration><release>21</release></configuration>
+                    </plugin></plugins></build>
+                </profile>
+            </profiles>
+            """);
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+        Files.createFile(child.resolve("compiler-profile"));
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void activatesCompilerProfileByPackaging() throws Exception {
+        Path child = childPom("child", """
+            <profiles><profile><id>jar</id>
+                <activation><property><name>packaging</name><value>jar</value></property></activation>
+                <properties><maven.compiler.release>21</maven.compiler.release></properties>
+            </profile></profiles>
+            """);
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version><packaging>pom</packaging>
+                <profiles><profile><id>jar</id>
+                    <activation><property><name>packaging</name><value>jar</value></property></activation>
+                    <properties><maven.compiler.release>25</maven.compiler.release></properties>
+                </profile></profiles>
+            </project>
+            """);
+        childPom("child", "");
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(tempDir));
+    }
+
+    @Test
+    void resolvesAlternateParentPomFilename() throws Exception {
+        Files.writeString(tempDir.resolve("parent.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <properties><maven.compiler.release>25</maven.compiler.release></properties>
+            </project>
+            """);
+        Path child = childPom("child", "");
+        Path pom = child.resolve("pom.xml");
+        Files.writeString(pom, Files.readString(pom).replace("../pom.xml", "../parent.xml"));
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void activatesCompilerProfileByEnvironment() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(System.getenv().keySet().stream().anyMatch("PATH"::equalsIgnoreCase));
+        Path child = childPom("child", """
+            <profiles><profile><id>environment</id>
+                <activation><property><name>env.PATH</name></property></activation>
+                <properties><maven.compiler.release>21</maven.compiler.release></properties>
+            </profile></profiles>
+            """);
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void mergesProfilesBeforeApplyingNonInheritance() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <inherited>false</inherited>
+                </plugin></plugins></build>
+                <profiles><profile><id>default</id><activation><activeByDefault>true</activeByDefault></activation>
+                    <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                        <configuration><release>25</release></configuration>
+                    </plugin></plugins></build>
+                </profile></profiles>
+            </project>
+            """);
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(tempDir));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(childPom("child", "")));
+    }
+
+    @Test
+    void honorsCompilerConfigurationReplacement() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><release>17</release></configuration>
+                </plugin></plugins></build>
+            </project>
+            """);
+        Path child = childPom("child", """
+            <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                <configuration combine.self="override"><source>21</source></configuration>
+            </plugin></plugins></build>
+            """);
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void interpolatesPropertiesWithinCompilerValues() throws Exception {
+        Path child = childPom("child", """
+            <properties>
+                <java.major>8</java.major><java.source>1.${java.major}</java.source>
+                <maven.compiler.source>${java.source}</maven.compiler.source>
+            </properties>
+            """);
+        assertEquals("JDK_1_8", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void acceptsLocalParentVersionInDeclaredRange() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1.5</version>
+                <properties><maven.compiler.release>25</maven.compiler.release></properties>
+            </project>
+            """);
+        Path child = childPom("child", "");
+        Path pom = child.resolve("pom.xml");
+        String xml = Files.readString(pom).replace("<version>1</version>", "<version>[1,2)</version>");
+        Files.writeString(pom, xml);
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+        Files.writeString(pom, xml.replace("[1,2)", "[2,3)"));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void normalizesLegacySourceAndIgnoresTargetAndInactiveProfiles() throws Exception {
+        Path child = childPom("child", """
+            <properties><maven.compiler.target>17</maven.compiler.target></properties>
+            <profiles><profile><properties><maven.compiler.source>21</maven.compiler.source></properties></profile></profiles>
+            """);
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
+        for (String source : List.of("8", "1.8", "9", "1.9")) {
+            childPom("child", """
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><source>%s</source><target>17</target></configuration>
+                </plugin></plugins></build>
+                """.formatted(source));
+            assertEquals(source.endsWith("8") ? "JDK_1_8" : "JDK_1_9", MavenPomProcessor.getJavaLanguageLevel(child));
+        }
+    }
+
+    @Test
+    void unresolvedAndCyclicCompilerPropertiesInheritProjectDefault() throws Exception {
+        Path child = childPom("child", """
+            <properties>
+                <maven.compiler.release>${missing}</maven.compiler.release>
+                <maven.compiler.source>${java.version}</maven.compiler.source>
+                <java.version>${maven.compiler.source}</java.version>
+            </properties>
+            """);
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
+    }
 
     @Test
     void opensEachPomOnlyOnceDuringGeneration() throws Exception {
@@ -105,6 +386,7 @@ class MavenPomProcessorInheritanceTest {
             <project>
                 <parent><groupId>test.inheritance</groupId><artifactId>parent</artifactId>
                     <version>1</version><relativePath>../pom.xml</relativePath></parent>
+                <artifactId>parent</artifactId>
                 %s
             </project>
             """.formatted(content));

@@ -16,9 +16,22 @@
  */
 package org.jkiss.tools.rcplaunchconfig.maven.processors;
 
+import org.apache.maven.model.Build;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.building.DefaultModelBuildingRequest;
+import org.apache.maven.model.building.DefaultModelBuilderFactory;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.apache.maven.model.profile.DefaultProfileActivationContext;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.eclipse.aether.repository.NoLocalRepositoryManagerException;
 import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.DependencyResolutionException;
+import org.eclipse.aether.util.version.GenericVersionScheme;
+import org.eclipse.aether.version.InvalidVersionSpecificationException;
+import org.eclipse.aether.version.VersionConstraint;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.maven.download.MavenArtifactDownloader;
@@ -35,14 +48,22 @@ import org.xml.sax.SAXException;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 public class MavenPomProcessor {
     private static final Logger log = LoggerFactory.getLogger(MavenPomProcessor.class);
@@ -152,6 +173,186 @@ public class MavenPomProcessor {
             return dependencyCache.computeIfAbsent(path.toAbsolutePath().normalize(), MavenPomProcessor::parseDependencies);
         }
         return parseDependencies(path);
+    }
+
+    /**
+     * Resolves the compiler release/source using local parent POMs and child property overrides.
+     * Returns null when no language level is configured, so IDEA can inherit its project default.
+     */
+    @Nullable
+    public static String getJavaLanguageLevel(@NotNull Path path) throws IOException {
+        List<Model> hierarchy = new ArrayList<>();
+        CompilerModelFactory factory = new CompilerModelFactory();
+        Set<Path> visited = new HashSet<>();
+        Path pom = path.resolve("pom.xml");
+        String packaging = null;
+        try {
+            while (Files.isRegularFile(pom) && visited.add(pom.toRealPath())) {
+                Document doc = parseDocument(pom);
+                Element project = doc.getDocumentElement();
+                if (packaging == null) {
+                    packaging = Objects.requireNonNullElse(getTagValue(project, "packaging"), "jar");
+                }
+                Model model = readCompilerModel(doc);
+                factory.injectProfiles(model, pom, packaging);
+                hierarchy.add(model);
+                Element parent = getDirectChild(project, PARENT_TAG);
+                if (parent == null || "".equals(getTagValue(parent, RELATIVE_PATH_TAG))) {
+                    break;
+                }
+                String relativePath = getTagValue(parent, RELATIVE_PATH_TAG);
+                Path parentPom = pom.toAbsolutePath().getParent().resolve(relativePath == null ? "../pom.xml" : relativePath);
+                if (Files.isDirectory(parentPom)) {
+                    parentPom = parentPom.resolve("pom.xml");
+                }
+                if (!Files.isRegularFile(parentPom)
+                    || !matchesDeclaredParent(parent, parseDocument(parentPom).getDocumentElement())) {
+                    break;
+                }
+                pom = parentPom;
+            }
+        } catch (ParserConfigurationException | SAXException e) {
+            throw new IOException("Error reading compiler configuration from " + pom, e);
+        }
+        if (hierarchy.isEmpty()) {
+            return null;
+        }
+        Model effective = hierarchy.getLast();
+        for (int i = hierarchy.size() - 2; i >= 0; i--) {
+            Model child = hierarchy.get(i);
+            factory.inherit(child, effective);
+            effective = child;
+        }
+        if (effective.getBuild() == null) {
+            effective.setBuild(new Build());
+        }
+        Plugin compiler = effective.getBuild().getPluginsAsMap().get("org.apache.maven.plugins:maven-compiler-plugin");
+        if (compiler == null) {
+            compiler = new Plugin();
+            compiler.setArtifactId("maven-compiler-plugin");
+            effective.getBuild().addPlugin(compiler);
+        }
+        factory.injectManagement(effective);
+        Xpp3Dom configuration = (Xpp3Dom) compiler.getConfiguration();
+        for (var execution : compiler.getExecutions()) {
+            if ("default-compile".equals(execution.getId()) && execution.getConfiguration() != null) {
+                configuration = Xpp3Dom.mergeXpp3Dom(new Xpp3Dom((Xpp3Dom) execution.getConfiguration()), configuration);
+            }
+        }
+        Map<String, String> properties = new LinkedHashMap<>();
+        for (String name : effective.getProperties().stringPropertyNames()) {
+            properties.put(name, effective.getProperties().getProperty(name));
+        }
+        for (String option : List.of("release", "source")) {
+            Xpp3Dom configured = configuration == null ? null : configuration.getChild(option);
+            String value = configured == null ? properties.get("maven.compiler." + option) : configured.getValue();
+            value = resolveCompilerProperty(value, properties, new HashSet<>());
+            if (value != null) {
+                if (value.startsWith("1.")) {
+                    value = value.substring(2);
+                }
+                if (value.matches("[1-9][0-9]*")) {
+                    int version = Integer.parseInt(value);
+                    return version <= 9 ? "JDK_1_" + version : "JDK_" + version;
+                }
+            }
+        }
+        return null;
+    }
+
+    @NotNull
+    private static Model readCompilerModel(@NotNull Document doc) throws IOException {
+        try {
+            StringWriter xml = new StringWriter();
+            TransformerFactory.newInstance().newTransformer().transform(new DOMSource(doc), new StreamResult(xml));
+            return new MavenXpp3Reader().read(new StringReader(xml.toString()));
+        } catch (TransformerException | org.codehaus.plexus.util.xml.pull.XmlPullParserException e) {
+            throw new IOException("Error reading Maven compiler model", e);
+        }
+    }
+
+    private static class CompilerModelFactory extends DefaultModelBuilderFactory {
+        private final ModelBuildingRequest request = new DefaultModelBuildingRequest();
+        private final ModelProblemCollector problems = problem -> log.warn("Maven compiler model: {}", problem.getMessage());
+
+        void injectProfiles(@NotNull Model model, @NotNull Path pom, @NotNull String packaging) {
+            Properties systemProperties = new Properties();
+            System.getenv().forEach((name, value) -> systemProperties.setProperty(
+                "env." + (File.separatorChar == '\\' ? name.toUpperCase(Locale.ENGLISH) : name), value
+            ));
+            systemProperties.putAll(System.getProperties());
+            var context = new DefaultProfileActivationContext()
+                .setProjectDirectory(pom.toAbsolutePath().getParent().toFile())
+                .setProjectProperties(model.getProperties())
+                .setUserProperties(Map.of("packaging", packaging))
+                .setSystemProperties(systemProperties);
+            for (var profile : newProfileSelector().getActiveProfiles(model.getProfiles(), context, problems)) {
+                newProfileInjector().injectProfile(model, profile, request, problems);
+            }
+        }
+
+        void inherit(@NotNull Model child, @NotNull Model parent) {
+            newInheritanceAssembler().assembleModelInheritance(child, parent, request, problems);
+        }
+
+        void injectManagement(@NotNull Model model) {
+            newPluginManagementInjector().injectManagement(model, request, problems);
+        }
+    }
+
+    private static boolean matchesDeclaredParent(@NotNull Element declared, @NotNull Element candidate) {
+        Element candidateParent = getDirectChild(candidate, PARENT_TAG);
+        for (String coordinate : List.of("groupId", "artifactId", "version")) {
+            String value = getTagValue(candidate, coordinate);
+            if (value == null && candidateParent != null && !"artifactId".equals(coordinate)) {
+                value = getTagValue(candidateParent, coordinate);
+            }
+            String expected = getTagValue(declared, coordinate);
+            if (!Objects.equals(expected, value)
+                && !("version".equals(coordinate) && matchesParentVersionRange(expected, value))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean matchesParentVersionRange(@Nullable String expected, @Nullable String actual) {
+        if (expected == null || actual == null) {
+            return false;
+        }
+        try {
+            var versions = new GenericVersionScheme();
+            VersionConstraint constraint = versions.parseVersionConstraint(expected);
+            return constraint.getRange() != null && constraint.containsVersion(versions.parseVersion(actual));
+        } catch (InvalidVersionSpecificationException e) {
+            return false;
+        }
+    }
+
+    @Nullable
+    private static String resolveCompilerProperty(
+        @Nullable String value,
+        @NotNull Map<String, String> properties,
+        @NotNull Set<String> visited
+    ) {
+        if (value == null) {
+            return null;
+        }
+        Matcher matcher = Pattern.compile("\\$\\{([^}]+)}").matcher(value);
+        StringBuilder resolved = new StringBuilder();
+        while (matcher.find()) {
+            String property = matcher.group(1);
+            if (!visited.add(property)) {
+                return null;
+            }
+            String replacement = resolveCompilerProperty(properties.get(property), properties, visited);
+            visited.remove(property);
+            if (replacement == null) {
+                return null;
+            }
+            matcher.appendReplacement(resolved, Matcher.quoteReplacement(replacement));
+        }
+        return matcher.appendTail(resolved).toString();
     }
 
     @NotNull
