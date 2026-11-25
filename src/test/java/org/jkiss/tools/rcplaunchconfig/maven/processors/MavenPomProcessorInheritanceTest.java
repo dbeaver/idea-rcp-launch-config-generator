@@ -87,7 +87,7 @@ class MavenPomProcessorInheritanceTest {
         Files.writeString(tempDir.resolve("pom.xml"), """
             <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
                 <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
-                    <inherited>false</inherited><configuration><release>17</release></configuration>
+                    <inherited>FALSE</inherited><configuration><release>17</release></configuration>
                 </plugin></plugins></build>
             </project>
             """);
@@ -97,7 +97,7 @@ class MavenPomProcessorInheritanceTest {
 
         childPom("child", """
             <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId><executions><execution>
-                <id>default-compile</id><inherited>false</inherited><configuration><source>21</source></configuration>
+                <id>default-compile</id><inherited>FALSE</inherited><configuration><source>21</source></configuration>
             </execution></executions></plugin></plugins></build>
             """);
         assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
@@ -162,13 +162,13 @@ class MavenPomProcessorInheritanceTest {
             <profiles><profile><properties><maven.compiler.source>21</maven.compiler.source></properties></profile></profiles>
             """);
         assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
-        for (String source : List.of("8", "1.8")) {
+        for (String source : List.of("8", "1.8", "9", "1.9")) {
             childPom("child", """
                 <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
                     <configuration><source>%s</source><target>17</target></configuration>
                 </plugin></plugins></build>
                 """.formatted(source));
-            assertEquals("JDK_1_8", MavenPomProcessor.getJavaLanguageLevel(child));
+            assertEquals(source.endsWith("8") ? "JDK_1_8" : "JDK_1_9", MavenPomProcessor.getJavaLanguageLevel(child));
         }
     }
 

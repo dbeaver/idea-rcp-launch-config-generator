@@ -218,7 +218,7 @@ public class MavenPomProcessor {
                 }
                 if (value.matches("[1-9][0-9]*")) {
                     int version = Integer.parseInt(value);
-                    return version <= 8 ? "JDK_1_" + version : "JDK_" + version;
+                    return version <= 9 ? "JDK_1_" + version : "JDK_" + version;
                 }
             }
         }
@@ -257,7 +257,7 @@ public class MavenPomProcessor {
                 || (group != null && !"org.apache.maven.plugins".equals(group))) {
                 continue;
             }
-            if (ancestor && "false".equals(getTagValue(plugin, "inherited"))) {
+            if (ancestor && !isInherited(plugin)) {
                 inheritanceBarriers.add(barrierKey);
                 return;
             }
@@ -268,7 +268,7 @@ public class MavenPomProcessor {
                     if (!"default-compile".equals(getTagValue(execution, "id"))) {
                         continue;
                     }
-                    if (ancestor && "false".equals(getTagValue(execution, "inherited"))) {
+                    if (ancestor && !isInherited(execution)) {
                         inheritanceBarriers.add(barrierKey + ".execution");
                         break;
                     }
@@ -276,6 +276,11 @@ public class MavenPomProcessor {
                 }
             }
         }
+    }
+
+    private static boolean isInherited(@NotNull Element element) {
+        String inherited = getTagValue(element, "inherited");
+        return inherited == null || Boolean.parseBoolean(inherited);
     }
 
     private static void collectCompilerConfiguration(@NotNull Element owner, @NotNull Map<String, String> options) {
