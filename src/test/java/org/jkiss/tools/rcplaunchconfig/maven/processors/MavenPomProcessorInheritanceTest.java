@@ -198,6 +198,31 @@ class MavenPomProcessorInheritanceTest {
     }
 
     @Test
+    void resolvesAlternateParentPomFilename() throws Exception {
+        Files.writeString(tempDir.resolve("parent.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <properties><maven.compiler.release>25</maven.compiler.release></properties>
+            </project>
+            """);
+        Path child = childPom("child", "");
+        Path pom = child.resolve("pom.xml");
+        Files.writeString(pom, Files.readString(pom).replace("../pom.xml", "../parent.xml"));
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void activatesCompilerProfileByEnvironment() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(System.getenv().keySet().stream().anyMatch("PATH"::equalsIgnoreCase));
+        Path child = childPom("child", """
+            <profiles><profile><id>environment</id>
+                <activation><property><name>env.PATH</name></property></activation>
+                <properties><maven.compiler.release>21</maven.compiler.release></properties>
+            </profile></profiles>
+            """);
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
     void normalizesLegacySourceAndIgnoresTargetAndInactiveProfiles() throws Exception {
         Path child = childPom("child", """
             <properties><maven.compiler.target>17</maven.compiler.target></properties>

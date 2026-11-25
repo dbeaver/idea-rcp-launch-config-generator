@@ -215,12 +215,16 @@ public class MavenPomProcessor {
                 if (parent == null || "".equals(getTagValue(parent, RELATIVE_PATH_TAG))) {
                     break;
                 }
-                File parentPom = getParentPomFile(doc, pom.toFile());
-                if (parentPom == null || !parentPom.isFile()
-                    || !matchesDeclaredParent(parent, parseDocument(parentPom.toPath()).getDocumentElement())) {
+                String relativePath = getTagValue(parent, RELATIVE_PATH_TAG);
+                Path parentPom = pom.toAbsolutePath().getParent().resolve(relativePath == null ? "../pom.xml" : relativePath);
+                if (Files.isDirectory(parentPom)) {
+                    parentPom = parentPom.resolve("pom.xml");
+                }
+                if (!Files.isRegularFile(parentPom)
+                    || !matchesDeclaredParent(parent, parseDocument(parentPom).getDocumentElement())) {
                     break;
                 }
-                pom = parentPom.toPath();
+                pom = parentPom;
             }
         } catch (ParserConfigurationException | SAXException e) {
             throw new IOException("Error reading compiler configuration from " + pom, e);
@@ -259,11 +263,16 @@ public class MavenPomProcessor {
             StringWriter xml = new StringWriter();
             TransformerFactory.newInstance().newTransformer().transform(new DOMSource(doc), new StreamResult(xml));
             Model model = new MavenXpp3Reader().read(new StringReader(xml.toString()));
+            Properties systemProperties = new Properties();
+            System.getenv().forEach((name, value) -> systemProperties.setProperty(
+                "env." + (File.separatorChar == '\\' ? name.toUpperCase(Locale.ENGLISH) : name), value
+            ));
+            systemProperties.putAll(System.getProperties());
             var context = new DefaultProfileActivationContext()
                 .setProjectDirectory(pom.toAbsolutePath().getParent().toFile())
                 .setProjectProperties(model.getProperties())
                 .setUserProperties(Map.of("packaging", packaging))
-                .setSystemProperties(System.getProperties());
+                .setSystemProperties(systemProperties);
             var activeProfiles = new ProfileSelectorFactory().newProfileSelector().getActiveProfiles(
                 model.getProfiles(), context, problem -> log.warn("Maven profile activation: {}", problem.getMessage())
             );
