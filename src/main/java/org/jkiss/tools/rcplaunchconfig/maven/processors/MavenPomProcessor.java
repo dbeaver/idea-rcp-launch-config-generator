@@ -254,6 +254,7 @@ public class MavenPomProcessor {
             var context = new DefaultProfileActivationContext()
                 .setProjectDirectory(pom.toAbsolutePath().getParent().toFile())
                 .setProjectProperties(model.getProperties())
+                .setUserProperties(Map.of("packaging", model.getPackaging()))
                 .setSystemProperties(System.getProperties());
             var activeProfiles = new ProfileSelectorFactory().newProfileSelector().getActiveProfiles(
                 model.getProfiles(), context, problem -> log.warn("Maven profile activation: {}", problem.getMessage())

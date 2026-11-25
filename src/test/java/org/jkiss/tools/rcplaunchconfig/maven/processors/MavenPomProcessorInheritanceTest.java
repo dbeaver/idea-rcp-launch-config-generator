@@ -176,6 +176,17 @@ class MavenPomProcessorInheritanceTest {
     }
 
     @Test
+    void activatesCompilerProfileByPackaging() throws Exception {
+        Path child = childPom("child", """
+            <profiles><profile><id>jar</id>
+                <activation><property><name>packaging</name><value>jar</value></property></activation>
+                <properties><maven.compiler.release>21</maven.compiler.release></properties>
+            </profile></profiles>
+            """);
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
     void normalizesLegacySourceAndIgnoresTargetAndInactiveProfiles() throws Exception {
         Path child = childPom("child", """
             <properties><maven.compiler.target>17</maven.compiler.target></properties>
