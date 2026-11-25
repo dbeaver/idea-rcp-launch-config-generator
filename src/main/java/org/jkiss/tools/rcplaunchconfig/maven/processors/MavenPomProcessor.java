@@ -16,6 +16,11 @@
  */
 package org.jkiss.tools.rcplaunchconfig.maven.processors;
 
+import org.apache.maven.model.Model;
+import org.apache.maven.model.building.DefaultModelBuilderFactory;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.apache.maven.model.profile.DefaultProfileActivationContext;
+import org.apache.maven.model.profile.ProfileSelector;
 import org.eclipse.aether.repository.NoLocalRepositoryManagerException;
 import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.DependencyResolutionException;
@@ -35,6 +40,8 @@ import org.xml.sax.SAXException;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -43,6 +50,10 @@ import java.util.concurrent.atomic.LongAdder;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 public class MavenPomProcessor {
     private static final Logger log = LoggerFactory.getLogger(MavenPomProcessor.class);
@@ -172,24 +183,28 @@ public class MavenPomProcessor {
             while (Files.isRegularFile(pom) && visited.add(pom.toRealPath())) {
                 Document doc = parseDocument(pom);
                 Element project = doc.getDocumentElement();
-                Element props = getDirectChild(project, "properties");
-                if (props != null) {
-                    NodeList children = props.getChildNodes();
-                    for (int i = 0; i < children.getLength(); i++) {
-                        Node child = children.item(i);
-                        if (child instanceof Element) {
-                            properties.putIfAbsent(child.getNodeName(), child.getTextContent().trim());
+                List<Element> configurations = getActiveCompilerConfigurations(doc, pom);
+                configurations.add(project);
+                for (Element configuration : configurations) {
+                    Element props = getDirectChild(configuration, "properties");
+                    if (props != null) {
+                        NodeList children = props.getChildNodes();
+                        for (int i = 0; i < children.getLength(); i++) {
+                            Node child = children.item(i);
+                            if (child instanceof Element) {
+                                properties.putIfAbsent(child.getNodeName(), child.getTextContent().trim());
+                            }
                         }
                     }
-                }
-                Element build = getDirectChild(project, "build");
-                if (build != null) {
-                    collectCompilerOptions(build, compiler, execution, visited.size() > 1, inheritanceBarriers, "compiler");
-                    Element management = getDirectChild(build, "pluginManagement");
-                    if (management != null) {
-                        collectCompilerOptions(
-                            management, managedCompiler, managedExecution, visited.size() > 1, inheritanceBarriers, "managedCompiler"
-                        );
+                    Element build = getDirectChild(configuration, "build");
+                    if (build != null) {
+                        collectCompilerOptions(build, compiler, execution, visited.size() > 1, inheritanceBarriers, "compiler");
+                        Element management = getDirectChild(build, "pluginManagement");
+                        if (management != null) {
+                            collectCompilerOptions(
+                                management, managedCompiler, managedExecution, visited.size() > 1, inheritanceBarriers, "managedCompiler"
+                            );
+                        }
                     }
                 }
                 Element parent = getDirectChild(project, PARENT_TAG);
@@ -223,6 +238,46 @@ public class MavenPomProcessor {
             }
         }
         return null;
+    }
+
+    @NotNull
+    private static List<Element> getActiveCompilerConfigurations(@NotNull Document doc, @NotNull Path pom) throws IOException {
+        Element profiles = getDirectChild(doc.getDocumentElement(), "profiles");
+        List<Element> configurations = new ArrayList<>();
+        if (profiles == null) {
+            return configurations;
+        }
+        try {
+            StringWriter xml = new StringWriter();
+            TransformerFactory.newInstance().newTransformer().transform(new DOMSource(doc), new StreamResult(xml));
+            Model model = new MavenXpp3Reader().read(new StringReader(xml.toString()));
+            var context = new DefaultProfileActivationContext()
+                .setProjectDirectory(pom.toAbsolutePath().getParent().toFile())
+                .setProjectProperties(model.getProperties())
+                .setSystemProperties(System.getProperties());
+            var activeProfiles = new ProfileSelectorFactory().newProfileSelector().getActiveProfiles(
+                model.getProfiles(), context, problem -> log.warn("Maven profile activation: {}", problem.getMessage())
+            );
+            List<Element> elements = getDirectChildren(profiles, "profile");
+            for (var profile : activeProfiles) {
+                for (Element element : elements) {
+                    if (profile.getId().equals(getTagValue(element, "id"))) {
+                        configurations.add(0, element);
+                    }
+                }
+            }
+            return configurations;
+        } catch (TransformerException | org.codehaus.plexus.util.xml.pull.XmlPullParserException e) {
+            throw new IOException("Error reading Maven profiles from " + pom, e);
+        }
+    }
+
+    private static class ProfileSelectorFactory extends DefaultModelBuilderFactory {
+        @NotNull
+        @Override
+        public ProfileSelector newProfileSelector() {
+            return super.newProfileSelector();
+        }
     }
 
     private static boolean matchesDeclaredParent(@NotNull Element declared, @NotNull Element candidate) {

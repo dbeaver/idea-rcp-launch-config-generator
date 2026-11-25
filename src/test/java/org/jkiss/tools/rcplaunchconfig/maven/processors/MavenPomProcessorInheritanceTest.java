@@ -156,6 +156,26 @@ class MavenPomProcessorInheritanceTest {
     }
 
     @Test
+    void appliesDefaultAndFileActivatedCompilerProfiles() throws Exception {
+        Path child = childPom("child", """
+            <properties><maven.compiler.source>17</maven.compiler.source></properties>
+            <profiles>
+                <profile><id>default</id><activation><activeByDefault>true</activeByDefault></activation>
+                    <properties><maven.compiler.source>25</maven.compiler.source></properties>
+                </profile>
+                <profile><id>file</id><activation><file><exists>compiler-profile</exists></file></activation>
+                    <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                        <configuration><release>21</release></configuration>
+                    </plugin></plugins></build>
+                </profile>
+            </profiles>
+            """);
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+        Files.createFile(child.resolve("compiler-profile"));
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
     void normalizesLegacySourceAndIgnoresTargetAndInactiveProfiles() throws Exception {
         Path child = childPom("child", """
             <properties><maven.compiler.target>17</maven.compiler.target></properties>
