@@ -105,6 +105,28 @@ class MavenPomProcessorInheritanceTest {
     }
 
     @Test
+    void nonInheritanceBlocksOlderAncestorConfiguration() throws Exception {
+        for (String configuration : List.of(
+            "<configuration><release>17</release></configuration>",
+            "<executions><execution><id>default-compile</id><configuration><release>17</release></configuration></execution></executions>"
+        )) {
+            Files.writeString(tempDir.resolve("pom.xml"), """
+                <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                    <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>%s</plugin></plugins></build>
+                </project>
+                """.formatted(configuration));
+            String barrier = configuration.startsWith("<executions>")
+                ? "<executions><execution><id>default-compile</id><inherited>false</inherited></execution></executions>"
+                : "<inherited>false</inherited>";
+            Path parent = childPom("parent", """
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>%s</plugin></plugins></build>
+                """.formatted(barrier));
+            assertEquals("JDK_17", MavenPomProcessor.getJavaLanguageLevel(parent));
+            assertNull(MavenPomProcessor.getJavaLanguageLevel(childPom("parent/child", "")));
+        }
+    }
+
+    @Test
     void defaultCompileExecutionOverridesTopLevelConfiguration() throws Exception {
         Files.writeString(tempDir.resolve("pom.xml"), """
             <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>

@@ -165,6 +165,7 @@ public class MavenPomProcessor {
         Map<String, String> managedCompiler = new LinkedHashMap<>();
         Map<String, String> execution = new LinkedHashMap<>();
         Map<String, String> managedExecution = new LinkedHashMap<>();
+        Set<String> inheritanceBarriers = new HashSet<>();
         Set<Path> visited = new HashSet<>();
         Path pom = path.resolve("pom.xml");
         try {
@@ -183,10 +184,12 @@ public class MavenPomProcessor {
                 }
                 Element build = getDirectChild(project, "build");
                 if (build != null) {
-                    collectCompilerOptions(build, compiler, execution, visited.size() > 1);
+                    collectCompilerOptions(build, compiler, execution, visited.size() > 1, inheritanceBarriers, "compiler");
                     Element management = getDirectChild(build, "pluginManagement");
                     if (management != null) {
-                        collectCompilerOptions(management, managedCompiler, managedExecution, visited.size() > 1);
+                        collectCompilerOptions(
+                            management, managedCompiler, managedExecution, visited.size() > 1, inheritanceBarriers, "managedCompiler"
+                        );
                     }
                 }
                 Element parent = getDirectChild(project, PARENT_TAG);
@@ -240,27 +243,36 @@ public class MavenPomProcessor {
         @NotNull Element build,
         @NotNull Map<String, String> options,
         @NotNull Map<String, String> executionOptions,
-        boolean ancestor
+        boolean ancestor,
+        @NotNull Set<String> inheritanceBarriers,
+        @NotNull String barrierKey
     ) {
         Element plugins = getDirectChild(build, "plugins");
-        if (plugins == null) {
+        if (plugins == null || inheritanceBarriers.contains(barrierKey)) {
             return;
         }
         for (Element plugin : getDirectChildren(plugins, "plugin")) {
             String group = getTagValue(plugin, "groupId");
             if (!"maven-compiler-plugin".equals(getTagValue(plugin, "artifactId"))
-                || (group != null && !"org.apache.maven.plugins".equals(group))
-                || (ancestor && "false".equals(getTagValue(plugin, "inherited")))) {
+                || (group != null && !"org.apache.maven.plugins".equals(group))) {
                 continue;
+            }
+            if (ancestor && "false".equals(getTagValue(plugin, "inherited"))) {
+                inheritanceBarriers.add(barrierKey);
+                return;
             }
             collectCompilerConfiguration(plugin, options);
             Element executions = getDirectChild(plugin, "executions");
-            if (executions != null) {
+            if (executions != null && !inheritanceBarriers.contains(barrierKey + ".execution")) {
                 for (Element execution : getDirectChildren(executions, "execution")) {
-                    if ("default-compile".equals(getTagValue(execution, "id"))
-                        && !(ancestor && "false".equals(getTagValue(execution, "inherited")))) {
-                        collectCompilerConfiguration(execution, executionOptions);
+                    if (!"default-compile".equals(getTagValue(execution, "id"))) {
+                        continue;
                     }
+                    if (ancestor && "false".equals(getTagValue(execution, "inherited"))) {
+                        inheritanceBarriers.add(barrierKey + ".execution");
+                        break;
+                    }
+                    collectCompilerConfiguration(execution, executionOptions);
                 }
             }
         }
