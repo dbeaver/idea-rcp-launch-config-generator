@@ -16,11 +16,16 @@
  */
 package org.jkiss.tools.rcplaunchconfig.maven.processors;
 
+import org.apache.maven.model.Build;
 import org.apache.maven.model.Model;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.building.DefaultModelBuildingRequest;
 import org.apache.maven.model.building.DefaultModelBuilderFactory;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblemCollector;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.apache.maven.model.profile.DefaultProfileActivationContext;
-import org.apache.maven.model.profile.ProfileSelector;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.eclipse.aether.repository.NoLocalRepositoryManagerException;
 import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.DependencyResolutionException;
@@ -171,12 +176,8 @@ public class MavenPomProcessor {
      */
     @Nullable
     public static String getJavaLanguageLevel(@NotNull Path path) throws IOException {
-        Map<String, String> properties = new LinkedHashMap<>();
-        Map<String, String> compiler = new LinkedHashMap<>();
-        Map<String, String> managedCompiler = new LinkedHashMap<>();
-        Map<String, String> execution = new LinkedHashMap<>();
-        Map<String, String> managedExecution = new LinkedHashMap<>();
-        Set<String> inheritanceBarriers = new HashSet<>();
+        List<Model> hierarchy = new ArrayList<>();
+        CompilerModelFactory factory = new CompilerModelFactory();
         Set<Path> visited = new HashSet<>();
         Path pom = path.resolve("pom.xml");
         String packaging = null;
@@ -187,30 +188,9 @@ public class MavenPomProcessor {
                 if (packaging == null) {
                     packaging = Objects.requireNonNullElse(getTagValue(project, "packaging"), "jar");
                 }
-                List<Element> configurations = getActiveCompilerConfigurations(doc, pom, packaging);
-                configurations.add(project);
-                for (Element configuration : configurations) {
-                    Element props = getDirectChild(configuration, "properties");
-                    if (props != null) {
-                        NodeList children = props.getChildNodes();
-                        for (int i = 0; i < children.getLength(); i++) {
-                            Node child = children.item(i);
-                            if (child instanceof Element) {
-                                properties.putIfAbsent(child.getNodeName(), child.getTextContent().trim());
-                            }
-                        }
-                    }
-                    Element build = getDirectChild(configuration, "build");
-                    if (build != null) {
-                        collectCompilerOptions(build, compiler, execution, visited.size() > 1, inheritanceBarriers, "compiler");
-                        Element management = getDirectChild(build, "pluginManagement");
-                        if (management != null) {
-                            collectCompilerOptions(
-                                management, managedCompiler, managedExecution, visited.size() > 1, inheritanceBarriers, "managedCompiler"
-                            );
-                        }
-                    }
-                }
+                Model model = readCompilerModel(doc);
+                factory.injectProfiles(model, pom, packaging);
+                hierarchy.add(model);
                 Element parent = getDirectChild(project, PARENT_TAG);
                 if (parent == null || "".equals(getTagValue(parent, RELATIVE_PATH_TAG))) {
                     break;
@@ -229,11 +209,38 @@ public class MavenPomProcessor {
         } catch (ParserConfigurationException | SAXException e) {
             throw new IOException("Error reading compiler configuration from " + pom, e);
         }
-        managedCompiler.forEach(compiler::putIfAbsent);
-        managedExecution.forEach(execution::putIfAbsent);
+        if (hierarchy.isEmpty()) {
+            return null;
+        }
+        Model effective = hierarchy.getLast();
+        for (int i = hierarchy.size() - 2; i >= 0; i--) {
+            Model child = hierarchy.get(i);
+            factory.inherit(child, effective);
+            effective = child;
+        }
+        if (effective.getBuild() == null) {
+            effective.setBuild(new Build());
+        }
+        Plugin compiler = effective.getBuild().getPluginsAsMap().get("org.apache.maven.plugins:maven-compiler-plugin");
+        if (compiler == null) {
+            compiler = new Plugin();
+            compiler.setArtifactId("maven-compiler-plugin");
+            effective.getBuild().addPlugin(compiler);
+        }
+        factory.injectManagement(effective);
+        Xpp3Dom configuration = (Xpp3Dom) compiler.getConfiguration();
+        for (var execution : compiler.getExecutions()) {
+            if ("default-compile".equals(execution.getId()) && execution.getConfiguration() != null) {
+                configuration = Xpp3Dom.mergeXpp3Dom(new Xpp3Dom((Xpp3Dom) execution.getConfiguration()), configuration);
+            }
+        }
+        Map<String, String> properties = new LinkedHashMap<>();
+        for (String name : effective.getProperties().stringPropertyNames()) {
+            properties.put(name, effective.getProperties().getProperty(name));
+        }
         for (String option : List.of("release", "source")) {
-            String value = execution.getOrDefault(option,
-                compiler.getOrDefault(option, properties.get("maven.compiler." + option)));
+            Xpp3Dom configured = configuration == null ? null : configuration.getChild(option);
+            String value = configured == null ? properties.get("maven.compiler." + option) : configured.getValue();
             value = resolveCompilerProperty(value, properties, new HashSet<>());
             if (value != null) {
                 if (value.startsWith("1.")) {
@@ -249,20 +256,21 @@ public class MavenPomProcessor {
     }
 
     @NotNull
-    private static List<Element> getActiveCompilerConfigurations(
-        @NotNull Document doc,
-        @NotNull Path pom,
-        @NotNull String packaging
-    ) throws IOException {
-        Element profiles = getDirectChild(doc.getDocumentElement(), "profiles");
-        List<Element> configurations = new ArrayList<>();
-        if (profiles == null) {
-            return configurations;
-        }
+    private static Model readCompilerModel(@NotNull Document doc) throws IOException {
         try {
             StringWriter xml = new StringWriter();
             TransformerFactory.newInstance().newTransformer().transform(new DOMSource(doc), new StreamResult(xml));
-            Model model = new MavenXpp3Reader().read(new StringReader(xml.toString()));
+            return new MavenXpp3Reader().read(new StringReader(xml.toString()));
+        } catch (TransformerException | org.codehaus.plexus.util.xml.pull.XmlPullParserException e) {
+            throw new IOException("Error reading Maven compiler model", e);
+        }
+    }
+
+    private static class CompilerModelFactory extends DefaultModelBuilderFactory {
+        private final ModelBuildingRequest request = new DefaultModelBuildingRequest();
+        private final ModelProblemCollector problems = problem -> log.warn("Maven compiler model: {}", problem.getMessage());
+
+        void injectProfiles(@NotNull Model model, @NotNull Path pom, @NotNull String packaging) {
             Properties systemProperties = new Properties();
             System.getenv().forEach((name, value) -> systemProperties.setProperty(
                 "env." + (File.separatorChar == '\\' ? name.toUpperCase(Locale.ENGLISH) : name), value
@@ -273,28 +281,17 @@ public class MavenPomProcessor {
                 .setProjectProperties(model.getProperties())
                 .setUserProperties(Map.of("packaging", packaging))
                 .setSystemProperties(systemProperties);
-            var activeProfiles = new ProfileSelectorFactory().newProfileSelector().getActiveProfiles(
-                model.getProfiles(), context, problem -> log.warn("Maven profile activation: {}", problem.getMessage())
-            );
-            List<Element> elements = getDirectChildren(profiles, "profile");
-            for (var profile : activeProfiles) {
-                for (Element element : elements) {
-                    if (profile.getId().equals(getTagValue(element, "id"))) {
-                        configurations.add(0, element);
-                    }
-                }
+            for (var profile : newProfileSelector().getActiveProfiles(model.getProfiles(), context, problems)) {
+                newProfileInjector().injectProfile(model, profile, request, problems);
             }
-            return configurations;
-        } catch (TransformerException | org.codehaus.plexus.util.xml.pull.XmlPullParserException e) {
-            throw new IOException("Error reading Maven profiles from " + pom, e);
         }
-    }
 
-    private static class ProfileSelectorFactory extends DefaultModelBuilderFactory {
-        @NotNull
-        @Override
-        public ProfileSelector newProfileSelector() {
-            return super.newProfileSelector();
+        void inherit(@NotNull Model child, @NotNull Model parent) {
+            newInheritanceAssembler().assembleModelInheritance(child, parent, request, problems);
+        }
+
+        void injectManagement(@NotNull Model model) {
+            newPluginManagementInjector().injectManagement(model, request, problems);
         }
     }
 
@@ -310,62 +307,6 @@ public class MavenPomProcessor {
             }
         }
         return true;
-    }
-
-    private static void collectCompilerOptions(
-        @NotNull Element build,
-        @NotNull Map<String, String> options,
-        @NotNull Map<String, String> executionOptions,
-        boolean ancestor,
-        @NotNull Set<String> inheritanceBarriers,
-        @NotNull String barrierKey
-    ) {
-        Element plugins = getDirectChild(build, "plugins");
-        if (plugins == null || inheritanceBarriers.contains(barrierKey)) {
-            return;
-        }
-        for (Element plugin : getDirectChildren(plugins, "plugin")) {
-            String group = getTagValue(plugin, "groupId");
-            if (!"maven-compiler-plugin".equals(getTagValue(plugin, "artifactId"))
-                || (group != null && !"org.apache.maven.plugins".equals(group))) {
-                continue;
-            }
-            if (ancestor && !isInherited(plugin)) {
-                inheritanceBarriers.add(barrierKey);
-                return;
-            }
-            collectCompilerConfiguration(plugin, options);
-            Element executions = getDirectChild(plugin, "executions");
-            if (executions != null && !inheritanceBarriers.contains(barrierKey + ".execution")) {
-                for (Element execution : getDirectChildren(executions, "execution")) {
-                    if (!"default-compile".equals(getTagValue(execution, "id"))) {
-                        continue;
-                    }
-                    if (ancestor && !isInherited(execution)) {
-                        inheritanceBarriers.add(barrierKey + ".execution");
-                        break;
-                    }
-                    collectCompilerConfiguration(execution, executionOptions);
-                }
-            }
-        }
-    }
-
-    private static boolean isInherited(@NotNull Element element) {
-        String inherited = getTagValue(element, "inherited");
-        return inherited == null || Boolean.parseBoolean(inherited);
-    }
-
-    private static void collectCompilerConfiguration(@NotNull Element owner, @NotNull Map<String, String> options) {
-        Element configuration = getDirectChild(owner, "configuration");
-        if (configuration != null) {
-            for (String option : List.of("release", "source")) {
-                String value = getTagValue(configuration, option);
-                if (value != null) {
-                    options.putIfAbsent(option, value);
-                }
-            }
-        }
     }
 
     @Nullable

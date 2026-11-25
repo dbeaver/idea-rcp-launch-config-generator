@@ -223,6 +223,41 @@ class MavenPomProcessorInheritanceTest {
     }
 
     @Test
+    void mergesProfilesBeforeApplyingNonInheritance() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <inherited>false</inherited>
+                </plugin></plugins></build>
+                <profiles><profile><id>default</id><activation><activeByDefault>true</activeByDefault></activation>
+                    <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                        <configuration><release>25</release></configuration>
+                    </plugin></plugins></build>
+                </profile></profiles>
+            </project>
+            """);
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(tempDir));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(childPom("child", "")));
+    }
+
+    @Test
+    void honorsCompilerConfigurationReplacement() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><release>17</release></configuration>
+                </plugin></plugins></build>
+            </project>
+            """);
+        Path child = childPom("child", """
+            <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                <configuration combine.self="override"><source>21</source></configuration>
+            </plugin></plugins></build>
+            """);
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
     void normalizesLegacySourceAndIgnoresTargetAndInactiveProfiles() throws Exception {
         Path child = childPom("child", """
             <properties><maven.compiler.target>17</maven.compiler.target></properties>
