@@ -36,7 +36,7 @@ class MavenPomProcessorInheritanceTest {
     @Test
     void inheritsCompilerPropertiesAndResolvesChildOverrides() throws Exception {
         Files.writeString(tempDir.resolve("pom.xml"), """
-            <project><properties>
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version><properties>
                 <java.version>25</java.version>
                 <maven.compiler.source>${java.version}</maven.compiler.source>
                 <maven.compiler.target>${java.version}</maven.compiler.target>
@@ -59,6 +59,7 @@ class MavenPomProcessorInheritanceTest {
         for (String container : List.of("%s", "<pluginManagement>%s</pluginManagement>")) {
             Files.writeString(tempDir.resolve("pom.xml"), """
                 <project>
+                    <groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
                     <properties><java.version>25</java.version><maven.compiler.source>17</maven.compiler.source></properties>
                     <build>%s</build>
                 </project>
@@ -79,6 +80,57 @@ class MavenPomProcessorInheritanceTest {
                 """);
             assertEquals("JDK_17", MavenPomProcessor.getJavaLanguageLevel(child));
         }
+    }
+
+    @Test
+    void skipsNonInheritedPluginAndExecutionConfiguration() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <inherited>false</inherited><configuration><release>17</release></configuration>
+                </plugin></plugins></build>
+            </project>
+            """);
+        Path child = childPom("child", "");
+        assertEquals("JDK_17", MavenPomProcessor.getJavaLanguageLevel(tempDir));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
+
+        childPom("child", """
+            <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId><executions><execution>
+                <id>default-compile</id><inherited>false</inherited><configuration><source>21</source></configuration>
+            </execution></executions></plugin></plugins></build>
+            """);
+        assertEquals("JDK_21", MavenPomProcessor.getJavaLanguageLevel(child));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(childPom("child/grandchild", "")));
+    }
+
+    @Test
+    void defaultCompileExecutionOverridesTopLevelConfiguration() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1</version>
+                <build><pluginManagement><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>
+                    <configuration><release>17</release></configuration>
+                    <executions><execution><id>default-compile</id>
+                        <configuration><release>${java.version}</release></configuration>
+                    </execution><execution><id>default-testCompile</id>
+                        <configuration><release>8</release></configuration>
+                    </execution></executions>
+                </plugin></plugins></pluginManagement></build>
+            </project>
+            """);
+        Path child = childPom("child", "<properties><java.version>25</java.version></properties>");
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void ignoresLocalPomWithDifferentParentCoordinates() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>aggregator</artifactId><version>1</version>
+                <properties><maven.compiler.source>17</maven.compiler.source></properties>
+            </project>
+            """);
+        Path child = childPom("child", "");
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
     }
 
     @Test
@@ -183,6 +235,7 @@ class MavenPomProcessorInheritanceTest {
             <project>
                 <parent><groupId>test.inheritance</groupId><artifactId>parent</artifactId>
                     <version>1</version><relativePath>../pom.xml</relativePath></parent>
+                <artifactId>parent</artifactId>
                 %s
             </project>
             """.formatted(content));

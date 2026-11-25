@@ -59,7 +59,7 @@ class IMLConfigurationProducerTest {
         Path service = createModule("services", "com.dbeaver.test.language", false);
         Path parentPom = service.getParent().resolve("pom.xml");
         Files.writeString(parentPom, """
-            <project><properties>
+            <project><groupId>com.dbeaver.test</groupId><artifactId>test-parent</artifactId><version>1.0.0</version><properties>
                 <java.version>25</java.version>
                 <maven.compiler.source>${java.version}</maven.compiler.source>
             </properties></project>

@@ -163,6 +163,8 @@ public class MavenPomProcessor {
         Map<String, String> properties = new LinkedHashMap<>();
         Map<String, String> compiler = new LinkedHashMap<>();
         Map<String, String> managedCompiler = new LinkedHashMap<>();
+        Map<String, String> execution = new LinkedHashMap<>();
+        Map<String, String> managedExecution = new LinkedHashMap<>();
         Set<Path> visited = new HashSet<>();
         Path pom = path.resolve("pom.xml");
         try {
@@ -181,10 +183,10 @@ public class MavenPomProcessor {
                 }
                 Element build = getDirectChild(project, "build");
                 if (build != null) {
-                    collectCompilerOptions(build, compiler);
+                    collectCompilerOptions(build, compiler, execution, visited.size() > 1);
                     Element management = getDirectChild(build, "pluginManagement");
                     if (management != null) {
-                        collectCompilerOptions(management, managedCompiler);
+                        collectCompilerOptions(management, managedCompiler, managedExecution, visited.size() > 1);
                     }
                 }
                 Element parent = getDirectChild(project, PARENT_TAG);
@@ -192,7 +194,8 @@ public class MavenPomProcessor {
                     break;
                 }
                 File parentPom = getParentPomFile(doc, pom.toFile());
-                if (parentPom == null) {
+                if (parentPom == null || !parentPom.isFile()
+                    || !matchesDeclaredParent(parent, parseDocument(parentPom.toPath()).getDocumentElement())) {
                     break;
                 }
                 pom = parentPom.toPath();
@@ -201,8 +204,10 @@ public class MavenPomProcessor {
             throw new IOException("Error reading compiler configuration from " + pom, e);
         }
         managedCompiler.forEach(compiler::putIfAbsent);
+        managedExecution.forEach(execution::putIfAbsent);
         for (String option : List.of("release", "source")) {
-            String value = compiler.getOrDefault(option, properties.get("maven.compiler." + option));
+            String value = execution.getOrDefault(option,
+                compiler.getOrDefault(option, properties.get("maven.compiler." + option)));
             value = resolveCompilerProperty(value, properties, new HashSet<>());
             if (value != null) {
                 if (value.startsWith("1.")) {
@@ -217,7 +222,26 @@ public class MavenPomProcessor {
         return null;
     }
 
-    private static void collectCompilerOptions(@NotNull Element build, @NotNull Map<String, String> options) {
+    private static boolean matchesDeclaredParent(@NotNull Element declared, @NotNull Element candidate) {
+        Element candidateParent = getDirectChild(candidate, PARENT_TAG);
+        for (String coordinate : List.of("groupId", "artifactId", "version")) {
+            String value = getTagValue(candidate, coordinate);
+            if (value == null && candidateParent != null && !"artifactId".equals(coordinate)) {
+                value = getTagValue(candidateParent, coordinate);
+            }
+            if (!Objects.equals(getTagValue(declared, coordinate), value)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void collectCompilerOptions(
+        @NotNull Element build,
+        @NotNull Map<String, String> options,
+        @NotNull Map<String, String> executionOptions,
+        boolean ancestor
+    ) {
         Element plugins = getDirectChild(build, "plugins");
         if (plugins == null) {
             return;
@@ -225,16 +249,30 @@ public class MavenPomProcessor {
         for (Element plugin : getDirectChildren(plugins, "plugin")) {
             String group = getTagValue(plugin, "groupId");
             if (!"maven-compiler-plugin".equals(getTagValue(plugin, "artifactId"))
-                || (group != null && !"org.apache.maven.plugins".equals(group))) {
+                || (group != null && !"org.apache.maven.plugins".equals(group))
+                || (ancestor && "false".equals(getTagValue(plugin, "inherited")))) {
                 continue;
             }
-            Element configuration = getDirectChild(plugin, "configuration");
-            if (configuration != null) {
-                for (String option : List.of("release", "source")) {
-                    String value = getTagValue(configuration, option);
-                    if (value != null) {
-                        options.putIfAbsent(option, value);
+            collectCompilerConfiguration(plugin, options);
+            Element executions = getDirectChild(plugin, "executions");
+            if (executions != null) {
+                for (Element execution : getDirectChildren(executions, "execution")) {
+                    if ("default-compile".equals(getTagValue(execution, "id"))
+                        && !(ancestor && "false".equals(getTagValue(execution, "inherited")))) {
+                        collectCompilerConfiguration(execution, executionOptions);
                     }
+                }
+            }
+        }
+    }
+
+    private static void collectCompilerConfiguration(@NotNull Element owner, @NotNull Map<String, String> options) {
+        Element configuration = getDirectChild(owner, "configuration");
+        if (configuration != null) {
+            for (String option : List.of("release", "source")) {
+                String value = getTagValue(configuration, option);
+                if (value != null) {
+                    options.putIfAbsent(option, value);
                 }
             }
         }
