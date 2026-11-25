@@ -29,6 +29,9 @@ import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.eclipse.aether.repository.NoLocalRepositoryManagerException;
 import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.DependencyResolutionException;
+import org.eclipse.aether.util.version.GenericVersionScheme;
+import org.eclipse.aether.version.InvalidVersionSpecificationException;
+import org.eclipse.aether.version.VersionConstraint;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.tools.rcplaunchconfig.maven.download.MavenArtifactDownloader;
@@ -52,6 +55,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -302,11 +307,26 @@ public class MavenPomProcessor {
             if (value == null && candidateParent != null && !"artifactId".equals(coordinate)) {
                 value = getTagValue(candidateParent, coordinate);
             }
-            if (!Objects.equals(getTagValue(declared, coordinate), value)) {
+            String expected = getTagValue(declared, coordinate);
+            if (!Objects.equals(expected, value)
+                && !("version".equals(coordinate) && matchesParentVersionRange(expected, value))) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean matchesParentVersionRange(@Nullable String expected, @Nullable String actual) {
+        if (expected == null || actual == null) {
+            return false;
+        }
+        try {
+            var versions = new GenericVersionScheme();
+            VersionConstraint constraint = versions.parseVersionConstraint(expected);
+            return constraint.getRange() != null && constraint.containsVersion(versions.parseVersion(actual));
+        } catch (InvalidVersionSpecificationException e) {
+            return false;
+        }
     }
 
     @Nullable
@@ -318,11 +338,21 @@ public class MavenPomProcessor {
         if (value == null) {
             return null;
         }
-        if (value.startsWith("${") && value.endsWith("}")) {
-            String property = value.substring(2, value.length() - 1);
-            return visited.add(property) ? resolveCompilerProperty(properties.get(property), properties, visited) : null;
+        Matcher matcher = Pattern.compile("\\$\\{([^}]+)}").matcher(value);
+        StringBuilder resolved = new StringBuilder();
+        while (matcher.find()) {
+            String property = matcher.group(1);
+            if (!visited.add(property)) {
+                return null;
+            }
+            String replacement = resolveCompilerProperty(properties.get(property), properties, visited);
+            visited.remove(property);
+            if (replacement == null) {
+                return null;
+            }
+            matcher.appendReplacement(resolved, Matcher.quoteReplacement(replacement));
         }
-        return value;
+        return matcher.appendTail(resolved).toString();
     }
 
     @NotNull

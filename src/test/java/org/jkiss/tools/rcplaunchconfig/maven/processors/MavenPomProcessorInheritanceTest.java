@@ -258,6 +258,33 @@ class MavenPomProcessorInheritanceTest {
     }
 
     @Test
+    void interpolatesPropertiesWithinCompilerValues() throws Exception {
+        Path child = childPom("child", """
+            <properties>
+                <java.major>8</java.major><java.source>1.${java.major}</java.source>
+                <maven.compiler.source>${java.source}</maven.compiler.source>
+            </properties>
+            """);
+        assertEquals("JDK_1_8", MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
+    void acceptsLocalParentVersionInDeclaredRange() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+            <project><groupId>test.inheritance</groupId><artifactId>parent</artifactId><version>1.5</version>
+                <properties><maven.compiler.release>25</maven.compiler.release></properties>
+            </project>
+            """);
+        Path child = childPom("child", "");
+        Path pom = child.resolve("pom.xml");
+        String xml = Files.readString(pom).replace("<version>1</version>", "<version>[1,2)</version>");
+        Files.writeString(pom, xml);
+        assertEquals("JDK_25", MavenPomProcessor.getJavaLanguageLevel(child));
+        Files.writeString(pom, xml.replace("[1,2)", "[2,3)"));
+        assertNull(MavenPomProcessor.getJavaLanguageLevel(child));
+    }
+
+    @Test
     void normalizesLegacySourceAndIgnoresTargetAndInactiveProfiles() throws Exception {
         Path child = childPom("child", """
             <properties><maven.compiler.target>17</maven.compiler.target></properties>
